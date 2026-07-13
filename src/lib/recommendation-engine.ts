@@ -491,29 +491,21 @@ export async function findCandidates(
         ? 1 - Math.min(Math.abs(toNum(nearest.headMwc) - headMwc) / Math.max(headSpan, 1), 1)
         : 1.0;
 
-    let rpmFit = 1.0;
-    if (band) {
-      const bandCenter = (band.rpmMin! + band.rpmMax!) / 2;
-      const bandHalfWidth = (band.rpmMax! - band.rpmMin!) / 2;
-      rpmFit = Math.max(0.0, 1 - Math.abs(rpmRequired - bandCenter) / Math.max(bandHalfWidth, 1));
-    } else {
-      // No severity-specific band applies — fall back to a continuous
-      // preference for lower RPM (less rotor/stator elastomer wear).
-      if (rpmRequired <= 200) {
-        rpmFit = 1.0;
-      } else if (rpmRequired <= 320) {
-        rpmFit = 1.0 - (0.15 * (rpmRequired - 200)) / (320 - 200);
-      } else if (rpmRequired <= 400) {
-        rpmFit = 0.85 - (0.25 * (rpmRequired - 320)) / (400 - 320);
-      } else {
-        rpmFit = Math.max(0.15, 0.6 - 0.45 * Math.min((rpmRequired - 400) / 400, 1));
-      }
-    }
-
-    let score = 20 + 20 * headFit + 25 * rpmFit + 15 * driveFit;
-    if (nearest.isTested) score += 10;
-    if (reasons.length === 0) score += 10;
-    score = Math.max(0.0, Math.min(100.0, score));
+    // Match score (0-100): a confidence measure, not a sum of bonuses. Start
+    // from a perfect fit and deduct only for things that genuinely make a pump
+    // a worse match — so a tested pump in the right head tier, running at a
+    // sensible speed, lands in the 90s and reads as a strong recommendation.
+    let score = 100;
+    if (!nearest.isTested) score -= 8; // calculated estimate vs real test data
+    score -= (1 - headFit) * 10; // nearest charted head point vs the duty head
+    score -= (1 - driveFit) * 8; // drive complexity: direct < V-belt < geared
+    // PCP pumps run best slow — a high required RPM (at VE_max) means more
+    // rotor/stator wear, so it's a weaker selection. This is also the primary
+    // ranking signal: the pump that meets the duty at the lowest sensible speed
+    // scores highest. (Deduct past a comfortable ~350 RPM ceiling.)
+    if (rpmRequired > 350) score -= Math.min(45, (rpmRequired - 350) / 18);
+    if (mechEffFraction <= 0) score -= 25; // no efficiency data at this head
+    score = Math.max(35, Math.min(100, score));
 
     candidates.push({
       model: modelName,
