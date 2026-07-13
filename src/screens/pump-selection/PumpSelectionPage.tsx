@@ -1,0 +1,165 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+import GeneralInformationStep from "../../components/pump-selection/GeneralInformationStep";
+import FluidPropertiesStep from "../../components/pump-selection/FluidPropertiesStep";
+import OperatingConditionsStep from "../../components/pump-selection/OperatingConditionsStep";
+import DriveDetailsStep from "../../components/pump-selection/DriveDetailsStep";
+import SealingDetailsStep from "../../components/pump-selection/SealingDetailsStep";
+import RecommendationStep from "../../components/pump-selection/RecommendationStep";
+import ProjectHeader from "../../components/projects/ProjectHeader";
+import { SELECTED_PROJECT_KEY } from "../projects/ProjectsPage";
+
+type SelectedProject = {
+  id: string;
+  name?: string;
+  customer?: string;
+  status?: string;
+};
+
+const PumpSelectionPage = () => {
+  // Replaces react-router's location.state.project — read the project stashed
+  // by ProjectsPage before navigating here.
+  const [project, setProject] = useState<SelectedProject | undefined>(undefined);
+
+  useEffect(() => {
+    const raw = sessionStorage.getItem(SELECTED_PROJECT_KEY);
+    if (raw) {
+      try {
+        setProject(JSON.parse(raw));
+      } catch {
+        setProject(undefined);
+      }
+    }
+  }, []);
+
+  const [step, setStep] = useState(1);
+
+  const [formData, setFormData] = useState({
+    projectName: "",
+    customerName: "",
+
+    // Step 1
+    capacity: "",
+    capacityUnit: "",
+    head: "",
+    headUnit: "",
+    media: "",
+    temperature: "",
+    sg: "", // Specific Gravity
+    ph: "",
+
+    // Step 2
+    viscosity: "",
+    viscosityUnit: "",
+    viscosityRange: "",
+    solidPercentage: "",
+    solidSize: "",
+
+    // Step 3
+    pumpType: "",
+    bearingHousing: "",
+    suctionHousing: "",
+    jointType: "",
+
+    // Step 4
+    driveSystem: "",
+    motorMake: "",
+    gearboxMake: "",
+    motorRPM: "",
+
+    // Step 5
+    sealingType: "",
+  });
+
+  const [selectedPump, setSelectedPump] = useState<number | null>(null);
+
+  const renderStep = () => {
+    switch (step) {
+      case 1:
+        return (
+          <GeneralInformationStep
+            onNext={() => setStep(2)}
+            formData={formData}
+            setFormData={setFormData}
+            onStepClick={setStep}
+          />
+        );
+
+      case 2:
+        return (
+          <FluidPropertiesStep
+            onPrevious={() => setStep(1)}
+            onNext={() => setStep(3)}
+            formData={formData}
+            setFormData={setFormData}
+            onStepClick={setStep}
+          />
+        );
+
+      case 3:
+        return (
+          <OperatingConditionsStep
+            onPrevious={() => setStep(2)}
+            onNext={() => setStep(4)}
+            formData={formData}
+            setFormData={setFormData}
+            onStepClick={setStep}
+          />
+        );
+
+      case 4:
+        return (
+          <DriveDetailsStep
+            onPrevious={() => setStep(3)}
+            onNext={() => setStep(5)}
+            formData={formData}
+            setFormData={setFormData}
+            onStepClick={setStep}
+          />
+        );
+
+      case 5:
+        return (
+          <SealingDetailsStep
+            onPrevious={() => setStep(4)}
+            onNext={() => setStep(6)}
+            formData={formData}
+            setFormData={setFormData}
+            onStepClick={setStep}
+          />
+        );
+
+      case 6:
+        return (
+          <RecommendationStep
+            onPrevious={() => setStep(5)}
+            formData={formData}
+            selectedPump={selectedPump}
+            setSelectedPump={setSelectedPump}
+            onStepClick={setStep}
+          />
+        );
+
+      default:
+        return (
+          <GeneralInformationStep
+            onNext={() => setStep(2)}
+            formData={formData}
+            setFormData={setFormData}
+            onStepClick={setStep}
+          />
+        );
+    }
+  };
+
+  return (
+    <>
+      <ProjectHeader project={project} />
+      {renderStep()}
+    </>
+  );
+};
+
+export default PumpSelectionPage;

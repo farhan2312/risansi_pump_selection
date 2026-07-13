@@ -1,0 +1,264 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.login-page {
+  display: flex;
+  width: 100%;
+  min-height: 100vh;
+  font-family: "IBM Plex Sans", "Segoe UI", Arial, sans-serif;
+}
+
+/* ================= LEFT PANEL ================= */
+
+.branding-panel {
+  flex: 1;
+  background: #0A1628;
+  color: #ffffff;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  padding: 70px;
+}
+
+.branding-content {
+  max-width: 500px;
+}
+
+.company-logo {
+  width: 300px;
+  height: auto;
+  margin-bottom: 40px;
+}
+
+.branding-content h1 {
+  font-size: 58px;
+  font-weight: 700;
+  line-height: 1.15;
+  margin-bottom: 28px;
+  color: #ffffff;
+}
+
+.branding-content p {
+  font-size: 20px;
+  line-height: 1.8;
+  color: #c9d4e3;
+  margin-bottom: 70px;
+}
+
+.branding-content span {
+  color: #9ca3af;
+  font-size: 20px;
+}
+
+/* ================= RIGHT PANEL ================= */
+
+.login-form-container {
+  flex: 1;
+  background: #eef3fa;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+
+  padding: 80px;
+}
+
+.login-form-container h2 {
+  font-size: 38px;
+  font-weight: 700;
+  color: #47425d;
+  margin-bottom: 8px;
+}
+
+.login-form-container p {
+  font-size: 18px;
+  color: #667085;
+  margin-bottom: 35px;
+}
+.login-form-container label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #47425d;
+  margin-bottom: 8px;
+}
+
+.password-field {
+  position: relative;
+}
+
+.password-field input {
+  padding-right: 52px;
+}
+
+.login-form-container .password-field .toggle-visibility {
+  position: absolute !important;
+  right: 10px !important;
+  top: 8px !important;
+  width: auto !important;
+  height: 40px !important;
+  border: none !important;
+  background: transparent !important;
+  color: #667085 !important;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0 6px !important;
+}
+
+.form-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.form-success {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #15803d;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 30px;
+  border-bottom: 1px solid #d4d8de;
+}
+
+.auth-tabs button {
+  width: auto;
+  height: auto;
+  background: transparent;
+  color: #667085;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 10px 4px;
+  margin-bottom: -1px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.auth-tabs button:hover {
+  background: transparent;
+  color: #1A5CB8;
+}
+
+.auth-tabs button.active {
+  color: #1A5CB8;
+  border-bottom-color: #1A5CB8;
+}
+
+.login-form-container button[type="submit"]:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.login-form-container input {
+  width: 100%;
+  height: 56px;
+
+  padding: 0 18px;
+
+  border: 1px solid #d4d8de;
+  border-radius: 8px;
+
+  background: #ffffff;
+  color: #1f2937;
+
+  font-size: 16px;
+
+  margin-bottom: 20px;
+
+  outline: none;
+
+  transition: all 0.25s ease;
+}
+
+.login-form-container input::placeholder {
+  color: #9ca3af;
+}
+
+.login-form-container input:focus {
+  border-color: #1A5CB8;
+  box-shadow: 0 0 0 3px rgba(26, 92, 184, 0.15);
+}
+
+.login-form-container button {
+  width: 100%;
+  height: 56px;
+
+  border: none;
+  border-radius: 8px;
+
+  background: #1A5CB8;
+  color: #ffffff;
+
+  font-size: 18px;
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition: background 0.25s ease;
+}
+
+.login-form-container button:hover {
+  background: #164d99;
+}
+
+/* Error Text */
+
+.error-text {
+  display: block;
+  color: #dc2626;
+  font-size: 14px;
+  margin-top: -12px;
+  margin-bottom: 15px;
+}
+
+/* ================= RESPONSIVE ================= */
+
+@media (max-width: 992px) {
+  .login-page {
+    flex-direction: column;
+  }
+
+  .branding-panel,
+  .login-form-container {
+    width: 100%;
+    padding: 50px;
+  }
+
+  .branding-content {
+    text-align: center;
+  }
+
+  .company-logo {
+    width: 240px;
+    margin: 0 auto 30px;
+  }
+
+  .branding-content h1 {
+    font-size: 42px;
+  }
+
+  .login-form-container h2 {
+    font-size: 32px;
+  }
+}

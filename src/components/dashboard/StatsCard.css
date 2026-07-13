@@ -1,0 +1,25 @@
+.stats-card{
+    background:var(--surface);
+    border-radius:12px;
+    padding:24px;
+    min-width:220px;
+    box-shadow:var(--shadow);
+    transition:.3s;
+}
+
+.stats-card:hover{
+    transform:translateY(-4px);
+    box-shadow:var(--shadow-lg);
+}
+
+.stats-title{
+    color:var(--text-muted);
+    font-size:15px;
+    margin-bottom:12px;
+}
+
+.stats-value{
+    color:var(--accent);
+    font-size:38px;
+    font-weight:700;
+}

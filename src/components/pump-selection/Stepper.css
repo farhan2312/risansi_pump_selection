@@ -1,0 +1,55 @@
+.stepper{
+    display:flex;
+    justify-content:space-between;
+    margin-bottom:40px;
+}
+
+.step{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    flex:1;
+    background:none;
+    border:none;
+    padding:4px;
+    font-family:inherit;
+    cursor:default;
+}
+
+.step.clickable{
+    cursor:pointer;
+}
+
+.step.clickable:hover .step-circle{
+    background:var(--accent-soft, var(--border));
+    color:var(--accent);
+}
+
+.step.clickable:hover span{
+    color:var(--accent);
+}
+
+.step-circle{
+    width:40px;
+    height:40px;
+    border-radius:50%;
+    background:var(--border);
+    color:var(--text);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-weight:bold;
+    margin-bottom:8px;
+    transition:background .15s, color .15s;
+}
+
+.step.active .step-circle{
+    background:var(--accent);
+    color:white;
+}
+
+.step span{
+    font-size:14px;
+    color:var(--text);
+    transition:color .15s;
+}
