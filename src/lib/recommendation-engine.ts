@@ -354,7 +354,9 @@ export async function findCandidates(
   solidPct: number,
   motorRpm: number | null = null,
 ): Promise<Candidate[]> {
-  const [vf] = await viscosityCorrectionFactor(db, viscosityCp);
+  // NOTE: the PCP selection sheet (NEW PCP SLECTION, V7) applies NO viscosity
+  // correction — the VF table is used only on the ROTA sheet, which is out of
+  // scope here. So VE is used raw, exactly as the sheet does.
   const band = await rpmBandFor(viscosityCp, solidPct, db);
 
   const curveRows = await db
@@ -406,15 +408,17 @@ export async function findCandidates(
     }
 
     const qTheoretical = toNum(pm.qTheoretical);
-    const veAvg = (toNum(nearest.veMin) + toNum(nearest.veMax)) / 2 / 100; // pct -> fraction
-    // VF scales the base volumetric efficiency for the requested viscosity.
-    // Clamped below 1.0 since >100% volumetric efficiency isn't physical.
-    const veCorrected = Math.min(veAvg * vf, 0.98);
-    if (veCorrected <= 0) continue;
+    // Per the "NEW PCP SLECTION" sheet (V7), RPM is reported at VE(max) —
+    // column N, "REQUIRED RPM AT MAX VE" = 100 * capacity / (QTH * VE_max),
+    // the best-case (lowest) speed. VE(max) is a percentage in the master
+    // data, so /100. No averaging and no viscosity factor (VF is ROTA-only),
+    // and no clamp — some models legitimately chart VE(max) above 100%.
+    const veMaxFraction = toNum(nearest.veMax) / 100;
+    if (veMaxFraction <= 0) continue;
 
-    // RPM = 100 x Capacity / (QTH x VE). QTH is the model's theoretical flow at
-    // a 100 RPM reference speed, NOT a per-revolution displacement.
-    const rpmRequired = (100 * capacityM3hr) / (qTheoretical * veCorrected);
+    // RPM = 100 x Capacity / (QTH x VE_max). QTH is the model's theoretical flow
+    // at a 100 RPM reference speed, NOT a per-revolution displacement.
+    const rpmRequired = (100 * capacityM3hr) / (qTheoretical * veMaxFraction);
 
     // Step-3/4: wide sanity ceiling for physically-impossible values only.
     if (rpmRequired > 5000 || rpmRequired < 20) continue;
