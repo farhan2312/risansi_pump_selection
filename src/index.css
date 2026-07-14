@@ -1,10 +1,12 @@
 :root {
-  --sans: 'IBM Plex Sans', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: 'IBM Plex Sans', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+  /* --font-plex-sans / --font-plex-mono are injected by next/font (see app/layout.tsx) */
+  --sans: var(--font-plex-sans), 'IBM Plex Sans', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --heading: var(--font-plex-sans), 'IBM Plex Sans', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --mono: var(--font-plex-mono), 'IBM Plex Mono', ui-monospace, Consolas, monospace;
 
-  font: 16px/145% var(--sans);
-  letter-spacing: 0.18px;
+  /* 13px base matches sales.risansi.com's compact scale */
+  font: 13px/1.5 var(--sans);
+  letter-spacing: normal;
   color: var(--text);
   background: var(--bg-app);
   font-synthesis: none;
