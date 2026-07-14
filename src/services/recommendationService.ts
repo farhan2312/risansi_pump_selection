@@ -19,6 +19,21 @@ export const getRecommendations = async (
   return data;
 };
 
+/** Live wizard preview — same engine, but the server does NOT persist a
+ * selection/recommendation row (?preview=1). Used by the panel that refreshes
+ * as the user fills in each step. */
+export const previewRecommendations = async (
+  formData: PumpSelectionFormData,
+  signal?: AbortSignal
+): Promise<RecommendationsResponse> => {
+  const { data } = await apiClient.post<RecommendationsResponse>(
+    "/recommendations?preview=1",
+    formData,
+    { signal }
+  );
+  return data;
+};
+
 export type ReportField = {
   label: string;
   value: string | number | null;

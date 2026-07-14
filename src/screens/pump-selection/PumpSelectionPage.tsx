@@ -9,6 +9,7 @@ import DriveDetailsStep from "../../components/pump-selection/DriveDetailsStep";
 import SealingDetailsStep from "../../components/pump-selection/SealingDetailsStep";
 import RecommendationStep from "../../components/pump-selection/RecommendationStep";
 import ProjectHeader from "../../components/projects/ProjectHeader";
+import LivePumpRecommendation from "../../components/pump-selection/LivePumpRecommendation";
 import { SELECTED_PROJECT_KEY } from "../projects/ProjectsPage";
 
 type SelectedProject = {
@@ -157,6 +158,9 @@ const PumpSelectionPage = () => {
   return (
     <>
       <ProjectHeader project={project} />
+      {/* Live recommendation that refines as the user fills each step. Hidden on
+          step 6, which already shows the full ranked list. */}
+      {step < 6 && <LivePumpRecommendation formData={formData} />}
       {renderStep()}
     </>
   );
