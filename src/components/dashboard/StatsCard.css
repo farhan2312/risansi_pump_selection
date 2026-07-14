@@ -1,25 +1,30 @@
-.stats-card{
-    background:var(--surface);
-    border-radius:12px;
-    padding:24px;
-    min-width:220px;
-    box-shadow:var(--shadow);
-    transition:.3s;
+/* StatCard — Risansi guide §7.3: flat panel, mono metric, uppercase label. */
+.stats-card {
+  background: var(--bg-paper, #fff);
+  border: 1px solid var(--line, rgba(10, 22, 40, 0.08));
+  border-left: 3px solid var(--title, #0a3d8f);
+  border-radius: var(--radius, 6px);
+  padding: 14px 16px;
+  min-width: 180px;
+  box-shadow: none;
+  transition: border-color 0.12s;
 }
 
-.stats-card:hover{
-    transform:translateY(-4px);
-    box-shadow:var(--shadow-lg);
+.stats-title {
+  color: var(--fg-3, #6b7f96);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 4px;
 }
 
-.stats-title{
-    color:var(--text-muted);
-    font-size:15px;
-    margin-bottom:12px;
-}
-
-.stats-value{
-    color:var(--accent);
-    font-size:38px;
-    font-weight:700;
+.stats-value {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg, #0d1b2e);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
 }

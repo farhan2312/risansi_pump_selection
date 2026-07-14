@@ -1,62 +1,88 @@
-.sidebar{
-    width:240px;
-    min-height:100vh;
-    background:#0A1628;
-    color:#B8C9E8;
-    padding:30px 20px;
-    display:flex;
-    flex-direction:column;
-    flex-shrink:0;
-    border-right:1px solid rgba(255,255,255,0.06);
+/* App shell sidebar — Risansi design guide §7.7 (dark navy in both themes). */
+.sidebar {
+  width: 240px;
+  min-height: 100vh;
+  background: var(--sidebar, #0a1628);
+  color: var(--sidebar-foreground, #b8c9e8);
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  overflow-y: auto;
 }
 
-.logo{
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    margin-bottom:40px;
-    padding:10px 0;
+/* White logo chip */
+.logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 4px 4px 8px;
 }
 
-.sidebar-logo{
-    width:180px;
-    height:auto;
-    object-fit:contain;
+.sidebar-logo {
+  width: 150px;
+  height: auto;
+  object-fit: contain;
 }
 
-.sidebar nav{
-    display:flex;
-    flex-direction:column;
-    gap:12px;
+.sidebar nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.sidebar nav a{
-    position:relative;
-    color:#B8C9E8;
-    text-decoration:none;
-    padding:14px 16px;
-    border-radius:6px;
-    transition:background .15s, color .15s;
-    font-weight:500;
+/* Cyan uppercase group eyebrow */
+.sidebar-group-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--sidebar-accent, #00b4d8);
+  margin: 20px 0 6px 8px;
 }
 
-.sidebar nav a:hover{
-    background:rgba(255,255,255,0.08);
-    color:#ffffff;
+.sidebar nav a {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--sidebar-foreground, #b8c9e8);
+  text-decoration: none;
+  padding: 7px 10px;
+  border-radius: 5px;
+  transition: background 0.12s, color 0.12s;
+  font-size: 13.5px;
+  font-weight: 500;
 }
 
-.active-link{
-    background:#1A5CB8;
-    color:#ffffff !important;
+.sidebar .nav-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
 }
 
-.active-link::before{
-    content:"";
-    position:absolute;
-    left:-8px;
-    top:6px;
-    bottom:6px;
-    width:3px;
-    border-radius:2px;
-    background:#00B4D8;
+.sidebar nav a:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.active-link {
+  background: var(--accent, #1a5cb8);
+  color: #ffffff !important;
+}
+
+/* Cyan accent bar on the active row */
+.active-link::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--sidebar-accent, #00b4d8);
 }

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
+import { IBM_Plex_Sans, IBM_Plex_Mono, Instrument_Serif } from "next/font/google";
 
 import "../styles/theme.css";
 import "../index.css";
@@ -21,6 +21,14 @@ const plexMono = IBM_Plex_Mono({
   display: "swap",
 });
 
+// Instrument Serif — sparse display accent per the Risansi guide.
+const instrumentSerif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-plex-serif",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "Pump Selection & Testing Portal",
   description:
@@ -33,7 +41,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${plexSans.variable} ${plexMono.variable}`}>
+    <html
+      lang="en"
+      className={`${plexSans.variable} ${plexMono.variable} ${instrumentSerif.variable}`}
+    >
       <body>
         <ThemeProvider>{children}</ThemeProvider>
       </body>
