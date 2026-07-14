@@ -1,37 +1,21 @@
-.welcome-card{
-    background:var(--surface);
-    border-radius:14px;
-    padding:30px;
-    margin-bottom:25px;
-    box-shadow:var(--shadow);
+/* Page header greeting — compact, on the plain background (no heavy box). */
+.welcome-card {
+  margin: 0 0 4px;
 }
 
-.welcome-card h1{
-    margin:0;
-    color:var(--text-h);
-    font-size:34px;
-    line-height:1.2;
+.welcome-card h1 {
+  margin: 0;
+  color: var(--fg);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
 }
 
-.current-date{
-    margin-top:20px;
-    margin-bottom:24px;
-    display:block;
-    color:var(--text-muted);
-    font-size:15px;
-    font-weight:500;
-}
-
-.subtitle{
-    color:var(--accent);
-    font-size:18px;
-    font-weight:600;
-    margin-bottom:14px;
-}
-
-.welcome-description{
-    color:var(--text-muted);
-    line-height:1.8;
-    font-size:18px;
-    max-width:700px;
+.current-date {
+  margin-top: 4px;
+  display: block;
+  color: var(--fg-3);
+  font-size: 13px;
+  font-weight: 400;
 }
