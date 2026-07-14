@@ -50,9 +50,30 @@ export async function POST(req: Request) {
   const headMwc = toMwc(headRaw, headUnit, sg);
   const viscosityCp = toCp(viscosityRaw, viscosityUnit, sg);
 
+  // Optional manual RPM-band filter from General Information (spec Step-3:
+  // "final RPM selection is manual on the basis of RPM range, then scan the
+  // model master"). Bands classify the required RPM at VE_max.
+  const rpmBand = (body.rpmRange as string) || "";
+  const inBand = (rpm: number): boolean => {
+    switch (rpmBand) {
+      case "low":
+        return rpm < 200;
+      case "medium":
+        return rpm >= 200 && rpm <= 320;
+      case "high":
+        return rpm > 320 && rpm <= 400;
+      case "vhigh":
+        return rpm > 400;
+      default:
+        return true;
+    }
+  };
+
   const candidates = (
     await findCandidates(db, capacityM3hr, headMwc, viscosityCp, solidPct, motorRpm)
-  ).slice(0, 5);
+  )
+    .filter((c) => inBand(c.rpmRequired))
+    .slice(0, 5);
 
   const moc = await resolveMoc(db, media, temperature, solidPct);
   const mocStr =

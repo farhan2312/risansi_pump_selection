@@ -50,6 +50,7 @@ const PumpSelectionPage = () => {
     temperature: "",
     sg: "", // Specific Gravity
     ph: "",
+    rpmRange: "", // manual RPM band filter (low/medium/high/vhigh)
 
     // Step 2
     viscosity: "",

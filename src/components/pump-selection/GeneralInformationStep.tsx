@@ -1,10 +1,13 @@
 import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
+import { toM3PerHr, toMwc, fmt } from "../../utils/units";
 
 type Props = {
-  onNext: () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   formData: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setFormData: any;
+  onNext: () => void;
   onStepClick?: (step: number) => void;
 };
 
@@ -14,6 +17,20 @@ const GeneralInformationStep = ({
   setFormData,
   onStepClick,
 }: Props) => {
+  const sg = parseFloat(formData.sg) || 1;
+
+  const capNum = parseFloat(formData.capacity);
+  const capConv =
+    formData.capacityUnit && formData.capacityUnit !== "M3/hr" && !isNaN(capNum)
+      ? toM3PerHr(capNum, formData.capacityUnit, sg)
+      : null;
+
+  const headNum = parseFloat(formData.head);
+  const headConv =
+    formData.headUnit && formData.headUnit !== "MWC" && !isNaN(headNum)
+      ? toMwc(headNum, formData.headUnit, sg)
+      : null;
+
   return (
     <div className="step-container">
       <Stepper currentStep={1} onStepClick={onStepClick} />
@@ -21,12 +38,9 @@ const GeneralInformationStep = ({
       <div className="step-card">
         <h2>General Information</h2>
 
-        <p>
-          Enter the basic operating parameters required for pump selection.
-        </p>
+        <p>Enter the basic operating parameters required for pump selection.</p>
 
         <div className="form-grid">
-
           <div className="form-group">
             <label>Capacity</label>
             <input
@@ -34,12 +48,17 @@ const GeneralInformationStep = ({
               placeholder="Enter Capacity"
               value={formData.capacity}
               onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  capacity: e.target.value,
-                })
+                setFormData({ ...formData, capacity: e.target.value })
               }
             />
+            {capConv !== null && (
+              <span className="conv-hint">
+                = <b className="mono">{fmt(capConv)}</b> m³/hr
+                {formData.capacityUnit === "TPH" && !formData.sg && (
+                  <em> (using SG 1.0 — set Specific Gravity)</em>
+                )}
+              </span>
+            )}
           </div>
 
           <div className="form-group">
@@ -47,10 +66,7 @@ const GeneralInformationStep = ({
             <select
               value={formData.capacityUnit}
               onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  capacityUnit: e.target.value,
-                })
+                setFormData({ ...formData, capacityUnit: e.target.value })
               }
             >
               <option value="">Select</option>
@@ -69,12 +85,17 @@ const GeneralInformationStep = ({
               placeholder="Enter Head"
               value={formData.head}
               onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  head: e.target.value,
-                })
+                setFormData({ ...formData, head: e.target.value })
               }
             />
+            {headConv !== null && (
+              <span className="conv-hint">
+                = <b className="mono">{fmt(headConv)}</b> MWC
+                {formData.headUnit === "MLC" && !formData.sg && (
+                  <em> (using SG 1.0 — set Specific Gravity)</em>
+                )}
+              </span>
+            )}
           </div>
 
           <div className="form-group">
@@ -82,10 +103,7 @@ const GeneralInformationStep = ({
             <select
               value={formData.headUnit}
               onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  headUnit: e.target.value,
-                })
+                setFormData({ ...formData, headUnit: e.target.value })
               }
             >
               <option value="">Select</option>
@@ -103,13 +121,24 @@ const GeneralInformationStep = ({
               step="0.01"
               placeholder="e.g. 1.0 water, 1.4 molasses"
               value={formData.sg}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  sg: e.target.value,
-                })
-              }
+              onChange={(e) => setFormData({ ...formData, sg: e.target.value })}
             />
+          </div>
+
+          <div className="form-group">
+            <label>RPM Range</label>
+            <select
+              value={formData.rpmRange ?? ""}
+              onChange={(e) =>
+                setFormData({ ...formData, rpmRange: e.target.value })
+              }
+            >
+              <option value="">Any RPM range</option>
+              <option value="low">Low ( &lt; 200 )</option>
+              <option value="medium">Medium ( 200 – 320 )</option>
+              <option value="high">High ( 320 – 400 )</option>
+              <option value="vhigh">Very High ( &gt; 400 )</option>
+            </select>
           </div>
 
           <div className="form-group full-width">
@@ -119,20 +148,14 @@ const GeneralInformationStep = ({
               placeholder="Molasses, Syrup, Sludge, Chemical..."
               value={formData.media}
               onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  media: e.target.value,
-                })
+                setFormData({ ...formData, media: e.target.value })
               }
             />
           </div>
-
         </div>
 
         <div className="step-actions">
-          <button onClick={onNext}>
-            Next
-          </button>
+          <button onClick={onNext}>Next</button>
         </div>
       </div>
     </div>

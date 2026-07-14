@@ -67,6 +67,7 @@ export interface PumpSelectionFormData {
   viscosity: string;
   viscosityUnit: string;
   viscosityRange: string;
+  rpmRange?: string; // manual RPM band filter: low/medium/high/vhigh
   solidPercentage: string;
   solidSize: string;
   pumpType: string;

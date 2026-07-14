@@ -57,6 +57,21 @@
     grid-column:1 / -1;
 }
 
+/* Inline unit-conversion hint under Capacity / Head (→ m³/hr / MWC). */
+.conv-hint{
+    margin-top:6px;
+    font-size:12px;
+    color:var(--fg-3, var(--text-muted));
+}
+.conv-hint b{
+    color:var(--fg, var(--text-h));
+    font-weight:600;
+}
+.conv-hint em{
+    font-style:normal;
+    color:var(--warn, #d97706);
+}
+
 .step-actions{
     display:flex;
     justify-content:flex-end;
