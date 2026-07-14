@@ -96,6 +96,22 @@ const GeneralInformationStep = ({
             </select>
           </div>
 
+          <div className="form-group">
+            <label>Specific Gravity</label>
+            <input
+              type="number"
+              step="0.01"
+              placeholder="e.g. 1.0 water, 1.4 molasses"
+              value={formData.sg}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  sg: e.target.value,
+                })
+              }
+            />
+          </div>
+
           <div className="form-group full-width">
             <label>Media / Application</label>
             <input

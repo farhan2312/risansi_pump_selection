@@ -136,22 +136,6 @@ const FluidPropertiesStep = ({
             />
           </div>
 
-          <div className="form-group">
-            <label>Specific Gravity</label>
-            <input
-              type="number"
-              step="0.01"
-              placeholder="Enter Specific Gravity"
-              value={formData.sg}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  sg: e.target.value,
-                })
-              }
-            />
-          </div>
-
         </div>
 
         <div className="step-actions">
