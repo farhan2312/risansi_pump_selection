@@ -44,7 +44,7 @@ const RecommendationTable = ({
             </td>
 
             <td>{pump.model}</td>
-            <td>{pump.rpm}</td>
+            <td>{pump.rpmRange ?? pump.rpm}</td>
             <td>{pump.flow}</td>
             <td>{pump.head}</td>
             <td>{pump.score}</td>

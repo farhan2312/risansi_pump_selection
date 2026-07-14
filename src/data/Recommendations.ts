@@ -86,6 +86,8 @@ export interface PumpRecommendation {
   recommendationId?: string;
   model: string;
   rpm: string;
+  /** "2 RPMs as per VE" — VE_max..VE_min, e.g. "249–302". Falls back to rpm. */
+  rpmRange?: string;
   flow: string;
   head: string;
   bearingHousing: string;

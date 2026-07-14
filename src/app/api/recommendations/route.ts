@@ -120,6 +120,11 @@ export async function POST(req: Request) {
     const c = candidates[i];
     const drive = resolveDrive(c.rpmRequired, motorRpm);
 
+    // "2 output RPMs as per VE": VE_max speed (low) .. VE_min speed (high).
+    const rpmLow = Math.round(c.rpmRequired);
+    const rpmHigh = Math.round(c.rpmMinVe);
+    const rpmRange = rpmHigh > rpmLow ? `${rpmLow}–${rpmHigh}` : `${rpmLow}`;
+
     const base = {
       model: c.model,
       rpm: c.rpmRequired.toFixed(0),
@@ -154,6 +159,7 @@ export async function POST(req: Request) {
       id: i,
       recommendationId,
       ...base,
+      rpmRange,
       dataSource: {
         performanceCurve: c.isTested ? "tested" : "calculated",
         kw: c.kwSource,

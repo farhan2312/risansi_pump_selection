@@ -336,6 +336,9 @@ export interface Candidate {
   isTested: boolean;
   qTheoretical: number;
   rpmRequired: number;
+  /** RPM at VE_min (higher speed); pairs with rpmRequired (VE_max) as the
+   * spec's "2 output RPMs". */
+  rpmMinVe: number;
   bkw: number | null;
   installedKw: number | null;
   kwSource: string | null;
@@ -390,9 +393,10 @@ export async function findCandidates(
     }
 
     // Stage-tier constraint: PCP models come in non-overlapping head bands by
-    // stage count — single-stage (head_max=60), 2-stage (head_max=120),
-    // 4-stage (head_max=240). A single-stage model can't be recommended for a
-    // 90 MWC duty just because 90 is within some loose margin of 60.
+    // stage count. Per the backend spec (Step-4): <60 MWC = single (1),
+    // 60-120 = 2-stage, 120-240 = 4-stage, 240-480 = 8-stage. A single-stage
+    // model can't be recommended for a 90 MWC duty just because 90 is within
+    // some loose margin of 60.
     if (pm.headMax !== null) {
       const headMax = toNum(pm.headMax);
       let tierLo: number;
@@ -401,8 +405,10 @@ export async function findCandidates(
         [tierLo, tierHi] = [0.0, 60.0];
       } else if (headMax <= 120) {
         [tierLo, tierHi] = [60.0, 120.0];
-      } else {
+      } else if (headMax <= 240) {
         [tierLo, tierHi] = [120.0, 240.0];
+      } else {
+        [tierLo, tierHi] = [240.0, 480.0];
       }
       if (!(tierLo < headMwc && headMwc <= tierHi)) continue;
     }
@@ -419,6 +425,15 @@ export async function findCandidates(
     // RPM = 100 x Capacity / (QTH x VE_max). QTH is the model's theoretical flow
     // at a 100 RPM reference speed, NOT a per-revolution displacement.
     const rpmRequired = (100 * capacityM3hr) / (qTheoretical * veMaxFraction);
+
+    // Backend spec Step-3 asks for "2 output RPMs as per VE": the VE_max speed
+    // above (best case, lowest — what we rank on) and the VE_min speed (lower
+    // efficiency ⇒ higher speed). Reported together as a range.
+    const veMinFraction = toNum(nearest.veMin) / 100;
+    const rpmAtMinVe =
+      veMinFraction > 0
+        ? (100 * capacityM3hr) / (qTheoretical * veMinFraction)
+        : rpmRequired;
 
     // Step-3/4: wide sanity ceiling for physically-impossible values only.
     if (rpmRequired > 5000 || rpmRequired < 20) continue;
@@ -516,6 +531,7 @@ export async function findCandidates(
       isTested: Boolean(nearest.isTested),
       qTheoretical,
       rpmRequired,
+      rpmMinVe: rpmAtMinVe,
       bkw,
       installedKw,
       kwSource,

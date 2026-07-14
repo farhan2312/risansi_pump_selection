@@ -21,7 +21,7 @@ const PumpDetailsCard = ({ pump }: Props) => {
 
         <div>
           <span>Pump RPM</span>
-          <strong>{pump.rpm}</strong>
+          <strong>{pump.rpmRange ?? pump.rpm}</strong>
         </div>
 
         <div>

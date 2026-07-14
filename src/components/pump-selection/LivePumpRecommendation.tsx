@@ -108,7 +108,7 @@ const LivePumpRecommendation = ({ formData }: Props) => {
             <div className="live-rec-best-meta">
               <div>
                 <span>RPM</span>
-                <b className="mono">{best.rpm}</b>
+                <b className="mono">{best.rpmRange ?? best.rpm}</b>
               </div>
               <div>
                 <span>Motor</span>
@@ -126,7 +126,7 @@ const LivePumpRecommendation = ({ formData }: Props) => {
               {top.slice(1).map((r) => (
                 <li key={r.id}>
                   <span className="live-rec-list-model">{r.model}</span>
-                  <span className="mono live-rec-list-rpm">{r.rpm} rpm</span>
+                  <span className="mono live-rec-list-rpm">{r.rpmRange ?? r.rpm} rpm</span>
                   <span className="mono live-rec-list-score">{r.score}%</span>
                 </li>
               ))}
