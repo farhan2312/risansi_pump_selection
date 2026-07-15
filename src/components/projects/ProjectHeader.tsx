@@ -9,26 +9,15 @@ type Props = {
   };
 };
 
+// Minimal — just the project id, nothing else. Renders nothing when there's
+// no project in context (e.g. starting a selection outside a project).
 const ProjectHeader = ({ project }: Props) => {
+  if (!project?.id) return null;
+
   return (
-    <div className="project-header">
-      <div>
-        <h2>{project?.name || "New Pump Selection"}</h2>
-        <p>{project?.id || "Project ID: -"}</p>
-      </div>
-
-      <div className="project-info">
-        <div>
-          <span>Customer</span>
-          <strong>{project?.customer || "-"}</strong>
-        </div>
-
-        <div>
-          <span>Status</span>
-          <strong>{project?.status || "Draft"}</strong>
-        </div>
-      </div>
-    </div>
+    <p className="project-id-line">
+      Project ID: <span>{project.id}</span>
+    </p>
   );
 };
 

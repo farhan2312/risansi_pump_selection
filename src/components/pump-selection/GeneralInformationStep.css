@@ -1,10 +1,12 @@
 /* Shared wizard step chrome (steps 1-6) — kept compact and CSS-based so every
    step (including the Recommendation results step) stays visually consistent.
    The form FIELDS themselves are styled with Tailwind (see formStyles.ts). */
+/* No forced min-height here — this sits inside the dashboard shell's own
+   scroll area (which already pads 32px/40px), not a standalone full page.
+   Forcing 100vh here guaranteed a scrollbar even on short content. */
 .step-container{
-    padding:24px;
+    padding:0;
     background:var(--bg-app);
-    min-height:100vh;
 }
 
 .step-card{

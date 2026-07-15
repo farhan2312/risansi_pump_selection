@@ -1,39 +1,12 @@
-.project-header{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-
-    background:var(--surface);
-
-    padding:25px;
-
-    border-radius:12px;
-
-    margin-bottom:30px;
-
-    box-shadow:var(--shadow);
-}
-
-.project-header h2{
-    color:var(--text-h);
-}
-
-.project-info{
-    display:flex;
-    gap:40px;
-}
-
-.project-info div{
-    display:flex;
-    flex-direction:column;
-}
-
-.project-info span{
+/* Minimal project-id line — just the id, no card/shadow. */
+.project-id-line{
+    font-size:12px;
     color:var(--text-muted);
-    font-size:13px;
+    margin-bottom:10px;
 }
 
-.project-info strong{
-    margin-top:4px;
+.project-id-line span{
+    font-family:var(--mono);
+    font-weight:600;
     color:var(--text-h);
 }
