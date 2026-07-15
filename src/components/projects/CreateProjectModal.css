@@ -26,8 +26,15 @@
     gap:18px;
 }
 
+.modal-form .form-group{
+    display:flex;
+    flex-direction:column;
+}
+
 .modal-form label{
     color:var(--text);
+    margin-bottom:8px;
+    font-weight:600;
 }
 
 .modal-form input,

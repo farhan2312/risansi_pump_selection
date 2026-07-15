@@ -1,10 +1,13 @@
 import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
+import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, label } from "./formStyles";
 
 type Props = {
   onNext: () => void;
   onPrevious: () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   formData: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setFormData: any;
   onStepClick?: (step: number) => void;
 };
@@ -22,22 +25,16 @@ const SealingDetailsStep = ({
 
       <div className="step-card">
         <h2>Sealing Details</h2>
+        <p>Select the sealing arrangement for this pump.</p>
 
-        <p>
-          Select the sealing arrangement for this pump.
-        </p>
-
-        <div className="form-grid">
-
-          <div className="form-group">
-            <label>Sealing Type</label>
+        <div className={grid}>
+          <div className={fieldWrap}>
+            <label className={label}>Sealing Type</label>
             <select
+              className={control}
               value={formData.sealingType}
               onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  sealingType: e.target.value,
-                })
+                setFormData({ ...formData, sealingType: e.target.value })
               }
             >
               <option value="">Select</option>
@@ -45,15 +42,13 @@ const SealingDetailsStep = ({
               <option value="Gland Packing">Gland Packing</option>
             </select>
           </div>
-
         </div>
 
-        <div className="step-actions">
-          <button onClick={onPrevious}>
+        <div className={actions}>
+          <button className={btnGhost} onClick={onPrevious}>
             Previous
           </button>
-
-          <button onClick={onNext}>
+          <button className={btnPrimary} onClick={onNext}>
             Get Recommendations
           </button>
         </div>

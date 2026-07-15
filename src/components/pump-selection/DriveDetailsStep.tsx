@@ -1,10 +1,13 @@
 import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
+import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, label } from "./formStyles";
 
 type Props = {
   onNext: () => void;
   onPrevious: () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   formData: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setFormData: any;
   onStepClick?: (step: number) => void;
 };
@@ -22,22 +25,16 @@ const DriveDetailsStep = ({
 
       <div className="step-card">
         <h2>Drive Details</h2>
+        <p>Select the drive system and motor specification.</p>
 
-        <p>
-          Select the drive system and motor specification.
-        </p>
-
-        <div className="form-grid">
-
-          <div className="form-group">
-            <label>Drive System Type</label>
+        <div className={grid}>
+          <div className={fieldWrap}>
+            <label className={label}>Drive System Type</label>
             <select
+              className={control}
               value={formData.driveSystem}
               onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  driveSystem: e.target.value,
-                })
+                setFormData({ ...formData, driveSystem: e.target.value })
               }
             >
               <option value="">Select Drive System</option>
@@ -47,45 +44,39 @@ const DriveDetailsStep = ({
             </select>
           </div>
 
-          <div className="form-group">
-            <label>Motor Make</label>
+          <div className={fieldWrap}>
+            <label className={label}>Motor Make</label>
             <input
               type="text"
               placeholder="ABB / Siemens / CG..."
+              className={control}
               value={formData.motorMake}
               onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  motorMake: e.target.value,
-                })
+                setFormData({ ...formData, motorMake: e.target.value })
               }
             />
           </div>
 
-          <div className="form-group">
-            <label>Gearbox Make</label>
+          <div className={fieldWrap}>
+            <label className={label}>Gearbox Make</label>
             <input
               type="text"
               placeholder="Bonfiglioli / Elecon..."
+              className={control}
               value={formData.gearboxMake}
               onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  gearboxMake: e.target.value,
-                })
+                setFormData({ ...formData, gearboxMake: e.target.value })
               }
             />
           </div>
 
-          <div className="form-group">
-            <label>Motor RPM</label>
+          <div className={fieldWrap}>
+            <label className={label}>Motor RPM</label>
             <select
+              className={control}
               value={formData.motorRPM}
               onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  motorRPM: e.target.value,
-                })
+                setFormData({ ...formData, motorRPM: e.target.value })
               }
             >
               <option value="">Select Motor RPM</option>
@@ -93,15 +84,13 @@ const DriveDetailsStep = ({
               <option value="1440">1440</option>
             </select>
           </div>
-
         </div>
 
-        <div className="step-actions">
-          <button onClick={onPrevious}>
+        <div className={actions}>
+          <button className={btnGhost} onClick={onPrevious}>
             Previous
           </button>
-
-          <button onClick={onNext}>
+          <button className={btnPrimary} onClick={onNext}>
             Next
           </button>
         </div>

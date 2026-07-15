@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import "./Sidebar.css";
 import { isAdmin } from "../../services/session";
+import SidebarUserMenu from "./SidebarUserMenu";
 
 // 15x15 stroke icons (stroke:currentColor, width 1.5) per the Risansi guide §7.7.
 const icon = (path: ReactNode) => (
@@ -78,7 +79,7 @@ const Sidebar = () => {
         <img src="/logo.png" alt="Risansi Industries" className="sidebar-logo" />
       </div>
 
-      <nav>
+      <nav className="flex-1">
         <p className="sidebar-group-label">Main</p>
         {mainLinks.map((l) => navLink(l.href, l.label, l.icon))}
 
@@ -89,6 +90,8 @@ const Sidebar = () => {
           </>
         )}
       </nav>
+
+      <SidebarUserMenu />
     </aside>
   );
 };

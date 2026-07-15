@@ -1,3 +1,44 @@
+@import "tailwindcss";
+
+/* Map Tailwind's theme to our existing design tokens (theme.css) so utility
+   classes (bg-paper, text-fg-3, border-line, rounded-md, font-mono, …) stay
+   theme-aware automatically — they read the same var(--token) that flips
+   under [data-theme="dark"], via Tailwind v4's `inline` binding. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-paper: var(--bg-paper);
+  --color-elev: var(--bg-elev);
+  --color-sunk: var(--bg-sunk);
+
+  --color-fg: var(--fg);
+  --color-fg-2: var(--fg-2);
+  --color-fg-3: var(--fg-3);
+  --color-fg-4: var(--fg-4);
+
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-title: var(--title);
+  --color-accent: var(--brand-blue);
+  --color-accent-soft: var(--accent-soft);
+  --color-pos: var(--pos);
+  --color-neg: var(--neg);
+  --color-warn: var(--warn);
+
+  /* Sidebar chrome is dark-navy in both themes (design guide §7.7) */
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-fg: var(--sidebar-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+
+  --font-sans: var(--sans);
+  --font-mono: var(--mono);
+}
+
 :root {
   /* --font-plex-sans / --font-plex-mono are injected by next/font (see app/layout.tsx) */
   --sans: var(--font-plex-sans), 'IBM Plex Sans', system-ui, 'Segoe UI', Roboto, sans-serif;

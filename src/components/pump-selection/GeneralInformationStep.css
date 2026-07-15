@@ -1,5 +1,8 @@
+/* Shared wizard step chrome (steps 1-6) — kept compact and CSS-based so every
+   step (including the Recommendation results step) stays visually consistent.
+   The form FIELDS themselves are styled with Tailwind (see formStyles.ts). */
 .step-container{
-    padding:40px;
+    padding:24px;
     background:var(--bg-app);
     min-height:100vh;
 }
@@ -8,88 +11,49 @@
     background:var(--surface);
     max-width:1200px;
     margin:auto;
-    padding:35px;
-    border-radius:12px;
-    box-shadow:var(--shadow-lg);
+    padding:24px;
+    border-radius:var(--radius, 10px);
+    box-shadow:var(--shadow);
+    border:1px solid var(--line, var(--border));
 }
 
 .step-card h2{
     color:var(--text-h);
-    font-size:30px;
+    font-size:18px;
     font-weight:700;
-    margin-bottom:10px;
+    margin-bottom:4px;
 }
 
 .step-card p{
     color:var(--text-muted);
-    margin-bottom:30px;
-    font-size:16px;
-}
-
-.form-grid{
-    display:grid;
-    grid-template-columns:repeat(2,1fr);
-    gap:20px;
-}
-
-.form-group{
-    display:flex;
-    flex-direction:column;
-}
-
-.form-group label{
-    margin-bottom:8px;
-    font-weight:600;
-    color:var(--text);
-}
-
-.form-group input,
-.form-group select{
-    padding:12px;
-    border:1px solid var(--border);
-    border-radius:8px;
-    font-size:14px;
-    background:var(--bg-app);
-    color:var(--text-h);
-}
-
-.full-width{
-    grid-column:1 / -1;
-}
-
-/* Inline unit-conversion hint under Capacity / Head (→ m³/hr / MWC). */
-.conv-hint{
-    margin-top:6px;
-    font-size:12px;
-    color:var(--fg-3, var(--text-muted));
-}
-.conv-hint b{
-    color:var(--fg, var(--text-h));
-    font-weight:600;
-}
-.conv-hint em{
-    font-style:normal;
-    color:var(--warn, #d97706);
+    margin-bottom:16px;
+    font-size:13px;
 }
 
 .step-actions{
     display:flex;
     justify-content:flex-end;
-    gap:16px;
-    margin-top:35px;
+    gap:10px;
+    margin-top:20px;
 }
 
 .step-actions button{
-    padding:12px 24px;
+    padding:8px 16px;
     border:none;
-    border-radius:8px;
+    border-radius:var(--radius, 6px);
     background:var(--accent);
     color:white;
-    font-size:15px;
+    font-size:13px;
+    font-weight:600;
     cursor:pointer;
-    transition:0.3s;
+    transition:opacity 0.15s;
 }
 
 .step-actions button:hover{
-    background:var(--accent-hover);
+    opacity:0.9;
+}
+
+.step-actions button:disabled{
+    opacity:0.5;
+    cursor:not-allowed;
 }
