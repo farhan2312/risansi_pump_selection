@@ -14,3 +14,10 @@ export const btnGhost =
   "rounded-lg border border-line-strong bg-paper px-6 py-3 text-sm font-medium text-fg-2 transition-colors hover:bg-elev";
 export const actions = "mt-8 flex justify-end gap-3";
 export const hint = "text-[12px] text-fg-3";
+export const hintError = "text-[12px] text-neg";
+
+// Compact variants for inline rows (e.g. next to a text input).
+export const btnPrimarySm =
+  "rounded-lg bg-title px-4 py-3 text-sm font-semibold text-white whitespace-nowrap transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50";
+export const btnGhostSm =
+  "rounded-lg border border-line-strong bg-paper px-4 py-3 text-sm font-medium text-fg-2 whitespace-nowrap transition-colors hover:bg-elev disabled:cursor-not-allowed disabled:opacity-50";

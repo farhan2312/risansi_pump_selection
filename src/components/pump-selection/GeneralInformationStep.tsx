@@ -1,5 +1,6 @@
 import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
+import MediaSelect from "./MediaSelect";
 import { toM3PerHr, toMwc, fmt } from "../../utils/units";
 import {
   actions,
@@ -158,12 +159,9 @@ const GeneralInformationStep = ({
 
           <div className={`${fieldWrap} ${fullWidth}`}>
             <label className={label}>Media / Application</label>
-            <input
-              type="text"
-              placeholder="Molasses, Syrup, Sludge, Chemical..."
-              className={control}
+            <MediaSelect
               value={formData.media}
-              onChange={(e) => setFormData({ ...formData, media: e.target.value })}
+              onChange={(value) => setFormData({ ...formData, media: value })}
             />
           </div>
         </div>

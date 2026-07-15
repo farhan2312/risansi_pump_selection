@@ -200,3 +200,13 @@ export const pumpRecommendations = pgTable("pump_recommendations", {
   rejectionReasons: text("rejection_reasons").array(),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
+
+// Growable media/application list for the pump-selection wizard — unlike the
+// tables above, this one was created by this app (id/created_at have real
+// Postgres-side defaults: gen_random_uuid()/now(), plus a case-insensitive
+// unique index on name so "Chemical" and "chemical" can't both exist).
+export const mediaTypes = pgTable("media_types", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 255 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
