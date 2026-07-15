@@ -15,7 +15,7 @@ type Props = {
 };
 
 const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
-  const [projectName, setProjectName] = useState("");
+  const [clientName, setClientName] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [industry, setIndustry] = useState("");
   const [remarks] = useState("");
@@ -29,10 +29,10 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
 
         <div className="modal-form">
           <div className="form-group">
-            <label>Project Name</label>
+            <label>Client Name</label>
             <input
-              value={projectName}
-              onChange={(e) => setProjectName(e.target.value)}
+              value={clientName}
+              onChange={(e) => setClientName(e.target.value)}
             />
           </div>
 
@@ -62,7 +62,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
             className="create-btn"
             onClick={() =>
               onCreate({
-                name: projectName,
+                name: clientName,
                 customer: customerName,
                 industry,
                 remarks,
