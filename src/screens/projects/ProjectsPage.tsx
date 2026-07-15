@@ -100,7 +100,6 @@ const ProjectsPage = () => {
               <th>Project ID</th>
               <th>Client Name</th>
               <th>Client Code</th>
-              <th>Status</th>
               <th>Created By</th>
               <th>Action</th>
             </tr>
@@ -112,7 +111,6 @@ const ProjectsPage = () => {
                 <td>{project.project_code}</td>
                 <td>{project.name || "—"}</td>
                 <td>{project.client_code || "—"}</td>
-                <td>{project.status || "—"}</td>
                 <td>{project.created_by_name || "—"}</td>
 
                 <td>
