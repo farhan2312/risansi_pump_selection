@@ -9,9 +9,9 @@ export const label =
 export const control =
   "w-full rounded-lg border border-line-strong bg-sunk px-4 py-3 text-[15px] text-fg outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent-soft";
 export const btnPrimary =
-  "rounded-lg bg-title px-6 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50";
+  "rounded-lg bg-title px-8 py-3.5 text-base font-semibold text-white shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50";
 export const btnGhost =
-  "rounded-lg border border-line-strong bg-paper px-6 py-3 text-sm font-medium text-fg-2 transition-colors hover:bg-elev";
+  "rounded-lg border-2 border-line-strong bg-paper px-8 py-3.5 text-base font-semibold text-fg-2 transition-colors hover:border-accent hover:text-accent hover:bg-elev";
 export const actions = "mt-8 flex justify-end gap-3";
 export const hint = "text-[12px] text-fg-3";
 export const hintError = "text-[12px] text-neg";
