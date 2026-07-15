@@ -159,10 +159,10 @@ const PumpSelectionPage = () => {
   return (
     <>
       <ProjectHeader project={project} />
-      {/* Live recommendation that refines as the user fills each step. Hidden on
-          step 6, which already shows the full ranked list. */}
-      {step < 6 && <LivePumpRecommendation formData={formData} />}
       {renderStep()}
+      {/* Live recommendation that refines as the user fills each step. Sits at
+          the bottom of the page; hidden on step 6, which shows the full list. */}
+      {step < 6 && <LivePumpRecommendation formData={formData} />}
     </>
   );
 };

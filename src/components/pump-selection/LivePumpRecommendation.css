@@ -4,8 +4,8 @@
   border-left: 3px solid var(--title);
   border-radius: var(--radius);
   padding: 12px 16px;
-  margin: 0 auto 16px;
-  max-width: 900px;
+  margin: 20px auto 0;
+  max-width: 1200px;
 }
 
 .live-rec-head {

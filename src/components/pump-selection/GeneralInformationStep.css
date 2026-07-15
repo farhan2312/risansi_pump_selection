@@ -11,23 +11,23 @@
     background:var(--surface);
     max-width:1200px;
     margin:auto;
-    padding:24px;
-    border-radius:var(--radius, 10px);
+    padding:32px;
+    border-radius:var(--radius-lg, 10px);
     box-shadow:var(--shadow);
     border:1px solid var(--line, var(--border));
 }
 
 .step-card h2{
     color:var(--text-h);
-    font-size:18px;
+    font-size:22px;
     font-weight:700;
-    margin-bottom:4px;
+    margin-bottom:6px;
 }
 
 .step-card p{
     color:var(--text-muted);
-    margin-bottom:16px;
-    font-size:13px;
+    margin-bottom:24px;
+    font-size:14px;
 }
 
 .step-actions{
