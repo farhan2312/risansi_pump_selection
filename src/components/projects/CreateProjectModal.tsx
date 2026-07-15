@@ -8,17 +8,15 @@ type Props = {
   onClose: () => void;
   onCreate: (project: {
     name: string;
-    customer: string;
+    clientCode: string;
     industry: string;
-    remarks: string;
   }) => void;
 };
 
 const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
   const [clientName, setClientName] = useState("");
-  const [customerName, setCustomerName] = useState("");
+  const [clientCode, setClientCode] = useState("");
   const [industry, setIndustry] = useState("");
-  const [remarks] = useState("");
 
   if (!isOpen) return null;
 
@@ -39,8 +37,8 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
           <div className="form-group">
             <label>Client code</label>
             <input
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
+              value={clientCode}
+              onChange={(e) => setClientCode(e.target.value)}
             />
           </div>
 
@@ -63,9 +61,8 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
             onClick={() =>
               onCreate({
                 name: clientName,
-                customer: customerName,
+                clientCode,
                 industry,
-                remarks,
               })
             }
           >

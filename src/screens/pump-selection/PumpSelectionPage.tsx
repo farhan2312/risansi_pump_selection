@@ -14,6 +14,7 @@ import { SELECTED_PROJECT_KEY } from "../projects/ProjectsPage";
 
 type SelectedProject = {
   id: string;
+  code?: string;
   name?: string;
   customer?: string;
   status?: string;

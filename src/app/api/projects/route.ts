@@ -1,14 +1,23 @@
-import { desc, sql } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 
 import { error, json, projectToDict } from "@/lib/api";
 import { db } from "@/lib/db";
-import { projects } from "@/lib/db/schema";
+import { projects, users } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function GET() {
-  const rows = await db.select().from(projects).orderBy(desc(projects.createdAt));
-  return json(rows.map(projectToDict));
+  // Left-join users so the list can show a real "Created By" name — created_by
+  // on the project row is just a user id, not a display name.
+  const rows = await db
+    .select({ project: projects, createdByName: users.name })
+    .from(projects)
+    .leftJoin(users, eq(projects.createdBy, users.id))
+    .orderBy(desc(projects.createdAt));
+
+  return json(rows.map((r) => projectToDict(r.project, r.createdByName)));
 }
 
 export async function POST(req: Request) {
@@ -24,6 +33,9 @@ export async function POST(req: Request) {
     return error("'name' is required", 400);
   }
 
+  const createdBy =
+    typeof body.createdBy === "string" && UUID_RE.test(body.createdBy) ? body.createdBy : null;
+
   const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(projects);
   const [project] = await db
     .insert(projects)
@@ -35,8 +47,15 @@ export async function POST(req: Request) {
       remarks: (body.remarks as string) ?? null,
       clientCode: (body.clientCode as string) ?? "Pending",
       status: (body.status as string) ?? "In Progress",
+      createdBy,
     })
     .returning();
 
-  return json(projectToDict(project), 201);
+  let createdByName: string | null = null;
+  if (createdBy) {
+    const [creator] = await db.select({ name: users.name }).from(users).where(eq(users.id, createdBy)).limit(1);
+    createdByName = creator?.name ?? null;
+  }
+
+  return json(projectToDict(project, createdByName), 201);
 }

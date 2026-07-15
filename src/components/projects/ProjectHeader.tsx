@@ -3,6 +3,7 @@ import "./ProjectHeader.css";
 type Props = {
   project?: {
     id: string;
+    code?: string;
     name?: string;
     customer?: string;
     status?: string;
@@ -16,7 +17,7 @@ const ProjectHeader = ({ project }: Props) => {
 
   return (
     <p className="project-id-line">
-      Project ID: <span>{project.id}</span>
+      Project ID: <span>{project.code ?? project.id}</span>
     </p>
   );
 };

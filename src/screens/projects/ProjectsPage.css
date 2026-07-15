@@ -24,6 +24,19 @@
     cursor:pointer;
 }
 
+.error-message{
+    color:var(--neg);
+    margin-bottom:20px;
+}
+
+.empty-state{
+    color:var(--text-muted);
+    background:var(--surface);
+    padding:30px;
+    border-radius:8px;
+    text-align:center;
+}
+
 .projects-table{
     width:100%;
     border-collapse:collapse;

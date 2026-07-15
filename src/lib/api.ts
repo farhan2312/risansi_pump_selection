@@ -33,8 +33,9 @@ export function userToDict(u: UserRow) {
   };
 }
 
-/** Mirrors _row_to_dict(Project): raw snake_case columns. */
-export function projectToDict(p: ProjectRow) {
+/** Mirrors _row_to_dict(Project): raw snake_case columns, plus the creator's
+ * display name (joined separately — projects.created_by is just a user id). */
+export function projectToDict(p: ProjectRow, createdByName?: string | null) {
   return {
     id: p.id,
     project_code: p.projectCode,
@@ -45,6 +46,7 @@ export function projectToDict(p: ProjectRow) {
     remarks: p.remarks,
     status: p.status,
     created_by: p.createdBy,
+    created_by_name: createdByName ?? null,
     created_at: p.createdAt,
     updated_at: p.updatedAt,
   };
