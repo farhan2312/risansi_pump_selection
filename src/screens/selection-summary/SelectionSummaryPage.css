@@ -1,7 +1,10 @@
+/* No page-level padding/min-height — dashboard-main already pads every page
+   and establishes the viewport-filling height. This page's own report table
+   can genuinely be long (many sections/fields), so it's fine for THAT
+   content to cause a scroll — the bug was the page forcing an extra empty
+   viewport of height regardless of content. */
 .summary-page{
-    padding:40px;
     background:var(--bg-app);
-    min-height:100vh;
 }
 
 .summary-card{

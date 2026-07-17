@@ -1,7 +1,10 @@
+/* No page-level padding/min-height here — dashboard-main (the shared shell)
+   already pads every page, and already establishes the viewport-filling
+   height. Adding either again here forces a scrollbar even on short content
+   (the exact bug fixed on the pump-selection page) — this page should only
+   scroll when its own content (e.g. a long projects table) actually overflows. */
 .projects-page{
-    padding:40px;
     background:var(--bg-app);
-    min-height:100vh;
 }
 
 .projects-header{

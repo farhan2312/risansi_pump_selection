@@ -1,7 +1,11 @@
+/* App shell: fixed to exactly one viewport, sidebar pinned. Only
+   .dashboard-main scrolls internally when a page's own content (e.g. a long
+   table/report) is too tall — the sidebar and the shell itself never scroll. */
 .dashboard-layout{
     display:flex;
-    min-height:100vh;
+    height:100vh;
     background:var(--bg-app);
+    overflow:hidden;
 }
 
 .dashboard-content{
@@ -9,10 +13,13 @@
     display:flex;
     flex-direction:column;
     min-width:0;
+    height:100%;
+    overflow:hidden;
 }
 
 .dashboard-main{
     flex:1;
     padding:22px 40px;
+    overflow-y:auto;
     overflow-x:hidden;
 }

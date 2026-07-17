@@ -1,7 +1,8 @@
+/* No page-level padding/min-height — dashboard-main already pads every page
+   and establishes the viewport-filling height; adding it again here forced a
+   scrollbar even with zero/one pending request. */
 .admin-requests-page{
-    padding:40px;
     background:var(--bg-app);
-    min-height:100vh;
 }
 
 .admin-requests-header{
