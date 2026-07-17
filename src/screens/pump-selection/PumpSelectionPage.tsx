@@ -52,6 +52,7 @@ const PumpSelectionPage = () => {
     sg: "", // Specific Gravity
     ph: "",
     rpmRange: "", // manual RPM band filter (low/medium/high/vhigh)
+    selectedModel: "", // pump pinned in the live panel; persists across steps
 
     // Step 2
     viscosity: "",
@@ -163,7 +164,9 @@ const PumpSelectionPage = () => {
       {renderStep()}
       {/* Live recommendation that refines as the user fills each step. Sits at
           the bottom of the page; hidden on step 6, which shows the full list. */}
-      {step < 6 && <LivePumpRecommendation formData={formData} />}
+      {step < 6 && (
+        <LivePumpRecommendation formData={formData} setFormData={setFormData} />
+      )}
     </>
   );
 };

@@ -545,6 +545,42 @@ export async function findCandidates(
   return candidates;
 }
 
+export interface PinnedSelection {
+  results: Candidate[];
+  /** True if `pinnedModel` was requested AND is still a physically eligible
+   * candidate at the current duty point (so it's guaranteed to be in `results`). */
+  pinnedIncluded: boolean;
+}
+
+/**
+ * Persist a user's pump pick across wizard steps: guarantee the pinned model
+ * is in the returned set (re-evaluated fresh against the CURRENT inputs —
+ * `allCandidates` is expected to already reflect this call's capacity/head/
+ * viscosity/drive/etc), fill the remaining slots with the next-best other
+ * candidates, then re-sort the whole set by score — so whichever one is
+ * genuinely best now leads as "Best Match", whether that's the user's pick
+ * or one of the alternates. If the pinned model is no longer a valid
+ * candidate at all (e.g. physically infeasible at the new duty point), falls
+ * back to the plain top-N with `pinnedIncluded: false` so the caller can
+ * surface that the pick fell out.
+ */
+export function applyPinnedSelection(
+  allCandidates: Candidate[],
+  pinnedModel: string | null | undefined,
+  limit: number,
+): PinnedSelection {
+  if (!pinnedModel) {
+    return { results: allCandidates.slice(0, limit), pinnedIncluded: false };
+  }
+  const pinned = allCandidates.find((c) => c.model === pinnedModel);
+  if (!pinned) {
+    return { results: allCandidates.slice(0, limit), pinnedIncluded: false };
+  }
+  const others = allCandidates.filter((c) => c.model !== pinnedModel);
+  const results = [pinned, ...others].slice(0, limit).sort((a, b) => b.score - a.score);
+  return { results, pinnedIncluded: true };
+}
+
 // --- Selection report ---------------------------------------------------
 
 function field(

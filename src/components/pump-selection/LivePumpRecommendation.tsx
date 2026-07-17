@@ -8,11 +8,14 @@ import type { PumpRecommendation } from "../../data/Recommendations";
 type Props = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   formData: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setFormData: any;
 };
 
 type Status = "idle" | "loading" | "ready" | "empty" | "error";
 
-// Only the fields the engine actually uses — re-query when any of these change.
+// Only the fields the engine actually uses — re-query when any of these
+// change, including selectedModel (a pick must be re-evaluated fresh).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const engineKey = (f: any) =>
   JSON.stringify({
@@ -32,11 +35,14 @@ const engineKey = (f: any) =>
     driveSystem: f.driveSystem,
     sealingType: f.sealingType,
     motorRPM: f.motorRPM,
+    rpmRange: f.rpmRange,
+    selectedModel: f.selectedModel,
   });
 
-const LivePumpRecommendation = ({ formData }: Props) => {
+const LivePumpRecommendation = ({ formData, setFormData }: Props) => {
   const [recs, setRecs] = useState<PumpRecommendation[]>([]);
   const [status, setStatus] = useState<Status>("idle");
+  const [pinFellOut, setPinFellOut] = useState(false);
   const key = engineKey(formData);
 
   useEffect(() => {
@@ -52,9 +58,10 @@ const LivePumpRecommendation = ({ formData }: Props) => {
     // Debounce so typing doesn't fire a request per keystroke.
     const timer = setTimeout(() => {
       setStatus("loading");
-      previewRecommendations(formData, controller.signal)
+      previewRecommendations(formData, controller.signal, 3)
         .then((res) => {
           setRecs(res.recommendations);
+          setPinFellOut(Boolean(res.pinFellOut));
           setStatus(res.recommendations.length ? "ready" : "empty");
         })
         .catch((err) => {
@@ -71,7 +78,15 @@ const LivePumpRecommendation = ({ formData }: Props) => {
   }, [key]);
 
   const top = recs.slice(0, 3);
-  const best = top[0];
+
+  const selectPump = (model: string) => {
+    // Clicking the already-selected card deselects it, reverting to the
+    // plain auto-ranked top 3.
+    setFormData({
+      ...formData,
+      selectedModel: formData.selectedModel === model ? "" : model,
+    });
+  };
 
   return (
     <div className="live-rec">
@@ -84,7 +99,8 @@ const LivePumpRecommendation = ({ formData }: Props) => {
       {status === "idle" && (
         <p className="live-rec-hint">
           Enter <strong>capacity</strong> and <strong>head</strong> to see live pump
-          matches — they refine as you continue.
+          matches — they refine as you continue. Click a pump below to pin it as your
+          pick; it&apos;ll keep being re-checked against every step from here on.
         </p>
       )}
 
@@ -98,42 +114,54 @@ const LivePumpRecommendation = ({ formData }: Props) => {
         </p>
       )}
 
-      {(status === "ready" || (status === "loading" && best)) && best && (
-        <>
-          <div className="live-rec-best">
-            <div>
-              <span className="live-rec-eyebrow">Best match</span>
-              <strong className="live-rec-model">{best.model}</strong>
-            </div>
-            <div className="live-rec-best-meta">
-              <div>
-                <span>RPM</span>
-                <b className="mono">{best.rpmRange ?? best.rpm}</b>
-              </div>
-              <div>
-                <span>Motor</span>
-                <b className="mono">{best.motor ?? "—"}</b>
-              </div>
-              <div>
-                <span>Match</span>
-                <b className="mono">{best.score}%</b>
-              </div>
-            </div>
-          </div>
-
-          {top.length > 1 && (
-            <ul className="live-rec-list">
-              {top.slice(1).map((r) => (
-                <li key={r.id}>
-                  <span className="live-rec-list-model">{r.model}</span>
-                  <span className="mono live-rec-list-rpm">{r.rpmRange ?? r.rpm} rpm</span>
-                  <span className="mono live-rec-list-score">{r.score}%</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </>
+      {pinFellOut && (
+        <p className="live-rec-hint live-rec-warn">
+          Your previously picked pump no longer fits these inputs — showing the current
+          best options instead.
+        </p>
       )}
+
+      {(status === "ready" || (status === "loading" && top.length > 0)) &&
+        top.length > 0 && (
+          <div className="live-rec-cards">
+            {top.map((r, i) => {
+              const isSelected = Boolean(r.isSelected);
+              const isBest = i === 0;
+              return (
+                <button
+                  type="button"
+                  key={r.id}
+                  className={`live-rec-card${isSelected ? " is-selected" : ""}`}
+                  onClick={() => selectPump(r.model)}
+                  aria-pressed={isSelected}
+                >
+                  <div className="live-rec-card-badges">
+                    {isBest && <span className="live-rec-badge best">Best Match</span>}
+                    {isSelected && <span className="live-rec-badge picked">Your Pick</span>}
+                  </div>
+                  <strong className="live-rec-card-model">{r.model}</strong>
+                  <div className="live-rec-card-meta">
+                    <div>
+                      <span>RPM</span>
+                      <b className="mono">{r.rpmRange ?? r.rpm}</b>
+                    </div>
+                    <div>
+                      <span>Motor</span>
+                      <b className="mono">{r.motor ?? "—"}</b>
+                    </div>
+                    <div>
+                      <span>Match</span>
+                      <b className="mono">{r.score}%</b>
+                    </div>
+                  </div>
+                  <span className="live-rec-card-action">
+                    {isSelected ? "Click to unpin" : "Click to pin this pump"}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
     </div>
   );
 };

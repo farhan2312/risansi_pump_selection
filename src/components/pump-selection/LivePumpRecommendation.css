@@ -29,81 +29,108 @@
   line-height: 1.5;
 }
 
-.live-rec-best {
+.live-rec-warn {
+  color: var(--warn);
+  margin-top: 6px;
+}
+
+/* Three selectable pump cards: Best Match first, then the next-best
+   alternates. Clicking one pins it as the user's pick (see
+   LivePumpRecommendation.tsx / applyPinnedSelection on the backend). */
+.live-rec-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.live-rec-card {
+  text-align: left;
+  cursor: pointer;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--bg-elev);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius, 6px);
+  padding: 8px 10px;
+  transition: border-color 0.12s, background 0.12s;
 }
 
-.live-rec-eyebrow {
-  display: block;
-  font-size: 10px;
+.live-rec-card:hover {
+  border-color: var(--accent-line, var(--accent));
+}
+
+.live-rec-card.is-selected {
+  border-color: var(--title);
+  background: var(--accent-soft);
+}
+
+.live-rec-card-badges {
+  display: flex;
+  gap: 4px;
+  min-height: 15px;
+}
+
+.live-rec-badge {
+  font-size: 9px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--fg-3);
-  margin-bottom: 2px;
+  letter-spacing: 0.05em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  white-space: nowrap;
 }
 
-.live-rec-model {
-  font-size: 20px;
+.live-rec-badge.best {
+  background: var(--title);
+  color: #fff;
+}
+
+.live-rec-badge.picked {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+.live-rec-card-model {
+  font-size: 15px;
   font-weight: 700;
   color: var(--fg);
   letter-spacing: -0.01em;
 }
 
-.live-rec-best-meta {
+.live-rec-card-meta {
   display: flex;
-  gap: 20px;
+  gap: 10px;
 }
 
-.live-rec-best-meta > div {
+.live-rec-card-meta > div {
   display: flex;
   flex-direction: column;
 }
 
-.live-rec-best-meta span {
-  font-size: 10px;
+.live-rec-card-meta span {
+  font-size: 9px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--fg-3);
 }
 
-.live-rec-best-meta b {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--fg);
-}
-
-.live-rec-list {
-  list-style: none;
-  margin: 8px 0 0;
-  padding: 8px 0 0;
-  border-top: 1px solid var(--line);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.live-rec-list li {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 12px;
-}
-
-.live-rec-list-model {
+.live-rec-card-meta b {
+  font-size: 13px;
   font-weight: 600;
   color: var(--fg-2);
-  min-width: 72px;
 }
 
-.live-rec-list-rpm {
+.live-rec-card-action {
+  font-size: 10px;
   color: var(--fg-3);
+  margin-top: 2px;
 }
 
-.live-rec-list-score {
-  margin-left: auto;
-  color: var(--fg-3);
+@media (max-width: 700px) {
+  .live-rec-cards {
+    grid-template-columns: 1fr;
+  }
 }

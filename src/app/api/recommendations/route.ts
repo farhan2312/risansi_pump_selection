@@ -2,6 +2,7 @@ import { error, json, toFloat } from "@/lib/api";
 import { db } from "@/lib/db";
 import { pumpRecommendations, pumpSelections } from "@/lib/db/schema";
 import {
+  applyPinnedSelection,
   findCandidates,
   resolveDrive,
   resolveMoc,
@@ -69,11 +70,27 @@ export async function POST(req: Request) {
     }
   };
 
-  const candidates = (
+  const bandFiltered = (
     await findCandidates(db, capacityM3hr, headMwc, viscosityCp, solidPct, motorRpm)
-  )
-    .filter((c) => inBand(c.rpmRequired))
-    .slice(0, 5);
+  ).filter((c) => inBand(c.rpmRequired));
+
+  // Persist the user's pump pick across wizard steps: if they selected a
+  // model on an earlier step, keep it in the results (re-evaluated fresh
+  // against the CURRENT inputs above) alongside the next-best alternates,
+  // then re-rank so whichever is genuinely best now leads as "Best Match" —
+  // that may still be their pick, or the engine may promote an alternate.
+  // `limit` must match how many the CALLER actually displays (the live panel
+  // shows 3; the final step's table shows 5) — the pin is only guaranteed
+  // to survive within the returned set, not within some other later slice.
+  const selectedModel = typeof body.selectedModel === "string" ? body.selectedModel : null;
+  const rawLimit = typeof body.limit === "number" ? body.limit : 5;
+  const limit = Math.max(1, Math.min(10, rawLimit));
+  const { results: candidates, pinnedIncluded } = applyPinnedSelection(
+    bandFiltered,
+    selectedModel,
+    limit,
+  );
+  const pinFellOut = Boolean(selectedModel) && !pinnedIncluded;
 
   const moc = await resolveMoc(db, media, temperature, solidPct);
   const mocStr =
@@ -181,6 +198,7 @@ export async function POST(req: Request) {
       recommendationId,
       ...base,
       rpmRange,
+      isSelected: selectedModel !== null && c.model === selectedModel,
       dataSource: {
         performanceCurve: c.isTested ? "tested" : "calculated",
         kw: c.kwSource,
@@ -188,5 +206,5 @@ export async function POST(req: Request) {
     });
   }
 
-  return json({ selectionId, recommendations: results });
+  return json({ selectionId, recommendations: results, pinFellOut });
 }

@@ -7,6 +7,10 @@ import type {
 type RecommendationsResponse = {
   selectionId: string;
   recommendations: PumpRecommendation[];
+  /** True if a selectedModel was sent but is no longer a feasible candidate
+   * at the current duty point (e.g. the user changed inputs enough that it
+   * no longer fits) — the pick was dropped and results are the plain top-N. */
+  pinFellOut?: boolean;
 };
 
 export const getRecommendations = async (
@@ -21,14 +25,20 @@ export const getRecommendations = async (
 
 /** Live wizard preview — same engine, but the server does NOT persist a
  * selection/recommendation row (?preview=1). Used by the panel that refreshes
- * as the user fills in each step. */
+ * as the user fills in each step.
+ *
+ * `limit` must match how many results the caller actually displays — a pinned
+ * (selectedModel) pump is only guaranteed to appear within the returned set,
+ * so a caller showing 3 cards must ask for limit 3, not rely on slicing a
+ * larger response client-side (the pin could rank 4th/5th and get cut off). */
 export const previewRecommendations = async (
   formData: PumpSelectionFormData,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  limit?: number
 ): Promise<RecommendationsResponse> => {
   const { data } = await apiClient.post<RecommendationsResponse>(
     "/recommendations?preview=1",
-    formData,
+    { ...formData, limit },
     { signal }
   );
   return data;
