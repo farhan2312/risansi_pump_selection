@@ -38,12 +38,14 @@ const OperatingConditionsStep = ({
               }
             >
               <option value="">Select Pump Type</option>
-              <option value="Standard Pump">Standard Pump</option>
-              <option value="Bucket Pump">Bucket Pump</option>
-              <option value="Standard Pump with Auger">
-                Standard Pump with Auger
+              <option value="Horizontal Standard">Horizontal Standard</option>
+              <option value="Horizontal Bucket with Auger">
+                Horizontal Bucket with Auger
               </option>
-              <option value="Vertical Pump">Vertical Pump</option>
+              <option value="Horizontal Auger Only">
+                Horizontal Auger Only
+              </option>
+              <option value="Vertical">Vertical</option>
             </select>
           </div>
 

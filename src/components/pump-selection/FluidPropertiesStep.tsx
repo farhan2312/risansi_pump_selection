@@ -57,16 +57,22 @@ const FluidPropertiesStep = ({
           </div>
 
           <div className={fieldWrap}>
-            <label className={label}>Viscosity Range</label>
-            <input
-              type="text"
-              placeholder="Enter Range"
+            <label className={label}>Viscosity Range (cP)</label>
+            <select
               className={control}
               value={formData.viscosityRange}
               onChange={(e) =>
                 setFormData({ ...formData, viscosityRange: e.target.value })
               }
-            />
+            >
+              <option value="">Select Range</option>
+              <option value="0-1000">0 - 1000</option>
+              <option value="1001-3000">1001 - 3000</option>
+              <option value="3001-5000">3001 - 5000</option>
+              <option value="5001-7000">5001 - 7000</option>
+              <option value="7001-10000">7001 - 10000</option>
+              <option value="10000+">10000 &amp; Above</option>
+            </select>
           </div>
 
           <div className={fieldWrap}>

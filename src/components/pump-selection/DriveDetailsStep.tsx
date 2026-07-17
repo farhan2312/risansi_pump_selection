@@ -34,7 +34,22 @@ const DriveDetailsStep = ({
               className={control}
               value={formData.driveSystem}
               onChange={(e) =>
-                setFormData({ ...formData, driveSystem: e.target.value })
+                setFormData({
+                  ...formData,
+                  driveSystem: e.target.value,
+                  gearBoxType:
+                    e.target.value === "Geared Motor Drive"
+                      ? formData.gearBoxType
+                      : "",
+                  gearBoxMounting:
+                    e.target.value === "Geared Motor Drive"
+                      ? formData.gearBoxMounting
+                      : "",
+                  asfRange:
+                    e.target.value === "Geared Motor Drive"
+                      ? formData.asfRange
+                      : "",
+                })
               }
             >
               <option value="">Select Drive System</option>
@@ -84,6 +99,62 @@ const DriveDetailsStep = ({
               <option value="1440">1440</option>
             </select>
           </div>
+
+          {formData.driveSystem === "Geared Motor Drive" && (
+            <>
+              <div className={fieldWrap}>
+                <label className={label}>Gear Box Type</label>
+                <select
+                  className={control}
+                  value={formData.gearBoxType}
+                  onChange={(e) =>
+                    setFormData({ ...formData, gearBoxType: e.target.value })
+                  }
+                >
+                  <option value="">Select Gear Box Type</option>
+                  <option value="HISO">HISO (Hollow Input Solid Output)</option>
+                  <option value="SISO">SISO (Solid Input Solid Output)</option>
+                </select>
+              </div>
+
+              <div className={fieldWrap}>
+                <label className={label}>Gear Box Mounting</label>
+                <select
+                  className={control}
+                  value={formData.gearBoxMounting}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      gearBoxMounting: e.target.value,
+                    })
+                  }
+                >
+                  <option value="">Select Mounting</option>
+                  <option value="Foot Mount B3">Foot Mount (B3)</option>
+                  <option value="Flange Mount B5">Flange Mount (B5)</option>
+                  <option value="Foot cum Flange B35">
+                    Foot cum Flange (B35)
+                  </option>
+                </select>
+              </div>
+
+              <div className={fieldWrap}>
+                <label className={label}>ASF Range</label>
+                <select
+                  className={control}
+                  value={formData.asfRange}
+                  onChange={(e) =>
+                    setFormData({ ...formData, asfRange: e.target.value })
+                  }
+                >
+                  <option value="">Select ASF Range</option>
+                  <option value="1.4-2">1.4 - 2</option>
+                  <option value="2.1-3">2.1 - 3</option>
+                  <option value="3.1+">3.1 &amp; Above</option>
+                </select>
+              </div>
+            </>
+          )}
         </div>
 
         <div className={actions}>

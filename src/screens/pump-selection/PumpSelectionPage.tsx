@@ -72,9 +72,13 @@ const PumpSelectionPage = () => {
     motorMake: "",
     gearboxMake: "",
     motorRPM: "",
+    gearBoxType: "", // HISO / SISO — Geared Motor Drive only
+    gearBoxMounting: "", // Foot Mount B3 / Flange Mount B5 / Foot cum Flange B35 — Geared Motor Drive only
+    asfRange: "", // Application Service Factor band — Geared Motor Drive only
 
     // Step 4
     sealingType: "",
+    sealingSubType: "", // MSA / SCG / DCG — Mechanical Seal only
   });
 
   const [selectedPump, setSelectedPump] = useState<number | null>(null);

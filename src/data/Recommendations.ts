@@ -77,9 +77,13 @@ export interface PumpSelectionFormData {
   jointType: string;
   driveSystem: string;
   sealingType: string;
+  sealingSubType?: string; // MSA / SCG / DCG — Mechanical Seal only
   motorMake?: string;
   gearboxMake?: string;
   motorRPM?: string;
+  gearBoxType?: string; // HISO / SISO — Geared Motor Drive only
+  gearBoxMounting?: string; // Foot Mount B3 / Flange Mount B5 / Foot cum Flange B35 — Geared Motor Drive only
+  asfRange?: string; // Application Service Factor band — Geared Motor Drive only
 }
 
 // Output shape — matches what RecommendationTable / PumpDetailsCard render

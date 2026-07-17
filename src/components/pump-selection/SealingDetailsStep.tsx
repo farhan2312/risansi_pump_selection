@@ -34,7 +34,14 @@ const SealingDetailsStep = ({
               className={control}
               value={formData.sealingType}
               onChange={(e) =>
-                setFormData({ ...formData, sealingType: e.target.value })
+                setFormData({
+                  ...formData,
+                  sealingType: e.target.value,
+                  sealingSubType:
+                    e.target.value === "Mechanical Seal"
+                      ? formData.sealingSubType
+                      : "",
+                })
               }
             >
               <option value="">Select</option>
@@ -42,6 +49,24 @@ const SealingDetailsStep = ({
               <option value="Gland Packing">Gland Packing</option>
             </select>
           </div>
+
+          {formData.sealingType === "Mechanical Seal" && (
+            <div className={fieldWrap}>
+              <label className={label}>Mechanical Seal Type</label>
+              <select
+                className={control}
+                value={formData.sealingSubType}
+                onChange={(e) =>
+                  setFormData({ ...formData, sealingSubType: e.target.value })
+                }
+              >
+                <option value="">Select Seal Type</option>
+                <option value="MSA">MSA</option>
+                <option value="SCG">SCG</option>
+                <option value="DCG">DCG</option>
+              </select>
+            </div>
+          )}
         </div>
 
         <div className={actions}>
