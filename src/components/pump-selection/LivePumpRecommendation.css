@@ -3,8 +3,8 @@
   border: 1px solid var(--line);
   border-left: 3px solid var(--title);
   border-radius: var(--radius);
-  padding: 10px 16px;
-  margin: 10px auto 0;
+  padding: 8px 16px;
+  margin: 8px auto 0;
   max-width: 1200px;
 }
 
@@ -12,7 +12,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .live-rec-status {
@@ -41,7 +41,7 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .live-rec-card {
@@ -49,11 +49,11 @@
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   background: var(--bg-elev);
   border: 1.5px solid var(--line);
   border-radius: var(--radius, 6px);
-  padding: 8px 10px;
+  padding: 6px 10px;
   transition: border-color 0.12s, background 0.12s;
 }
 
@@ -69,7 +69,7 @@
 .live-rec-card-badges {
   display: flex;
   gap: 4px;
-  min-height: 15px;
+  min-height: 13px;
 }
 
 .live-rec-badge {
@@ -126,7 +126,6 @@
 .live-rec-card-action {
   font-size: 10px;
   color: var(--fg-3);
-  margin-top: 2px;
 }
 
 @media (max-width: 700px) {

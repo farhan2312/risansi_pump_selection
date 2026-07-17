@@ -1,7 +1,7 @@
 .stepper{
     display:flex;
     justify-content:space-between;
-    margin-bottom:14px;
+    margin-bottom:10px;
 }
 
 .step{
