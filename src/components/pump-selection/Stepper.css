@@ -1,7 +1,7 @@
 .stepper{
     display:flex;
     justify-content:space-between;
-    margin-bottom:40px;
+    margin-bottom:14px;
 }
 
 .step{
@@ -30,8 +30,8 @@
 }
 
 .step-circle{
-    width:40px;
-    height:40px;
+    width:34px;
+    height:34px;
     border-radius:50%;
     background:var(--border);
     color:var(--text);
@@ -39,7 +39,7 @@
     align-items:center;
     justify-content:center;
     font-weight:bold;
-    margin-bottom:8px;
+    margin-bottom:6px;
     transition:background .15s, color .15s;
 }
 
