@@ -67,13 +67,13 @@ const PumpSelectionPage = () => {
     suctionHousing: "",
     jointType: "",
 
-    // Step 4
+    // Step 5
     driveSystem: "",
     motorMake: "",
     gearboxMake: "",
     motorRPM: "",
 
-    // Step 5
+    // Step 4
     sealingType: "",
   });
 
@@ -115,7 +115,7 @@ const PumpSelectionPage = () => {
 
       case 4:
         return (
-          <DriveDetailsStep
+          <SealingDetailsStep
             onPrevious={() => setStep(3)}
             onNext={() => setStep(5)}
             formData={formData}
@@ -126,7 +126,7 @@ const PumpSelectionPage = () => {
 
       case 5:
         return (
-          <SealingDetailsStep
+          <DriveDetailsStep
             onPrevious={() => setStep(4)}
             onNext={() => setStep(6)}
             formData={formData}

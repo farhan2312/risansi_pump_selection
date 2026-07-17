@@ -21,7 +21,7 @@ const SealingDetailsStep = ({
 }: Props) => {
   return (
     <div className="step-container">
-      <Stepper currentStep={5} onStepClick={onStepClick} />
+      <Stepper currentStep={4} onStepClick={onStepClick} />
 
       <div className="step-card">
         <h2>Sealing Details</h2>
@@ -49,7 +49,7 @@ const SealingDetailsStep = ({
             Previous
           </button>
           <button className={btnPrimary} onClick={onNext}>
-            Get Recommendations
+            Next
           </button>
         </div>
       </div>

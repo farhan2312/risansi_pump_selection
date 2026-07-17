@@ -21,7 +21,7 @@ const DriveDetailsStep = ({
 }: Props) => {
   return (
     <div className="step-container">
-      <Stepper currentStep={4} onStepClick={onStepClick} />
+      <Stepper currentStep={5} onStepClick={onStepClick} />
 
       <div className="step-card">
         <h2>Drive Details</h2>
@@ -91,7 +91,7 @@ const DriveDetailsStep = ({
             Previous
           </button>
           <button className={btnPrimary} onClick={onNext}>
-            Next
+            Get Recommendations
           </button>
         </div>
       </div>

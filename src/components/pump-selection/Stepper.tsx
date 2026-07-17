@@ -8,8 +8,8 @@ const steps = [
   "General",
   "Fluid",
   "Specifications",
-  "Drive",
   "Sealing",
+  "Drive",
   "Recommendation",
 ];
 
