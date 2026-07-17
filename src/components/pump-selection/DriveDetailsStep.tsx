@@ -74,15 +74,25 @@ const DriveDetailsStep = ({
 
           <div className={fieldWrap}>
             <label className={label}>Gearbox Make</label>
-            <input
-              type="text"
-              placeholder="Bonfiglioli / Elecon..."
+            <select
               className={control}
               value={formData.gearboxMake}
               onChange={(e) =>
                 setFormData({ ...formData, gearboxMake: e.target.value })
               }
-            />
+            >
+              <option value="">Select Gearbox Make</option>
+              <option value="Bonfiglioli">Bonfiglioli</option>
+              <option value="Elecon">Elecon</option>
+              <option value="Flender">Flender</option>
+              <option value="Radicon">Radicon</option>
+              <option value="SEW Eurodrive">SEW Eurodrive</option>
+              <option value="Shanthi Gears">Shanthi Gears</option>
+              <option value="David Brown Santasalo">
+                David Brown Santasalo
+              </option>
+              <option value="Other">Other</option>
+            </select>
           </div>
 
           <div className={fieldWrap}>
