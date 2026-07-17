@@ -143,10 +143,10 @@ const LoginPage = () => {
   return (
     <div className="login-page">
       <div className="branding-panel">
-        <div className="branding-content">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="Risansi Industries" className="company-logo" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png" alt="Risansi Industries" className="company-logo" />
 
+        <div className="branding-content">
           <h1>
             Pump Selection
             <br />
@@ -157,12 +157,15 @@ const LoginPage = () => {
             Intelligent pump recommendation platform for sales engineers with
             integrated testing reports and project management.
           </p>
-
-          <span>Version 1.0</span>
         </div>
+
+        <span className="branding-footer">Version 1.0</span>
       </div>
 
       <div className="login-form-container">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png" alt="Risansi Industries" className="form-logo" />
+
         <div className="auth-tabs" role="tablist">
           <button
             type="button"

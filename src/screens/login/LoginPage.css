@@ -5,87 +5,100 @@
 }
 
 .login-page {
-  display: flex;
+  display: grid;
+  grid-template-columns: 7fr 3fr;
   width: 100%;
   min-height: 100vh;
   font-family: "IBM Plex Sans", "Segoe UI", Arial, sans-serif;
 }
 
 /* ================= LEFT PANEL ================= */
+/* Auth surfaces are a fixed branded surface — always this dark gradient,
+   regardless of light/dark theme elsewhere in the app. */
 
 .branding-panel {
-  flex: 1;
-  background: #0A1628;
+  position: relative;
+  background: linear-gradient(150deg, #0a1628 0%, #0d2a52 55%, #0a3d6e 100%);
   color: #ffffff;
-
   display: flex;
-  justify-content: center;
-  align-items: center;
+  flex-direction: column;
+  padding: 40px 56px;
+  min-height: 100vh;
+}
 
-  padding: 70px;
+.branding-panel .company-logo {
+  width: auto;
+  height: 46px;
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 8px 14px;
+  align-self: flex-start;
 }
 
 .branding-content {
-  max-width: 500px;
-}
-
-.company-logo {
-  width: 300px;
-  height: auto;
-  margin-bottom: 40px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 560px;
 }
 
 .branding-content h1 {
-  font-size: 58px;
+  font-size: 52px;
   font-weight: 700;
   line-height: 1.15;
-  margin-bottom: 28px;
+  margin-bottom: 22px;
   color: #ffffff;
 }
 
 .branding-content p {
-  font-size: 20px;
-  line-height: 1.8;
+  font-size: 18px;
+  line-height: 1.7;
   color: #c9d4e3;
-  margin-bottom: 70px;
 }
 
-.branding-content span {
-  color: #9ca3af;
-  font-size: 20px;
+.branding-footer {
+  color: #7d90ab;
+  font-size: 13px;
 }
 
 /* ================= RIGHT PANEL ================= */
 
 .login-form-container {
-  flex: 1;
-  background: #eef3fa;
-
+  background: #f4f6fb;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  padding: 48px 56px;
+  min-height: 100vh;
+}
 
-  padding: 80px;
+.login-form-container .form-logo {
+  width: auto;
+  height: 34px;
+  margin-bottom: 28px;
+  align-self: flex-start;
 }
 
 .login-form-container h2 {
-  font-size: 38px;
+  font-size: 26px;
   font-weight: 700;
-  color: #47425d;
-  margin-bottom: 8px;
+  color: #0d1b2e;
+  margin-bottom: 6px;
 }
 
 .login-form-container p {
-  font-size: 18px;
+  font-size: 14px;
   color: #667085;
-  margin-bottom: 35px;
+  margin-bottom: 22px;
 }
+
 .login-form-container label {
   display: block;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  color: #47425d;
-  margin-bottom: 8px;
+  color: #2d3e55;
+  margin-bottom: 6px;
 }
 
 .password-field {
@@ -98,10 +111,10 @@
 
 .login-form-container .password-field .toggle-visibility {
   position: absolute !important;
-  right: 10px !important;
+  right: 8px !important;
   top: 8px !important;
   width: auto !important;
-  height: 40px !important;
+  height: 36px !important;
   border: none !important;
   background: transparent !important;
   color: #667085 !important;
@@ -117,27 +130,31 @@
   background: #fef2f2;
   border: 1px solid #fecaca;
   color: #b91c1c;
-  padding: 12px 16px;
+  padding: 10px 14px;
   border-radius: 8px;
-  font-size: 14px;
-  margin-bottom: 20px;
+  font-size: 13px;
+  margin-bottom: 16px;
 }
 
 .form-success {
   background: #f0fdf4;
   border: 1px solid #bbf7d0;
   color: #15803d;
-  padding: 12px 16px;
+  padding: 10px 14px;
   border-radius: 8px;
-  font-size: 14px;
-  margin-bottom: 20px;
+  font-size: 13px;
+  margin-bottom: 16px;
 }
 
+/* Segmented toggle, per the Risansi design guide §7.2 */
 .auth-tabs {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 30px;
-  border-bottom: 1px solid #d4d8de;
+  display: inline-flex;
+  gap: 0;
+  margin-bottom: 22px;
+  border: 1px solid #dde4ee;
+  border-radius: 9px;
+  padding: 3px;
+  width: fit-content;
 }
 
 .auth-tabs button {
@@ -146,23 +163,21 @@
   background: transparent;
   color: #667085;
   border: none;
-  border-bottom: 2px solid transparent;
-  padding: 10px 4px;
-  margin-bottom: -1px;
-  font-size: 16px;
+  border-radius: 7px;
+  padding: 7px 16px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: color 0.2s ease, border-color 0.2s ease;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
 .auth-tabs button:hover {
-  background: transparent;
-  color: #1A5CB8;
+  color: #1a5cb8;
 }
 
 .auth-tabs button.active {
-  color: #1A5CB8;
-  border-bottom-color: #1A5CB8;
+  background: #1a5cb8;
+  color: #ffffff;
 }
 
 .login-form-container button[type="submit"]:disabled {
@@ -172,53 +187,44 @@
 
 .login-form-container input {
   width: 100%;
-  height: 56px;
-
-  padding: 0 18px;
-
-  border: 1px solid #d4d8de;
+  height: 48px;
+  padding: 0 16px;
+  border: 1px solid transparent;
   border-radius: 8px;
-
-  background: #ffffff;
+  background: #e7ebf3;
   color: #1f2937;
-
-  font-size: 16px;
-
-  margin-bottom: 20px;
-
+  font-size: 15px;
+  margin-bottom: 16px;
   outline: none;
-
-  transition: all 0.25s ease;
+  transition: all 0.2s ease;
 }
 
 .login-form-container input::placeholder {
-  color: #9ca3af;
+  color: #8f9bb0;
 }
 
 .login-form-container input:focus {
-  border-color: #1A5CB8;
-  box-shadow: 0 0 0 3px rgba(26, 92, 184, 0.15);
+  border-color: #1a5cb8;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(26, 92, 184, 0.14);
 }
 
-.login-form-container button {
+.login-form-container button[type="submit"] {
   width: 100%;
-  height: 56px;
-
+  height: 50px;
   border: none;
   border-radius: 8px;
-
-  background: #1A5CB8;
+  background: #1a5cb8;
   color: #ffffff;
-
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
-
   cursor: pointer;
-
-  transition: background 0.25s ease;
+  margin-top: 4px;
+  box-shadow: 0 6px 18px rgba(26, 92, 184, 0.28);
+  transition: background 0.2s ease;
 }
 
-.login-form-container button:hover {
+.login-form-container button[type="submit"]:hover {
   background: #164d99;
 }
 
@@ -227,38 +233,33 @@
 .error-text {
   display: block;
   color: #dc2626;
-  font-size: 14px;
-  margin-top: -12px;
-  margin-bottom: 15px;
+  font-size: 13px;
+  margin-top: -10px;
+  margin-bottom: 12px;
 }
 
 /* ================= RESPONSIVE ================= */
 
 @media (max-width: 992px) {
   .login-page {
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
 
-  .branding-panel,
-  .login-form-container {
-    width: 100%;
-    padding: 50px;
+  .branding-panel {
+    min-height: auto;
+    padding: 32px 36px;
   }
 
   .branding-content {
-    text-align: center;
-  }
-
-  .company-logo {
-    width: 240px;
-    margin: 0 auto 30px;
+    text-align: left;
   }
 
   .branding-content h1 {
-    font-size: 42px;
+    font-size: 36px;
   }
 
-  .login-form-container h2 {
-    font-size: 32px;
+  .login-form-container {
+    min-height: auto;
+    padding: 36px;
   }
 }
