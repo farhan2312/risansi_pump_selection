@@ -1,12 +1,11 @@
 import { desc, eq, sql } from "drizzle-orm";
 
 import { error, json, projectToDict } from "@/lib/api";
+import { tryDecodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { projects, users } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function GET() {
   // Left-join users so the list can show a real "Created By" name — created_by
@@ -33,8 +32,9 @@ export async function POST(req: Request) {
     return error("'name' is required", 400);
   }
 
-  const createdBy =
-    typeof body.createdBy === "string" && UUID_RE.test(body.createdBy) ? body.createdBy : null;
+  // Derived from the verified session cookie, not client input — a client
+  // could otherwise attribute a project to any arbitrary user id.
+  const createdBy = tryDecodeToken(req)?.sub ?? null;
 
   const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(projects);
   const [project] = await db

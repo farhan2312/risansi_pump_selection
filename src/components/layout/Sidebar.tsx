@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import "./Sidebar.css";
-import { isAdmin } from "../../services/session";
+import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import SidebarUserMenu from "./SidebarUserMenu";
 
 // 15x15 stroke icons (stroke:currentColor, width 1.5) per the Risansi guide §7.7.
@@ -64,6 +64,7 @@ const mainLinks = [
 
 const Sidebar = () => {
   const pathname = usePathname();
+  const { user } = useCurrentUser();
 
   const navLink = (href: string, label: string, ic: ReactNode) => (
     <Link key={href} href={href} className={pathname === href ? "active-link" : ""}>
@@ -83,7 +84,7 @@ const Sidebar = () => {
         <p className="sidebar-group-label">Main</p>
         {mainLinks.map((l) => navLink(l.href, l.label, l.icon))}
 
-        {isAdmin() && (
+        {user?.role === "admin" && (
           <>
             <p className="sidebar-group-label">Admin</p>
             {navLink("/admin/access-requests", "Access Requests", icons.users)}

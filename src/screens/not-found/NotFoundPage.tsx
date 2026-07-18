@@ -2,13 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import "./NotFoundPage.css";
-import { isAuthenticated } from "../../services/session";
 
 const NotFoundPage = () => {
   const router = useRouter();
 
   const handleGoBack = () => {
-    router.push(isAuthenticated() ? "/dashboard" : "/");
+    // middleware.ts bounces to "/" automatically if there's no valid session.
+    router.push("/dashboard");
   };
 
   return (

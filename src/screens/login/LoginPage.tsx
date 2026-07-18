@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import "./LoginPage.css";
 import { login, requestAccess } from "../../services/authService";
-import { saveSession } from "../../services/session";
 
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@risansi\.com$/;
 const MIN_PASSWORD_LENGTH = 6;
@@ -86,8 +85,9 @@ const LoginPage = () => {
     const trimmedEmail = email.trim();
 
     try {
-      const result = await login(trimmedEmail, password);
-      saveSession(result.user);
+      // The session cookie is set by the server response itself (httpOnly,
+      // can't be read/stored from here) — just navigate once login succeeds.
+      await login(trimmedEmail, password);
       router.push("/dashboard");
     } catch (err) {
       setFormError(errorMessage(err, "Unable to sign in. Please try again."));

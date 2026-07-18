@@ -34,9 +34,8 @@ export async function POST(req: Request) {
     return error("Your access request was rejected. Contact an administrator.", 403);
   }
 
-  const token = createToken({ id: user.id, email: user.email, role: user.role });
+  const token = createToken({ id: user.id, name: user.name, email: user.email, role: user.role });
   const response = json({
-    token,
     user: { id: String(user.id), name: user.name, email: user.email, role: user.role },
   });
   response.cookies.set(AUTH_COOKIE_NAME, token, {

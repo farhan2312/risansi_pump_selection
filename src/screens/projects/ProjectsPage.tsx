@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import "./ProjectsPage.css";
 import CreateProjectModal from "../../components/projects/CreateProjectModal";
-import { getCurrentUser } from "../../services/session";
 import {
   createProject,
   listProjects,
@@ -45,10 +44,9 @@ const ProjectsPage = () => {
   }) => {
     setIsCreating(true);
     try {
-      const created = await createProject({
-        ...input,
-        createdBy: getCurrentUser()?.id ?? null,
-      });
+      // createdBy is derived server-side from the session cookie, not sent
+      // by the client.
+      const created = await createProject(input);
       setProjects((prev) => [created, ...prev]);
       setIsModalOpen(false);
     } catch {

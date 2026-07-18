@@ -34,6 +34,7 @@ function getSecret(): string {
 
 export interface TokenClaims {
   sub: string;
+  name: string | null;
   email: string;
   role: string;
   iat: number;
@@ -51,6 +52,7 @@ export class AuthError extends Error {
 
 export interface TokenUser {
   id: string;
+  name: string | null;
   email: string;
   role: string | null;
 }
@@ -59,6 +61,7 @@ export function createToken(user: TokenUser): string {
   const now = Math.floor(Date.now() / 1000);
   const payload = {
     sub: String(user.id),
+    name: user.name ?? null,
     email: user.email,
     role: user.role ?? "user",
     iat: now,
@@ -86,6 +89,16 @@ export function decodeToken(req: Request): TokenClaims {
       throw new AuthError("Token expired", 401);
     }
     throw new AuthError("Invalid token", 401);
+  }
+}
+
+/** Same as decodeToken, but returns null instead of throwing — for routes
+ * where being logged in is optional (e.g. attributing "created by"). */
+export function tryDecodeToken(req: Request): TokenClaims | null {
+  try {
+    return decodeToken(req);
+  } catch {
+    return null;
   }
 }
 

@@ -26,7 +26,6 @@ export interface CreateProjectInput {
   name: string;
   clientCode: string;
   industry: string;
-  createdBy?: string | null;
 }
 
 export const createProject = async (

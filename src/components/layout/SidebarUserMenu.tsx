@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import { useTheme } from "../../contexts/ThemeContext";
 import EditPasswordModal from "../ui/EditPasswordModal";
 import { logout } from "../../services/authService";
-import { clearSession, getCurrentUser } from "../../services/session";
 
 /** User profile block pinned to the bottom of the sidebar — avatar, name,
  * email, and an expand chevron that opens an upward popup (theme toggle,
@@ -13,11 +13,11 @@ import { clearSession, getCurrentUser } from "../../services/session";
 const SidebarUserMenu = () => {
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
+  const { user: currentUser } = useCurrentUser();
 
   const [open, setOpen] = useState(false);
   const [showEditPassword, setShowEditPassword] = useState(false);
 
-  const currentUser = getCurrentUser();
   const userName = currentUser?.name || "User";
   const userEmail = currentUser?.email || "";
 
@@ -29,12 +29,11 @@ const SidebarUserMenu = () => {
       .join("") || "U";
 
   const handleLogout = async () => {
-    // Clear the httpOnly session cookie server-side first — client JS can't
-    // remove it directly — then drop the cached display info.
+    // Clear the httpOnly session cookie server-side — client JS can't
+    // remove it directly.
     try {
       await logout();
     } finally {
-      clearSession();
       router.push("/");
     }
   };

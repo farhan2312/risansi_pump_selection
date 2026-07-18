@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import "./welcomeCard.css";
-import { getCurrentUser } from "../../services/session";
+import { useCurrentUser } from "../../contexts/CurrentUserContext";
 
 const WelcomeCard = () => {
   const now = new Date();
@@ -21,12 +20,8 @@ const WelcomeCard = () => {
     year: "numeric",
   });
 
-  // Logged-in user name — read after mount to avoid SSR/client mismatch.
-  const [userName, setUserName] = useState("User");
-  useEffect(() => {
-    const name = getCurrentUser()?.name;
-    if (name) setUserName(name.split(" ")[0]);
-  }, []);
+  const { user } = useCurrentUser();
+  const userName = user?.name?.split(" ")[0] || "User";
 
   return (
     <div className="welcome-card">

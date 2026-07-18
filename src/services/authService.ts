@@ -8,7 +8,6 @@ export interface AuthUser {
 }
 
 export interface LoginResult {
-  token: string;
   user: AuthUser;
 }
 
