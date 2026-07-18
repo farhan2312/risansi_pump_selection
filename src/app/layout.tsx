@@ -45,6 +45,17 @@ export default function RootLayout({
       lang="en"
       className={`${plexSans.variable} ${plexMono.variable} ${instrumentSerif.variable}`}
     >
+      <head>
+        {/* Sets data-theme before first paint so themed CSS variables are
+            correct immediately — without this, the page paints once with no
+            data-theme (ThemeProvider only applies it in a post-paint effect),
+            then snaps to the right look a moment later. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body>
         <ThemeProvider>{children}</ThemeProvider>
       </body>
