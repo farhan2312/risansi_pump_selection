@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
-import { createToken } from "@/lib/auth";
+import { AUTH_COOKIE_MAX_AGE, AUTH_COOKIE_NAME, createToken } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 
@@ -35,8 +35,16 @@ export async function POST(req: Request) {
   }
 
   const token = createToken({ id: user.id, email: user.email, role: user.role });
-  return json({
+  const response = json({
     token,
     user: { id: String(user.id), name: user.name, email: user.email, role: user.role },
   });
+  response.cookies.set(AUTH_COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: AUTH_COOKIE_MAX_AGE,
+  });
+  return response;
 }

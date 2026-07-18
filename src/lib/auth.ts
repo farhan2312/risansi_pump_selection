@@ -8,6 +8,22 @@ import jwt from "jsonwebtoken";
 const JWT_ALGORITHM = "HS256" as const;
 const JWT_EXPIRY_SECONDS = 60 * 60 * 12; // 12 hours
 
+/** httpOnly cookie the session token lives in — not readable/settable from
+ * client JS, so it can't be faked via localStorage the way the old
+ * client-stored token could be. */
+export const AUTH_COOKIE_NAME = "auth_token";
+export const AUTH_COOKIE_MAX_AGE = JWT_EXPIRY_SECONDS;
+
+function readCookie(req: Request, name: string): string | null {
+  const header = req.headers.get("cookie");
+  if (!header) return null;
+  const match = header
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${name}=`));
+  return match ? decodeURIComponent(match.slice(name.length + 1)) : null;
+}
+
 function getSecret(): string {
   const secret = process.env.JWT_SECRET;
   if (!secret) {
@@ -51,13 +67,16 @@ export function createToken(user: TokenUser): string {
   return jwt.sign(payload, getSecret(), { algorithm: JWT_ALGORITHM });
 }
 
-/** Extract and verify the Bearer token from a request's Authorization header. */
+/** Extract and verify the session token — from the httpOnly auth cookie
+ * (the normal path for browser requests), falling back to a Bearer
+ * Authorization header for any direct/non-browser API callers. */
 export function decodeToken(req: Request): TokenClaims {
   const header = req.headers.get("authorization") ?? "";
-  if (!header.startsWith("Bearer ")) {
-    throw new AuthError("Missing or invalid Authorization header", 401);
+  const bearerToken = header.startsWith("Bearer ") ? header.slice("Bearer ".length) : null;
+  const token = bearerToken ?? readCookie(req, AUTH_COOKIE_NAME);
+  if (!token) {
+    throw new AuthError("Missing or invalid session", 401);
   }
-  const token = header.slice("Bearer ".length);
   try {
     return jwt.verify(token, getSecret(), {
       algorithms: [JWT_ALGORITHM],

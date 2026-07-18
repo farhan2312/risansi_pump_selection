@@ -1,5 +1,4 @@
 import apiClient from "./apiClient";
-import { getToken } from "./session";
 
 export interface AuthUser {
   id: string;
@@ -41,10 +40,15 @@ export const changePassword = async (
   currentPassword: string,
   newPassword: string
 ) => {
-  const { data } = await apiClient.post(
-    "/auth/change-password",
-    { currentPassword, newPassword },
-    { headers: { Authorization: `Bearer ${getToken()}` } }
-  );
+  // Auth is via the httpOnly session cookie, sent automatically on this
+  // same-origin request — no Authorization header needed.
+  const { data } = await apiClient.post("/auth/change-password", {
+    currentPassword,
+    newPassword,
+  });
   return data;
+};
+
+export const logout = async () => {
+  await apiClient.post("/auth/logout");
 };

@@ -1,20 +1,20 @@
 import type { AuthUser } from "./authService";
 
-const TOKEN_KEY = "authToken";
 const USER_KEY = "authUser";
 
-export const saveSession = (token: string, user: AuthUser) => {
-  localStorage.setItem(TOKEN_KEY, token);
+/** The actual session lives in an httpOnly `auth_token` cookie (set by
+ * /api/auth/login, verified by middleware.ts on every protected request) —
+ * it's never readable or settable from client JS, so it can't be spoofed via
+ * localStorage. What's stored here is just a display-only cache of the
+ * logged-in user's name/email/role, so the UI doesn't need a round trip to
+ * paint the sidebar. */
+export const saveSession = (user: AuthUser) => {
   localStorage.setItem(USER_KEY, JSON.stringify(user));
 };
 
 export const clearSession = () => {
-  localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
 };
-
-export const getToken = (): string | null =>
-  typeof window === "undefined" ? null : localStorage.getItem(TOKEN_KEY);
 
 export const getCurrentUser = (): AuthUser | null => {
   if (typeof window === "undefined") return null;
@@ -27,30 +27,9 @@ export const getCurrentUser = (): AuthUser | null => {
   }
 };
 
-/** Reads the `exp` claim out of a JWT without verifying its signature —
- * enough to reject expired or malformed/fabricated tokens client-side.
- * Real signature verification still happens server-side on every API call. */
-const getTokenExpiry = (token: string): number | null => {
-  try {
-    const payload = token.split(".")[1];
-    if (!payload) return null;
-    const json = JSON.parse(
-      atob(payload.replace(/-/g, "+").replace(/_/g, "/"))
-    );
-    return typeof json.exp === "number" ? json.exp : null;
-  } catch {
-    return null;
-  }
-};
-
-export const isAuthenticated = (): boolean => {
-  const token = getToken();
-  if (!token || getCurrentUser() === null) return false;
-
-  const exp = getTokenExpiry(token);
-  if (exp === null) return false;
-
-  return exp * 1000 > Date.now();
-};
+/** Weak client-side hint only (defense in depth) — real enforcement is
+ * middleware.ts rejecting requests without a valid cookie before any
+ * protected page is served. */
+export const isAuthenticated = (): boolean => getCurrentUser() !== null;
 
 export const isAdmin = (): boolean => getCurrentUser()?.role === "admin";

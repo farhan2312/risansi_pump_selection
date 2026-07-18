@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "../../contexts/ThemeContext";
 import EditPasswordModal from "../ui/EditPasswordModal";
+import { logout } from "../../services/authService";
 import { clearSession, getCurrentUser } from "../../services/session";
 
 /** User profile block pinned to the bottom of the sidebar — avatar, name,
@@ -27,9 +28,15 @@ const SidebarUserMenu = () => {
       .slice(0, 2)
       .join("") || "U";
 
-  const handleLogout = () => {
-    clearSession();
-    router.push("/");
+  const handleLogout = async () => {
+    // Clear the httpOnly session cookie server-side first — client JS can't
+    // remove it directly — then drop the cached display info.
+    try {
+      await logout();
+    } finally {
+      clearSession();
+      router.push("/");
+    }
   };
 
   return (
