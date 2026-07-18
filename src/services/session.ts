@@ -27,7 +27,30 @@ export const getCurrentUser = (): AuthUser | null => {
   }
 };
 
-export const isAuthenticated = (): boolean =>
-  getToken() !== null && getCurrentUser() !== null;
+/** Reads the `exp` claim out of a JWT without verifying its signature —
+ * enough to reject expired or malformed/fabricated tokens client-side.
+ * Real signature verification still happens server-side on every API call. */
+const getTokenExpiry = (token: string): number | null => {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const json = JSON.parse(
+      atob(payload.replace(/-/g, "+").replace(/_/g, "/"))
+    );
+    return typeof json.exp === "number" ? json.exp : null;
+  } catch {
+    return null;
+  }
+};
+
+export const isAuthenticated = (): boolean => {
+  const token = getToken();
+  if (!token || getCurrentUser() === null) return false;
+
+  const exp = getTokenExpiry(token);
+  if (exp === null) return false;
+
+  return exp * 1000 > Date.now();
+};
 
 export const isAdmin = (): boolean => getCurrentUser()?.role === "admin";
