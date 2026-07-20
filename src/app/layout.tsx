@@ -4,15 +4,37 @@ import { IBM_Plex_Sans, IBM_Plex_Mono, Instrument_Serif } from "next/font/google
 import "../styles/theme.css";
 import "../index.css";
 import "../App.css";
-// Wizard chrome, eagerly loaded here (not just from the step components that
-// use it) so it's already part of the initial CSS bundle before the user
-// ever client-side-navigates to /pump-selection — otherwise that route's CSS
-// chunk can lag a beat behind its JS on first visit, and the form paints
-// looking compact/unstyled until the chunk catches up (or a hard refresh
-// forces it to load synchronously up front).
+// Every plain (non-module) CSS file in the app, eagerly loaded here instead
+// of from the individual components that use them. Next.js otherwise bundles
+// each into a route-specific chunk fetched on first visit to that route —
+// including the dashboard shell itself (Sidebar.css, DashboardLayout.css),
+// which only ever mounts for the first time right after login. On that
+// client-side transition the JS can paint a beat before its CSS chunk is
+// fully applied, so the page (sidebar spacing, form gaps, everything) looks
+// compact/unstyled until the chunk catches up — a hard refresh forces every
+// stylesheet to load synchronously up front, which is why that always looks
+// right. Importing them all here puts them in the same eagerly-loaded bundle
+// as the rest of the app's critical CSS, removing the race entirely.
+import "../layouts/DashboardLayout.css";
+import "../components/layout/Sidebar.css";
+import "../components/dashboard/QuickActions.css";
+import "../components/dashboard/StatsCard.css";
+import "../components/dashboard/welcomeCard.css";
+import "../components/projects/CreateProjectModal.css";
+import "../components/projects/ProjectHeader.css";
 import "../components/pump-selection/GeneralInformationStep.css";
 import "../components/pump-selection/Stepper.css";
 import "../components/pump-selection/LivePumpRecommendation.css";
+import "../components/recommendation/PumpDetailsCard.css";
+import "../components/recommendation/RecommendationTable.css";
+import "../components/recommendation/TestReportModal.css";
+import "../components/ui/EditPasswordModal.css";
+import "../screens/admin/AdminAccessRequestsPage.css";
+import "../screens/dashboard/DashboardPage.css";
+import "../screens/login/LoginPage.css";
+import "../screens/not-found/NotFoundPage.css";
+import "../screens/projects/ProjectsPage.css";
+import "../screens/selection-summary/SelectionSummaryPage.css";
 import { ThemeProvider } from "../contexts/ThemeContext";
 
 // Match the Risansi Intelligence Platform (sales.risansi.com) typeface exactly.
