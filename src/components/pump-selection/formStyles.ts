@@ -18,13 +18,13 @@ export const grid = "grid grid-cols-2 gap-x-[24px] gap-y-[12px]";
 export const fieldWrap = "flex flex-col gap-[4px]";
 export const fullWidth = "col-span-2";
 export const label =
-  "text-[13.5px] font-semibold uppercase tracking-wide text-fg-2";
+  "text-[12.5px] font-semibold uppercase tracking-wide text-fg-2";
 export const control =
-  "w-full rounded-lg border border-line-strong bg-sunk pl-[18px] pr-[18px] pt-[13px] pb-[13px] text-[16.5px] text-fg outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent-soft";
+  "w-full rounded-lg border border-line-strong bg-sunk pl-[14px] pr-[14px] pt-[9px] pb-[9px] text-[14.5px] text-fg outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent-soft";
 export const btnPrimary =
-  "rounded-lg bg-title pl-[32px] pr-[32px] pt-[14px] pb-[14px] text-[16px] font-semibold text-white shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50";
+  "rounded-lg bg-title pl-[28px] pr-[28px] pt-[11px] pb-[11px] text-[15px] font-semibold text-white shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50";
 export const btnGhost =
-  "rounded-lg border-2 border-line-strong bg-paper pl-[32px] pr-[32px] pt-[14px] pb-[14px] text-[16px] font-semibold text-fg-2 transition-colors hover:border-accent hover:text-accent hover:bg-elev";
+  "rounded-lg border-2 border-line-strong bg-paper pl-[28px] pr-[28px] pt-[11px] pb-[11px] text-[15px] font-semibold text-fg-2 transition-colors hover:border-accent hover:text-accent hover:bg-elev";
 export const actions = "mt-[20px] flex justify-end gap-[12px]";
 export const hint = "text-[12px] text-fg-3";
 export const hintError = "text-[12px] text-neg";
