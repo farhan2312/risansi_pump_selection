@@ -87,8 +87,8 @@ const SidebarUserMenu = () => {
               }`}
             >
               <span
-                className={`absolute top-[2px] h-[12px] w-[12px] rounded-full bg-white transition-transform ${
-                  theme === "dark" ? "translate-x-[16px]" : "translate-x-[2px]"
+                className={`absolute left-[2px] top-[2px] h-[12px] w-[12px] rounded-full bg-white transition-transform ${
+                  theme === "dark" ? "translate-x-[14px]" : "translate-x-0"
                 }`}
               />
             </button>
