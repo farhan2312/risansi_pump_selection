@@ -7,8 +7,31 @@ import { useTheme } from "../../contexts/ThemeContext";
 import EditPasswordModal from "../ui/EditPasswordModal";
 import { logout } from "../../services/authService";
 
+const MoonIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="h-[16px] w-[16px] shrink-0">
+    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+  </svg>
+);
+
+const KeyIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="h-[16px] w-[16px] shrink-0">
+    <circle cx="8" cy="16" r="3" />
+    <path d="M10 14l7-7m0 0h-3m3 0v3" />
+  </svg>
+);
+
+const LogOutIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="h-[16px] w-[16px] shrink-0">
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+    <path d="M16 17l5-5-5-5" />
+    <path d="M21 12H9" />
+  </svg>
+);
+
+const roleLabel = (role: string | undefined) => (role === "admin" ? "System Admin" : "User");
+
 /** User profile block pinned to the bottom of the sidebar — avatar, name,
- * email, and an expand chevron that opens an upward popup (theme toggle,
+ * role, and an expand chevron that opens an upward popup (theme toggle,
  * change password, log out). Tailwind-styled. */
 const SidebarUserMenu = () => {
   const router = useRouter();
@@ -21,12 +44,7 @@ const SidebarUserMenu = () => {
   const userName = currentUser?.name || "User";
   const userEmail = currentUser?.email || "";
 
-  const initials =
-    userName
-      .split(" ")
-      .map((part) => part.charAt(0).toUpperCase())
-      .slice(0, 2)
-      .join("") || "U";
+  const initial = userName.charAt(0).toUpperCase() || "U";
 
   const handleLogout = async () => {
     // Clear the httpOnly session cookie server-side — client JS can't
@@ -46,34 +64,18 @@ const SidebarUserMenu = () => {
     <div className="relative mt-auto border-t border-white/10 pt-[8px]">
       {open && (
         <div className="absolute bottom-[calc(100%+6px)] left-0 right-0 z-20 rounded-md border border-white/10 bg-[#132240] pl-[8px] pr-[8px] pt-[8px] pb-[8px] shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
-          <div className="pl-[8px] pr-[8px] pt-[6px] pb-[6px] mb-[4px]">
+          <div className="pl-[8px] pr-[8px] pt-[6px] pb-[6px]">
             <p className="text-[13px] font-semibold text-white truncate">{userName}</p>
             <p className="text-[11px] text-sidebar-fg/80 truncate">{userEmail}</p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              setShowEditPassword(true);
-              setOpen(false);
-            }}
-            className="w-full text-left pl-[8px] pr-[8px] pt-[6px] pb-[6px] rounded text-[13px] text-sidebar-fg hover:bg-white/10 hover:text-white transition-colors"
-          >
-            Change Password
-          </button>
-
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="w-full text-left pl-[8px] pr-[8px] pt-[6px] pb-[6px] rounded text-[13px] text-red-400 hover:bg-white/10 transition-colors"
-          >
-            Sign out
-          </button>
-
           <div className="my-[6px] h-px bg-white/10" />
 
-          <div className="flex items-center justify-between pl-[8px] pr-[8px] pt-[4px] pb-[4px]">
-            <span className="text-[12px] text-sidebar-fg">Dark Mode</span>
+          <div className="flex items-center justify-between pl-[8px] pr-[8px] pt-[6px] pb-[6px]">
+            <span className="flex items-center gap-[8px] text-[13px] text-sidebar-fg">
+              <MoonIcon />
+              Dark mode
+            </span>
             <button
               type="button"
               role="switch"
@@ -91,6 +93,31 @@ const SidebarUserMenu = () => {
               />
             </button>
           </div>
+
+          <div className="my-[6px] h-px bg-white/10" />
+
+          <button
+            type="button"
+            onClick={() => {
+              setShowEditPassword(true);
+              setOpen(false);
+            }}
+            className="flex w-full items-center gap-[8px] text-left pl-[8px] pr-[8px] pt-[6px] pb-[6px] rounded text-[13px] text-sidebar-fg hover:bg-white/10 hover:text-white transition-colors"
+          >
+            <KeyIcon />
+            Change Password
+          </button>
+
+          <div className="my-[6px] h-px bg-white/10" />
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex w-full items-center gap-[8px] text-left pl-[8px] pr-[8px] pt-[6px] pb-[6px] rounded text-[13px] text-red-400 hover:bg-white/10 transition-colors"
+          >
+            <LogOutIcon />
+            Sign out
+          </button>
         </div>
       )}
 
@@ -102,11 +129,11 @@ const SidebarUserMenu = () => {
         className="flex w-full items-center gap-[10px] rounded-md pl-[8px] pr-[8px] pt-[8px] pb-[8px] text-left hover:bg-white/5 transition-colors"
       >
         <span className="flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-full bg-accent text-[13px] font-semibold text-white">
-          {initials}
+          {initial}
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[13px] font-semibold text-white">{userName}</span>
-          <span className="block truncate text-[11px] text-sidebar-fg/80">{userEmail}</span>
+          <span className="block truncate text-[11px] text-sidebar-fg/80">{roleLabel(currentUser?.role)}</span>
         </span>
         <svg
           viewBox="0 0 24 24"
