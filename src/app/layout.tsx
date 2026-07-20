@@ -4,6 +4,15 @@ import { IBM_Plex_Sans, IBM_Plex_Mono, Instrument_Serif } from "next/font/google
 import "../styles/theme.css";
 import "../index.css";
 import "../App.css";
+// Wizard chrome, eagerly loaded here (not just from the step components that
+// use it) so it's already part of the initial CSS bundle before the user
+// ever client-side-navigates to /pump-selection — otherwise that route's CSS
+// chunk can lag a beat behind its JS on first visit, and the form paints
+// looking compact/unstyled until the chunk catches up (or a hard refresh
+// forces it to load synchronously up front).
+import "../components/pump-selection/GeneralInformationStep.css";
+import "../components/pump-selection/Stepper.css";
+import "../components/pump-selection/LivePumpRecommendation.css";
 import { ThemeProvider } from "../contexts/ThemeContext";
 
 // Match the Risansi Intelligence Platform (sales.risansi.com) typeface exactly.
