@@ -1,6 +1,5 @@
 import WelcomeCard from "../../components/dashboard/WelcomeCard";
 import StatsCard from "../../components/dashboard/StatsCard";
-import QuickActions from "../../components/dashboard/QuickActions";
 import "./DashboardPage.css";
 
 const DashboardPage = () => {
@@ -18,54 +17,34 @@ const DashboardPage = () => {
         <StatsCard title="Pumps Tested" value={48} />
       </div>
 
-      <div className="dashboard-row">
-        <div className="dashboard-card">
-          <h3>Recent Projects</h3>
-
-          <table>
-            <thead>
-              <tr>
-                <th>Project</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              <tr>
-                <td>Cooling Water Pump</td>
-                <td>In Progress</td>
-              </tr>
-
-              <tr>
-                <td>Molasses Transfer</td>
-                <td>Completed</td>
-              </tr>
-
-              <tr>
-                <td>Syrup Feeding</td>
-                <td>Pending</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div className="dashboard-card">
-          <h3>Quick Actions</h3>
-
-          <QuickActions />
-        </div>
-      </div>
-
       <div className="dashboard-card">
-        <h3>Recent Activity</h3>
+        <h3>Recent Projects</h3>
 
-        <ul className="activity-list">
-          <li>Pump PCP-250A selected for Cooling Water Project</li>
+        <table>
+          <thead>
+            <tr>
+              <th>Project</th>
+              <th>Status</th>
+            </tr>
+          </thead>
 
-          <li>Test report TR-2026-001 generated</li>
+          <tbody>
+            <tr>
+              <td>Cooling Water Pump</td>
+              <td>In Progress</td>
+            </tr>
 
-          <li>New project &quot;Molasses Transfer&quot; created</li>
-        </ul>
+            <tr>
+              <td>Molasses Transfer</td>
+              <td>Completed</td>
+            </tr>
+
+            <tr>
+              <td>Syrup Feeding</td>
+              <td>Pending</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   );

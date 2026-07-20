@@ -17,7 +17,6 @@ import "../App.css";
 // as the rest of the app's critical CSS, removing the race entirely.
 import "../layouts/DashboardLayout.css";
 import "../components/layout/Sidebar.css";
-import "../components/dashboard/QuickActions.css";
 import "../components/dashboard/StatsCard.css";
 import "../components/dashboard/welcomeCard.css";
 import "../components/projects/CreateProjectModal.css";

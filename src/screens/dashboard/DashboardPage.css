@@ -11,13 +11,6 @@
   margin: 16px 0;
 }
 
-.dashboard-row {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
 /* Panel (design guide §7.3): flat, hairline border, no shadow, header + body. */
 .dashboard-card {
   background: var(--bg-paper);
@@ -68,27 +61,9 @@
   border-bottom: none;
 }
 
-.activity-list {
-  margin: 0;
-  padding: 14px 16px 14px 32px;
-}
-
-.activity-list li {
-  margin-bottom: 10px;
-  font-size: 13px;
-  color: var(--fg-2);
-}
-
-.activity-list li:last-child {
-  margin-bottom: 0;
-}
-
 @media (max-width: 1000px) {
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
-  }
-  .dashboard-row {
-    grid-template-columns: 1fr;
   }
 }
 
