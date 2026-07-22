@@ -6,6 +6,9 @@ type Props = {
   pump: any;
 };
 
+// Not an actual test report — pump_test_reports lives in the separate
+// testing-portal database and isn't wired up here yet. This just surfaces
+// what pump_model_master actually knows about the selected model.
 const TestReportModal = ({ isOpen, onClose, pump }: Props) => {
   if (!isOpen || !pump) return null;
 
@@ -13,23 +16,23 @@ const TestReportModal = ({ isOpen, onClose, pump }: Props) => {
     <div className="report-overlay">
       <div className="report-modal">
 
-        <h2>Pump Test Report</h2>
+        <h2>Pump Master Data</h2>
 
         <div className="report-grid">
 
           <p><strong>Model:</strong> {pump.model}</p>
 
-          <p><strong>Flow:</strong> {pump.flow}</p>
+          <p><strong>RPM (VOLE max–min):</strong> {pump.rpmRange}</p>
 
-          <p><strong>Head:</strong> {pump.head}</p>
+          <p><strong>Nearest Charted Head:</strong> {pump.headMwc} MWC</p>
 
-          <p><strong>Match Score:</strong> {pump.score}</p>
+          <p><strong>VOLE Min–Max:</strong> {pump.voleMin}–{pump.voleMax}%</p>
 
-          <p><strong>Availability:</strong> {pump.availability}</p>
+          <p><strong>Testing Status:</strong> {pump.isTested ? "Tested" : "Not Tested"}</p>
 
-          <p><strong>Testing Status:</strong> {pump.tested}</p>
-
-          <p><strong>Result:</strong> PASS</p>
+          {pump.testingRemarks && (
+            <p><strong>Remarks:</strong> {pump.testingRemarks}</p>
+          )}
 
         </div>
 

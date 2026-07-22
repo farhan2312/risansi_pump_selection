@@ -148,9 +148,7 @@ const LoginPage = () => {
 
         <div className="branding-content">
           <h1>
-            Pump Selection
-            <br />
-            & Testing Portal
+            Pump Selection Portal
           </h1>
 
           <p>

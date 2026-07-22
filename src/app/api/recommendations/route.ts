@@ -1,28 +1,23 @@
 import { error, json, toFloat } from "@/lib/api";
 import { db } from "@/lib/db";
-import { pumpRecommendations, pumpSelections } from "@/lib/db/schema";
-import {
-  applyPinnedSelection,
-  findCandidates,
-  resolveDrive,
-  resolveMoc,
-  resolveSealing,
-  sizeSuctionDischarge,
-  toCp,
-  toM3PerHr,
-  toMwc,
-} from "@/lib/recommendation-engine";
+import { findCandidates, toM3PerHr, toMwc } from "@/lib/recommendation-engine";
 
 export const dynamic = "force-dynamic";
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
+// Step-3 model screening: capacity + head in, every model from
+// pump_model_master that physically satisfies the duty point out (see
+// findCandidates in recommendation-engine.ts for the formula and eligibility
+// rules). No ranking/limit — selection is manual, per the spec: "system
+// should give all the model that satisfy the inputs... recommendation can be
+// manual selection."
+//
+// Nothing is persisted yet (pump_selections / pump_recommendations don't
+// exist in the DB), and there are no MOC/sealing/suction-sizing/drive/motor
+// fields yet either — those depend on master tables (moc_selection_guide,
+// sealing_selection_rule, suction_velocity, standard_motor_kw, ve_correction,
+// rpm_band_master) that haven't been built. Those parts of the wizard stay
+// disabled until that data exists.
 export async function POST(req: Request) {
-  // Live wizard preview: run the engine and return results WITHOUT persisting a
-  // pump_selection / pump_recommendation row (so the panel updating on every
-  // keystroke doesn't flood the DB). The final "Confirm" call omits ?preview.
-  const preview = new URL(req.url).searchParams.get("preview") === "1";
-
   let body: Record<string, unknown>;
   try {
     body = await req.json();
@@ -33,27 +28,21 @@ export async function POST(req: Request) {
   const sg = toFloat(body.sg, 1.0) || 1.0;
   const capacityRaw = toFloat(body.capacity);
   const headRaw = toFloat(body.head);
-  const viscosityRaw = toFloat(body.viscosity);
-  const temperature = toFloat(body.temperature);
-  const solidPct = toFloat(body.solidPercentage);
-  const motorRpm = toFloat(body.motorRPM, 0) || null;
-
   if (capacityRaw <= 0 || headRaw <= 0) {
     return error("'capacity' and 'head' are required and must be > 0", 400);
   }
 
   const capacityUnit = (body.capacityUnit as string) ?? null;
   const headUnit = (body.headUnit as string) ?? null;
-  const viscosityUnit = (body.viscosityUnit as string) ?? null;
-  const media = (body.media as string) ?? "";
-
   const capacityM3hr = toM3PerHr(capacityRaw, capacityUnit, sg);
   const headMwc = toMwc(headRaw, headUnit, sg);
-  const viscosityCp = toCp(viscosityRaw, viscosityUnit, sg);
 
-  // Optional manual RPM-band filter from General Information (spec Step-3:
-  // "final RPM selection is manual on the basis of RPM range, then scan the
-  // model master"). Bands classify the required RPM at VE_max.
+  const allCandidates = await findCandidates(db, capacityM3hr, headMwc);
+
+  // Optional manual RPM-band filter from the General Information step (spec
+  // Step-3: "final RPM selection is manual on the basis of RPM range, then
+  // system will scan the pump model master for model suggestions"). Bands
+  // classify on rpmAtVoleMax (the best-case, lowest-speed output).
   const rpmBand = (body.rpmRange as string) || "";
   const inBand = (rpm: number): boolean => {
     switch (rpmBand) {
@@ -69,142 +58,38 @@ export async function POST(req: Request) {
         return true;
     }
   };
+  const candidates = allCandidates.filter((c) => inBand(c.rpmAtVoleMax));
 
-  const bandFiltered = (
-    await findCandidates(db, capacityM3hr, headMwc, viscosityCp, solidPct, motorRpm)
-  ).filter((c) => inBand(c.rpmRequired));
-
-  // Persist the user's pump pick across wizard steps: if they selected a
-  // model on an earlier step, keep it in the results (re-evaluated fresh
-  // against the CURRENT inputs above) alongside the next-best alternates,
-  // then re-rank so whichever is genuinely best now leads as "Best Match" —
-  // that may still be their pick, or the engine may promote an alternate.
-  // `limit` must match how many the CALLER actually displays (the live panel
-  // shows 3; the final step's table shows 5) — the pin is only guaranteed
-  // to survive within the returned set, not within some other later slice.
   const selectedModel = typeof body.selectedModel === "string" ? body.selectedModel : null;
-  const rawLimit = typeof body.limit === "number" ? body.limit : 5;
-  const limit = Math.max(1, Math.min(10, rawLimit));
-  const { results: candidates, pinnedIncluded } = applyPinnedSelection(
-    bandFiltered,
-    selectedModel,
-    limit,
-  );
-  const pinFellOut = Boolean(selectedModel) && !pinnedIncluded;
 
-  const moc = await resolveMoc(db, media, temperature, solidPct);
-  const mocStr =
-    [
-      moc.casing ? `Casing: ${moc.casing}` : null,
-      moc.rotor ? `Rotor: ${moc.rotor}` : null,
-      moc.stator ? `Stator: ${moc.stator}` : null,
-    ]
-      .filter(Boolean)
-      .join(", ") || null;
-
-  const mediaLower = media.toLowerCase();
-  const hazardous = mediaLower.includes("chemical") || mediaLower.includes("acid");
-  const highPressure = headMwc > 60;
-  const sealingType = await resolveSealing(db, body.sealingType as string, hazardous, highPressure);
-
-  const [suctionNb, dischargeNb] = await sizeSuctionDischarge(
-    db,
-    capacityM3hr,
-    viscosityCp,
-    solidPct,
-  );
-
-  const projectId =
-    typeof body.projectId === "string" && UUID_RE.test(body.projectId) ? body.projectId : null;
-
-  // Persist the parent selection only for a real (non-preview) submission.
-  let selectionId: string | null = null;
-  if (!preview) {
-    const [selection] = await db
-      .insert(pumpSelections)
-      .values({
-        projectId,
-        projectName: (body.projectName as string) ?? null,
-        customerName: (body.customerName as string) ?? null,
-        capacity: (body.capacity as string) ?? null,
-        capacityUnit,
-        head: (body.head as string) ?? null,
-        headUnit,
-        media: (body.media as string) ?? null,
-        temperature: (body.temperature as string) ?? null,
-        sg: (body.sg as string) ?? null,
-        ph: (body.ph as string) ?? null,
-        viscosity: (body.viscosity as string) ?? null,
-        viscosityUnit,
-        viscosityRange: (body.viscosityRange as string) ?? null,
-        solidPercentage: (body.solidPercentage as string) ?? null,
-        solidSize: (body.solidSize as string) ?? null,
-        pumpType: (body.pumpType as string) ?? null,
-        bearingHousing: (body.bearingHousing as string) ?? null,
-        suctionHousing: (body.suctionHousing as string) ?? null,
-        jointType: (body.jointType as string) ?? null,
-        driveSystem: (body.driveSystem as string) ?? null,
-        sealingType: (body.sealingType as string) ?? null,
-        motorMake: (body.motorMake as string) ?? null,
-        gearboxMake: (body.gearboxMake as string) ?? null,
-        motorRpm: (body.motorRPM as string) ?? null,
-      })
-      .returning();
-    selectionId = String(selection.id);
-  }
-
-  const results = [];
-  for (let i = 0; i < candidates.length; i++) {
-    const c = candidates[i];
-    const drive = resolveDrive(c.rpmRequired, motorRpm);
-
-    // "2 output RPMs as per VE": VE_max speed (low) .. VE_min speed (high).
-    const rpmLow = Math.round(c.rpmRequired);
-    const rpmHigh = Math.round(c.rpmMinVe);
-    const rpmRange = rpmHigh > rpmLow ? `${rpmLow}–${rpmHigh}` : `${rpmLow}`;
-
-    const base = {
-      model: c.model,
-      rpm: c.rpmRequired.toFixed(0),
-      flow: `${capacityRaw} ${capacityUnit ?? ""}`.trim(),
-      head: `${headRaw} ${headUnit ?? ""}`.trim(),
-      bearingHousing: (body.bearingHousing as string) ?? null,
-      suctionHousing: (body.suctionHousing as string) ?? null,
-      jointType: (body.jointType as string) ?? null,
-      sealingType,
-      moc: mocStr,
-      suctionSize: `${suctionNb} NB`,
-      deliverySize: `${dischargeNb} NB`,
-      motor: c.installedKw ? `${c.installedKw.toFixed(2)} kW` : null,
-      driveSystem: drive,
-      score: c.score.toFixed(0),
-      availability: "Unknown",
-      tested: c.isTested ? "Yes" : "No",
-      reportNo: null as string | null,
-      rejectionReasons: c.rejectionReasons.length > 0 ? c.rejectionReasons : null,
-    };
-
-    let recommendationId: string | null = null;
-    if (!preview) {
-      const [rec] = await db
-        .insert(pumpRecommendations)
-        .values({ selectionId, ...base })
-        .returning();
-      recommendationId = String(rec.id);
-    }
-
-    results.push({
+  const recommendations = candidates.map((c, i) => {
+    const rpmLow = Math.round(c.rpmAtVoleMax);
+    const rpmHigh = Math.round(c.rpmAtVoleMin);
+    return {
       id: i,
-      recommendationId,
-      ...base,
-      rpmRange,
+      model: c.model,
+      headMwc: c.headMwc,
+      voleMin: c.voleMin,
+      voleMax: c.voleMax,
+      mechEff: c.mechEff,
+      qth: c.qth,
+      isTested: c.isTested,
+      testingRemarks: c.testingRemarks,
+      rpmAtVoleMin: rpmHigh,
+      rpmAtVoleMax: rpmLow,
+      rpmClassAtVoleMin: c.rpmClassAtVoleMin,
+      rpmClassAtVoleMax: c.rpmClassAtVoleMax,
+      // "2 output RPMs as per VE": VOLE MAX speed (low) .. VOLE MIN speed (high).
+      rpmRange: rpmHigh > rpmLow ? `${rpmLow}–${rpmHigh}` : `${rpmLow}`,
       isSelected: selectedModel !== null && c.model === selectedModel,
-      dataSource: {
-        performanceCurve: c.isTested ? "tested" : "calculated",
-        kw: c.kwSource,
-      },
-    });
-  }
+    };
+  });
 
-  return json({ selectionId, recommendations: results, pinFellOut });
+  return json({
+    input: {
+      capacity: `${capacityRaw} ${capacityUnit ?? ""}`.trim(),
+      head: `${headRaw} ${headUnit ?? ""}`.trim(),
+    },
+    recommendations,
+  });
 }

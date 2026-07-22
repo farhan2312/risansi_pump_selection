@@ -18,13 +18,11 @@ const RecommendationTable = ({
         <tr>
           <th>Select</th>
           <th>Model</th>
-          <th>RPM</th>
-          <th>Flow</th>
-          <th>Head</th>
-          <th>Score</th>
-          <th>Availability</th>
+          <th>RPM (VOLE max–min)</th>
+          <th>Nearest Head (MWC)</th>
+          <th>VOLE Min–Max</th>
+          <th>Mech Eff</th>
           <th>Tested</th>
-          <th>Report No.</th>
         </tr>
       </thead>
 
@@ -44,36 +42,18 @@ const RecommendationTable = ({
             </td>
 
             <td>{pump.model}</td>
-            <td>{pump.rpmRange ?? pump.rpm}</td>
-            <td>{pump.flow}</td>
-            <td>{pump.head}</td>
-            <td>{pump.score}</td>
+            <td>{pump.rpmRange}</td>
+            <td>{pump.headMwc}</td>
+            <td>
+              {pump.voleMin}–{pump.voleMax}%
+            </td>
+            <td>{pump.mechEff}%</td>
 
             <td>
-              <span
-                className={
-                  pump.availability === "Available"
-                    ? "badge available"
-                    : "badge out"
-                }
-              >
-                {pump.availability}
+              <span className={pump.isTested ? "badge tested" : "badge pending"}>
+                {pump.isTested ? "Tested" : "Not Tested"}
               </span>
             </td>
-
-            <td>
-              <span
-                className={
-                  pump.tested === "Yes"
-                    ? "badge tested"
-                    : "badge pending"
-                }
-              >
-                {pump.tested === "Yes" ? "Tested" : "Pending"}
-              </span>
-            </td>
-
-            <td>{pump.reportNo}</td>
           </tr>
         ))}
       </tbody>

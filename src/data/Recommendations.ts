@@ -86,31 +86,28 @@ export interface PumpSelectionFormData {
   asfRange?: string; // Application Service Factor band — Geared Motor Drive only
 }
 
-// Output shape — matches what RecommendationTable / PumpDetailsCard render
+// Output shape — matches what RecommendationTable / PumpDetailsCard render.
+// Step-3 model screening only: capacity/head -> every pump_model_master model
+// that satisfies the duty point. No MOC/sealing/suction-sizing/drive/motor
+// fields yet (their master tables don't exist); no score/ranking either,
+// since selection is manual (see recommendation-engine.ts findCandidates).
 export interface PumpRecommendation {
   id: number;
-  recommendationId?: string;
   model: string;
-  rpm: string;
-  /** "2 RPMs as per VE" — VE_max..VE_min, e.g. "249–302". Falls back to rpm. */
-  rpmRange?: string;
-  flow: string;
-  head: string;
-  bearingHousing: string;
-  suctionHousing: string;
-  jointType: string;
-  sealingType: string;
-  moc: string;
-  suctionSize: string;
-  deliverySize: string;
-  motor: string;
-  driveSystem: string;
-  score: string;
-  availability: string;
-  tested: string;
-  reportNo: string;
-  rejectionReasons?: string[];
-  /** True if this is the model the user pinned on an earlier step — may or
-   * may not also be the current best match (index 0). */
+  /** Nearest charted head point (in pump_model_master) to the input duty head. */
+  headMwc: number;
+  voleMin: number;
+  voleMax: number;
+  mechEff: number;
+  qth: number;
+  isTested: boolean;
+  testingRemarks: string | null;
+  rpmAtVoleMin: number;
+  rpmAtVoleMax: number;
+  rpmClassAtVoleMin: string;
+  rpmClassAtVoleMax: string;
+  /** "VOLE MAX rpm–VOLE MIN rpm", e.g. "249–302". Falls back to a single value. */
+  rpmRange: string;
+  /** True if this is the model the user pinned on an earlier step. */
   isSelected?: boolean;
 }

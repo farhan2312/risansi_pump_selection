@@ -329,256 +329,112 @@ export async function rpmBandFor(
 
 export interface Candidate {
   model: string;
+  /** Nearest charted head point (in pump_model_master) to the input duty head. */
   headMwc: number;
-  veMin: number;
-  veMax: number;
-  mechEfficiency: number;
+  voleMin: number;
+  voleMax: number;
+  mechEff: number;
+  qth: number;
+  /** True if this model has no "NOT TESTED" remark at the matched head. */
   isTested: boolean;
-  qTheoretical: number;
-  rpmRequired: number;
-  /** RPM at VE_min (higher speed); pairs with rpmRequired (VE_max) as the
-   * spec's "2 output RPMs". */
-  rpmMinVe: number;
-  bkw: number | null;
-  installedKw: number | null;
-  kwSource: string | null;
-  score: number;
-  driveRatio: number | null;
-  rejectionReasons: string[];
+  testingRemarks: string | null;
+  /** RPM computed using VOLE MIN (lower efficiency ⇒ the higher-speed case). */
+  rpmAtVoleMin: number;
+  /** RPM computed using VOLE MAX (higher efficiency ⇒ the lower, best-case speed). */
+  rpmAtVoleMax: number;
+  rpmClassAtVoleMin: string;
+  rpmClassAtVoleMax: string;
 }
 
-type CurvePoint = typeof schema.performanceCurve.$inferSelect;
+type ModelRow = typeof schema.pumpModelMaster.$inferSelect;
 
+/**
+ * Step-3 model screening: given a duty point (capacity + head), scans
+ * pump_model_master and returns EVERY model that can physically satisfy it —
+ * no scoring, no ranking, no top-N cutoff. Per the spec: "system should give
+ * all the model that satisfy the inputs... recommendation can be manual
+ * selection" — the sales engineer picks the final model from this list.
+ *
+ * RPM formula (per the Step-3 spec): RPM = Q ÷ (Displacement × VE). QTH in
+ * pump_model_master is this model's theoretical flow at a 100 RPM reference
+ * speed rather than a literal per-revolution displacement, so
+ * Displacement ≡ QTH / 100 and the formula becomes RPM = 100 × Q / (QTH × VE)
+ * — the same ratio, just expressed against this sheet's QTH convention.
+ * Two RPMs are returned per model, one per VOLE bound — the sheet's "2
+ * output RPMs as per VE": VOLE MIN (lower efficiency ⇒ higher required
+ * speed) and VOLE MAX (higher efficiency ⇒ lower, best-case speed).
+ */
 export async function findCandidates(
   db: Db,
   capacityM3hr: number,
   headMwc: number,
-  viscosityCp: number,
-  solidPct: number,
-  motorRpm: number | null = null,
 ): Promise<Candidate[]> {
-  // NOTE: the PCP selection sheet (NEW PCP SLECTION, V7) applies NO viscosity
-  // correction — the VF table is used only on the ROTA sheet, which is out of
-  // scope here. So VE is used raw, exactly as the sheet does.
-  const band = await rpmBandFor(viscosityCp, solidPct, db);
+  const rows = await db.select().from(schema.pumpModelMaster);
 
-  const curveRows = await db
-    .select()
-    .from(schema.performanceCurve)
-    .where(eq(schema.performanceCurve.pumpFamily, "PCP"));
-  const byModel = new Map<string, CurvePoint[]>();
-  for (const r of curveRows) {
+  const byModel = new Map<string, ModelRow[]>();
+  for (const r of rows) {
     const list = byModel.get(r.model) ?? [];
     list.push(r);
     byModel.set(r.model, list);
   }
 
-  const modelRows = await db
-    .select()
-    .from(schema.pumpModelMaster)
-    .where(eq(schema.pumpModelMaster.pumpFamily, "PCP"));
-  const models = new Map(modelRows.map((m) => [m.model, m]));
-
   const candidates: Candidate[] = [];
   for (const [modelName, points] of byModel) {
-    const pm = models.get(modelName);
-    if (!pm || pm.qTheoretical === null) continue;
     const nearest = points.reduce((best, p) =>
-      Math.abs(toNum(p.headMwc) - headMwc) < Math.abs(toNum(best.headMwc) - headMwc)
-        ? p
-        : best,
+      Math.abs(toNum(p.headMwc) - headMwc) < Math.abs(toNum(best.headMwc) - headMwc) ? p : best,
     );
-    if (nearest.veMin === null || nearest.veMax === null || nearest.mechEfficiency === null) {
-      continue;
-    }
+
+    const qth = toNumOrNull(nearest.qth);
+    if (qth === null || qth <= 0) continue; // no theoretical-flow data — RPM not calculable
+
+    const voleMinPct = toNumOrNull(nearest.voleMin);
+    const voleMaxPct = toNumOrNull(nearest.voleMax);
+    if (voleMinPct === null || voleMaxPct === null || voleMinPct <= 0 || voleMaxPct <= 0) continue;
 
     // Stage-tier constraint: PCP models come in non-overlapping head bands by
-    // stage count. Per the backend spec (Step-4): <60 MWC = single (1),
-    // 60-120 = 2-stage, 120-240 = 4-stage, 240-480 = 8-stage. A single-stage
-    // model can't be recommended for a 90 MWC duty just because 90 is within
-    // some loose margin of 60.
-    if (pm.headMax !== null) {
-      const headMax = toNum(pm.headMax);
-      let tierLo: number;
-      let tierHi: number;
-      if (headMax <= 60) {
-        [tierLo, tierHi] = [0.0, 60.0];
-      } else if (headMax <= 120) {
-        [tierLo, tierHi] = [60.0, 120.0];
-      } else if (headMax <= 240) {
-        [tierLo, tierHi] = [120.0, 240.0];
-      } else {
-        [tierLo, tierHi] = [240.0, 480.0];
-      }
-      if (!(tierLo < headMwc && headMwc <= tierHi)) continue;
-    }
+    // stage count (backend spec Step-4): <=60 MWC = single, 60-120 = 2-stage,
+    // 120-240 = 4-stage, 240-480 = 8-stage. A single-stage model can't be
+    // recommended for a 90 MWC duty just because 90 is "close" to 60 — this
+    // is a hard catalog limit ("RPM within Model Limit? NO -> Reject Model"),
+    // not a preference. headMax is this model's furthest charted head point.
+    const headMax = Math.max(...points.map((p) => toNum(p.headMwc)));
+    let tierLo: number;
+    let tierHi: number;
+    if (headMax <= 60) [tierLo, tierHi] = [0, 60];
+    else if (headMax <= 120) [tierLo, tierHi] = [60, 120];
+    else if (headMax <= 240) [tierLo, tierHi] = [120, 240];
+    else [tierLo, tierHi] = [240, 480];
+    if (!(tierLo < headMwc && headMwc <= tierHi)) continue; // Reject Model / Try Next Model
 
-    const qTheoretical = toNum(pm.qTheoretical);
-    // Per the "NEW PCP SLECTION" sheet (V7), RPM is reported at VE(max) —
-    // column N, "REQUIRED RPM AT MAX VE" = 100 * capacity / (QTH * VE_max),
-    // the best-case (lowest) speed. VE(max) is a percentage in the master
-    // data, so /100. No averaging and no viscosity factor (VF is ROTA-only),
-    // and no clamp — some models legitimately chart VE(max) above 100%.
-    const veMaxFraction = toNum(nearest.veMax) / 100;
-    if (veMaxFraction <= 0) continue;
+    // RPM = 100 x Capacity / (QTH x VE). See formula note above.
+    const rpmAtVoleMax = (100 * capacityM3hr) / (qth * (voleMaxPct / 100));
+    const rpmAtVoleMin = (100 * capacityM3hr) / (qth * (voleMinPct / 100));
 
-    // RPM = 100 x Capacity / (QTH x VE_max). QTH is the model's theoretical flow
-    // at a 100 RPM reference speed, NOT a per-revolution displacement.
-    const rpmRequired = (100 * capacityM3hr) / (qTheoretical * veMaxFraction);
-
-    // Backend spec Step-3 asks for "2 output RPMs as per VE": the VE_max speed
-    // above (best case, lowest — what we rank on) and the VE_min speed (lower
-    // efficiency ⇒ higher speed). Reported together as a range.
-    const veMinFraction = toNum(nearest.veMin) / 100;
-    const rpmAtMinVe =
-      veMinFraction > 0
-        ? (100 * capacityM3hr) / (qTheoretical * veMinFraction)
-        : rpmRequired;
-
-    // Step-3/4: wide sanity ceiling for physically-impossible values only.
-    if (rpmRequired > 5000 || rpmRequired < 20) continue;
-
-    const ratio = reductionRatio(motorRpm, rpmRequired);
-    let driveFit = 1.0;
-    let reasonsDrive: string | null = null;
-    if (ratio !== null) {
-      if (ratio > 50 || ratio < 0.2) {
-        // Effectively impossible with any standard drive train.
-        continue;
-      }
-      if (ratio < 0.9) {
-        reasonsDrive =
-          `Required pump RPM (${rpmRequired.toFixed(0)}) exceeds the ${(motorRpm ?? 0).toFixed(0)} RPM ` +
-          "motor speed — would need a step-up drive, uncommon for this application";
-        driveFit = 0.0;
-      } else if (ratio <= 1.1) {
-        driveFit = 1.0; // direct drive, simplest option
-        reasonsDrive = null;
-      } else if (ratio <= 6) {
-        driveFit = 1.0 - (0.3 * (ratio - 1.1)) / (6 - 1.1); // V-belt range
-        reasonsDrive = null;
-      } else if (ratio <= 15) {
-        driveFit = 0.6 - (0.3 * (ratio - 6)) / (15 - 6); // geared range
-        reasonsDrive = null;
-      } else {
-        reasonsDrive =
-          `Reduction ratio ${ratio.toFixed(1)}:1 from the ${(motorRpm ?? 0).toFixed(0)} RPM motor is ` +
-          "impractically high for a V-belt or standard gearbox";
-        driveFit = 0.1;
-      }
-    }
-
-    const mechEffFraction = toNum(nearest.mechEfficiency) / 100;
-    const reasons: string[] = [];
-    if (ratio !== null && reasonsDrive) reasons.push(reasonsDrive);
-
-    let bkw: number | null;
-    let installedKw: number | null;
-    let kwSource: string | null;
-    if (mechEffFraction <= 0) {
-      reasons.push("No mechanical efficiency data at this head — BKW not calculable");
-      bkw = null;
-      installedKw = null;
-      kwSource = null;
-    } else {
-      bkw = (capacityM3hr * headMwc) / (367 * mechEffFraction);
-      const bkwWithMargin = bkw * 1.2;
-      const minKwTested = toNumOrNull(pm.minKwTested);
-      if (minKwTested !== null && minKwTested >= bkwWithMargin) {
-        installedKw = minKwTested;
-        kwSource = "tested";
-      } else {
-        installedKw = await roundUpToStandardKw(db, bkwWithMargin);
-        kwSource = "calculated";
-      }
-    }
-
-    if (band && !(band.rpmMin! <= rpmRequired && rpmRequired <= band.rpmMax!)) {
-      reasons.push(
-        `Required RPM ${rpmRequired.toFixed(0)} outside optimum band ` +
-          `${band.rpmMin}-${band.rpmMax} for this application`,
-      );
-    }
-
-    const headSpan = toNum(pm.headMax ?? headMwc) - toNum(pm.headMin ?? headMwc);
-    const headFit =
-      headSpan > 0
-        ? 1 - Math.min(Math.abs(toNum(nearest.headMwc) - headMwc) / Math.max(headSpan, 1), 1)
-        : 1.0;
-
-    // Match score (0-100): a confidence measure, not a sum of bonuses. Start
-    // from a perfect fit and deduct only for things that genuinely make a pump
-    // a worse match — so a tested pump in the right head tier, running at a
-    // sensible speed, lands in the 90s and reads as a strong recommendation.
-    let score = 100;
-    if (!nearest.isTested) score -= 8; // calculated estimate vs real test data
-    score -= (1 - headFit) * 10; // nearest charted head point vs the duty head
-    score -= (1 - driveFit) * 8; // drive complexity: direct < V-belt < geared
-    // PCP pumps run best slow — a high required RPM (at VE_max) means more
-    // rotor/stator wear, so it's a weaker selection. This is also the primary
-    // ranking signal: the pump that meets the duty at the lowest sensible speed
-    // scores highest. (Deduct past a comfortable ~350 RPM ceiling.)
-    if (rpmRequired > 350) score -= Math.min(45, (rpmRequired - 350) / 18);
-    if (mechEffFraction <= 0) score -= 25; // no efficiency data at this head
-    score = Math.max(35, Math.min(100, score));
+    // Wide sanity ceiling for physically-impossible values only — not a
+    // preference filter, a genuine "this can't be right" guard.
+    if (rpmAtVoleMax > 5000 || rpmAtVoleMax < 20) continue;
 
     candidates.push({
       model: modelName,
       headMwc: toNum(nearest.headMwc),
-      veMin: toNum(nearest.veMin),
-      veMax: toNum(nearest.veMax),
-      mechEfficiency: toNum(nearest.mechEfficiency),
-      isTested: Boolean(nearest.isTested),
-      qTheoretical,
-      rpmRequired,
-      rpmMinVe: rpmAtMinVe,
-      bkw,
-      installedKw,
-      kwSource,
-      score,
-      driveRatio: ratio,
-      rejectionReasons: reasons,
+      voleMin: voleMinPct,
+      voleMax: voleMaxPct,
+      mechEff: toNum(nearest.mechEff),
+      qth,
+      isTested: nearest.testingRemarks === null,
+      testingRemarks: nearest.testingRemarks,
+      rpmAtVoleMin,
+      rpmAtVoleMax,
+      rpmClassAtVoleMin: classifyRpm(rpmAtVoleMin),
+      rpmClassAtVoleMax: classifyRpm(rpmAtVoleMax),
     });
   }
 
-  candidates.sort((a, b) => b.score - a.score);
+  // Informational ordering only (lowest best-case speed first — PCP pumps
+  // run best slow) — NOT a cutoff. Every eligible model above is returned;
+  // the caller does no top-N slicing, since selection is manual.
+  candidates.sort((a, b) => a.rpmAtVoleMax - b.rpmAtVoleMax);
   return candidates;
-}
-
-export interface PinnedSelection {
-  results: Candidate[];
-  /** True if `pinnedModel` was requested AND is still a physically eligible
-   * candidate at the current duty point (so it's guaranteed to be in `results`). */
-  pinnedIncluded: boolean;
-}
-
-/**
- * Persist a user's pump pick across wizard steps: guarantee the pinned model
- * is in the returned set (re-evaluated fresh against the CURRENT inputs —
- * `allCandidates` is expected to already reflect this call's capacity/head/
- * viscosity/drive/etc), fill the remaining slots with the next-best other
- * candidates, then re-sort the whole set by score — so whichever one is
- * genuinely best now leads as "Best Match", whether that's the user's pick
- * or one of the alternates. If the pinned model is no longer a valid
- * candidate at all (e.g. physically infeasible at the new duty point), falls
- * back to the plain top-N with `pinnedIncluded: false` so the caller can
- * surface that the pick fell out.
- */
-export function applyPinnedSelection(
-  allCandidates: Candidate[],
-  pinnedModel: string | null | undefined,
-  limit: number,
-): PinnedSelection {
-  if (!pinnedModel) {
-    return { results: allCandidates.slice(0, limit), pinnedIncluded: false };
-  }
-  const pinned = allCandidates.find((c) => c.model === pinnedModel);
-  if (!pinned) {
-    return { results: allCandidates.slice(0, limit), pinnedIncluded: false };
-  }
-  const others = allCandidates.filter((c) => c.model !== pinnedModel);
-  const results = [pinned, ...others].slice(0, limit).sort((a, b) => b.score - a.score);
-  return { results, pinnedIncluded: true };
 }
 
 // --- Selection report ---------------------------------------------------

@@ -23,7 +23,10 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
-export const users = pgTable("users", {
+// This project uses `users_pump`, a fork of the shared `users` table (seeded
+// once from it). `users` stays owned by the testing portal — we never touch it.
+// Export name kept as `users` so all call sites read/write users_pump unchanged.
+export const users = pgTable("users_pump", {
   id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   email: varchar("email", { length: 255 }).notNull().unique(),
   name: varchar("name", { length: 255 }),
@@ -49,23 +52,35 @@ export const projects = pgTable("projects", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
 
-export const pumpModelMaster = pgTable("pump_model_master", {
-  model: varchar("model", { length: 100 }).primaryKey(),
-  pumpFamily: varchar("pump_family", { length: 20 }).default("PCP"),
-  capacityMin: numeric("capacity_min", { precision: 10, scale: 2 }),
-  capacityMax: numeric("capacity_max", { precision: 10, scale: 2 }),
-  headMin: numeric("head_min", { precision: 10, scale: 2 }),
-  headMax: numeric("head_max", { precision: 10, scale: 2 }),
-  rpmMin: integer("rpm_min"),
-  rpmMax: integer("rpm_max"),
-  maxSolidPct: numeric("max_solid_pct", { precision: 5, scale: 2 }),
-  qTheoretical: numeric("q_theoretical", { precision: 10, scale: 4 }),
-  minKwTested: numeric("min_kw_tested", { precision: 10, scale: 2 }),
-  minKwCalculated: numeric("min_kw_calculated", { precision: 10, scale: 2 }),
-  minKwSource: varchar("min_kw_source", { length: 20 }),
-});
+// One row per (model, head) data point — an exact mirror of every column and
+// row in `src/assets/pump_model_master.xlsx` (540 rows / 53 models). In the
+// source file, qth/minKwExisting/minStartingKwAt1Kg/minKwTested/minKwToBeTested
+// are merged cells spanning every head-row of a model (one value governs the
+// whole model, not just its head=0 row) — the DB carries that value on every
+// row of the model, not just the first, to preserve that meaning.
+// NOTE: `findCandidates` in recommendation-engine.ts still expects a
+// one-row-per-model summary shape (pumpFamily/headMin/headMax/qTheoretical/
+// minKwTested as scalars) — this table no longer matches that; the engine
+// needs to be reconciled with this real shape before it will run again.
+export const pumpModelMaster = pgTable(
+  "pump_model_master",
+  {
+    id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    model: varchar("model", { length: 100 }).notNull(),
+    headMwc: numeric("head_mwc", { precision: 10, scale: 2 }).notNull(),
+    voleMin: numeric("vole_min", { precision: 10, scale: 2 }),
+    voleMax: numeric("vole_max", { precision: 10, scale: 2 }),
+    mechEff: numeric("mech_eff", { precision: 10, scale: 2 }),
+    qth: numeric("qth", { precision: 10, scale: 4 }),
+    minKwExisting: numeric("min_kw_existing", { precision: 10, scale: 2 }),
+    minStartingKwAt1Kg: numeric("min_starting_kw_at_1kg", { precision: 10, scale: 2 }),
+    minKwTested: numeric("min_kw_tested", { precision: 10, scale: 2 }),
+    minKwToBeTested: numeric("min_kw_to_be_tested", { precision: 10, scale: 2 }),
+    testingRemarks: text("testing_remarks"),
+  },
+);
 
-export const performanceCurve = pgTable("performance_curve", {
+/*export const performanceCurve = pgTable("performance_curve", {
   id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   model: varchar("model", { length: 100 }).notNull(),
   pumpFamily: varchar("pump_family", { length: 20 }).default("PCP"),
@@ -210,3 +225,4 @@ export const mediaTypes = pgTable("media_types", {
   name: varchar("name", { length: 255 }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
+*/

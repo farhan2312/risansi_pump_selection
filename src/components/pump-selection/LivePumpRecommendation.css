@@ -34,9 +34,9 @@
   margin-top: 6px;
 }
 
-/* Three selectable pump cards: Best Match first, then the next-best
-   alternates. Clicking one pins it as the user's pick (see
-   LivePumpRecommendation.tsx / applyPinnedSelection on the backend). */
+/* A quick sample of pumps that satisfy the current inputs (no ranking —
+   selection is manual). Clicking one pins it as the user's pick (see
+   LivePumpRecommendation.tsx / findCandidates on the backend). */
 .live-rec-cards {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -82,15 +82,16 @@
   white-space: nowrap;
 }
 
-.live-rec-badge.best {
-  background: var(--title);
-  color: #fff;
-}
-
 .live-rec-badge.picked {
   background: transparent;
   color: var(--accent);
   border: 1px solid var(--accent);
+}
+
+.live-rec-badge.warn {
+  background: var(--warn-soft, transparent);
+  color: var(--warn);
+  border: 1px solid var(--warn);
 }
 
 .live-rec-card-model {

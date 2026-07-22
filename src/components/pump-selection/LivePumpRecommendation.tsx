@@ -23,18 +23,7 @@ const engineKey = (f: any) =>
     capacityUnit: f.capacityUnit,
     head: f.head,
     headUnit: f.headUnit,
-    media: f.media,
     sg: f.sg,
-    viscosity: f.viscosity,
-    viscosityUnit: f.viscosityUnit,
-    solidPercentage: f.solidPercentage,
-    temperature: f.temperature,
-    bearingHousing: f.bearingHousing,
-    suctionHousing: f.suctionHousing,
-    jointType: f.jointType,
-    driveSystem: f.driveSystem,
-    sealingType: f.sealingType,
-    motorRPM: f.motorRPM,
     rpmRange: f.rpmRange,
     selectedModel: f.selectedModel,
   });
@@ -42,7 +31,6 @@ const engineKey = (f: any) =>
 const LivePumpRecommendation = ({ formData, setFormData }: Props) => {
   const [recs, setRecs] = useState<PumpRecommendation[]>([]);
   const [status, setStatus] = useState<Status>("idle");
-  const [pinFellOut, setPinFellOut] = useState(false);
   const key = engineKey(formData);
 
   useEffect(() => {
@@ -58,10 +46,9 @@ const LivePumpRecommendation = ({ formData, setFormData }: Props) => {
     // Debounce so typing doesn't fire a request per keystroke.
     const timer = setTimeout(() => {
       setStatus("loading");
-      previewRecommendations(formData, controller.signal, 3)
+      previewRecommendations(formData, controller.signal)
         .then((res) => {
           setRecs(res.recommendations);
-          setPinFellOut(Boolean(res.pinFellOut));
           setStatus(res.recommendations.length ? "ready" : "empty");
         })
         .catch((err) => {
@@ -77,11 +64,12 @@ const LivePumpRecommendation = ({ formData, setFormData }: Props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
-  const top = recs.slice(0, 3);
+  // Quick sample only — the full list of every model that satisfies these
+  // inputs is on the final Recommendation step, for manual selection.
+  const preview = recs.slice(0, 3);
 
   const selectPump = (model: string) => {
-    // Clicking the already-selected card deselects it, reverting to the
-    // plain auto-ranked top 3.
+    // Clicking the already-selected card deselects it.
     setFormData({
       ...formData,
       selectedModel: formData.selectedModel === model ? "" : model,
@@ -110,23 +98,23 @@ const LivePumpRecommendation = ({ formData, setFormData }: Props) => {
 
       {status === "empty" && (
         <p className="live-rec-hint">
-          No pump matches these inputs yet. Try adjusting capacity, head, or viscosity.
+          No model in the master data can reach this head at this capacity. Try
+          adjusting capacity or head.
         </p>
       )}
 
-      {pinFellOut && (
-        <p className="live-rec-hint live-rec-warn">
-          Your previously picked pump no longer fits these inputs — showing the current
-          best options instead.
+      {recs.length > 3 && (
+        <p className="live-rec-hint">
+          Showing 3 of {recs.length} matching models — the full list is on the final
+          Recommendation step.
         </p>
       )}
 
-      {(status === "ready" || (status === "loading" && top.length > 0)) &&
-        top.length > 0 && (
+      {(status === "ready" || (status === "loading" && preview.length > 0)) &&
+        preview.length > 0 && (
           <div className="live-rec-cards">
-            {top.map((r, i) => {
+            {preview.map((r) => {
               const isSelected = Boolean(r.isSelected);
-              const isBest = i === 0;
               return (
                 <button
                   type="button"
@@ -136,22 +124,24 @@ const LivePumpRecommendation = ({ formData, setFormData }: Props) => {
                   aria-pressed={isSelected}
                 >
                   <div className="live-rec-card-badges">
-                    {isBest && <span className="live-rec-badge best">Best Match</span>}
                     {isSelected && <span className="live-rec-badge picked">Your Pick</span>}
+                    {!r.isTested && <span className="live-rec-badge warn">Not Tested</span>}
                   </div>
                   <strong className="live-rec-card-model">{r.model}</strong>
                   <div className="live-rec-card-meta">
                     <div>
                       <span>RPM</span>
-                      <b className="mono">{r.rpmRange ?? r.rpm}</b>
+                      <b className="mono">{r.rpmRange}</b>
                     </div>
                     <div>
-                      <span>Motor</span>
-                      <b className="mono">{r.motor ?? "—"}</b>
+                      <span>VOLE</span>
+                      <b className="mono">
+                        {r.voleMin}–{r.voleMax}%
+                      </b>
                     </div>
                     <div>
-                      <span>Match</span>
-                      <b className="mono">{r.score}%</b>
+                      <span>Mech Eff</span>
+                      <b className="mono">{r.mechEff}%</b>
                     </div>
                   </div>
                   <span className="live-rec-card-action">

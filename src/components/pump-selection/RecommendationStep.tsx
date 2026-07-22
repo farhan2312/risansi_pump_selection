@@ -3,7 +3,6 @@
 import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
 import RecommendationTable from "../../components/recommendation/RecommendationTable";
-import { useRouter } from "next/navigation";
 import PumpDetailsCard from "../../components/recommendation/PumpDetailsCard";
 import TestReportModal from "../../components/recommendation/TestReportModal";
 import { useEffect, useState } from "react";
@@ -28,12 +27,11 @@ const RecommendationStep = ({
   setSelectedPump,
   onStepClick,
 }: Props) => {
-  const router = useRouter();
-
   const [showReport, setShowReport] = useState(false);
   const [recommendations, setRecommendations] = useState<PumpRecommendation[]>(
     []
   );
+  const [inputEcho, setInputEcho] = useState<{ capacity: string; head: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,7 +43,10 @@ const RecommendationStep = ({
 
     getRecommendations(formData)
       .then((result) => {
-        if (!cancelled) setRecommendations(result.recommendations);
+        if (!cancelled) {
+          setRecommendations(result.recommendations);
+          setInputEcho(result.input);
+        }
       })
       .catch(() => {
         if (!cancelled) {
@@ -74,9 +75,19 @@ const RecommendationStep = ({
       <div className="step-card">
         <h2>Recommended Pumps</h2>
 
-        <p>Select the most suitable pump from the recommendations below.</p>
+        <p>
+          Every pump model that satisfies these inputs is listed below — pick the one
+          you want.
+          {inputEcho && (
+            <>
+              {" "}
+              (Capacity: <strong>{inputEcho.capacity}</strong>, Head:{" "}
+              <strong>{inputEcho.head}</strong>)
+            </>
+          )}
+        </p>
 
-        {isLoading && <p>Finding the best pump matches...</p>}
+        {isLoading && <p>Finding the pump matches...</p>}
 
         {error && <p className="error-message">{error}</p>}
 
@@ -108,16 +119,8 @@ const RecommendationStep = ({
           </button>
 
           <button
-            disabled={selectedPump === null}
-            onClick={() => {
-              if (selectedPumpData?.recommendationId) {
-                router.push(
-                  `/selection-summary?recommendationId=${encodeURIComponent(
-                    selectedPumpData.recommendationId
-                  )}`
-                );
-              }
-            }}
+            disabled
+            title="Not available yet — pump_selections/pump_recommendations aren't built in the database, so a selection can't be persisted or carried to the Selection Summary page."
           >
             Confirm Pump Selection
           </button>
