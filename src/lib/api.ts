@@ -17,7 +17,6 @@ export function error(message: string, status = 400): NextResponse {
 
 type UserRow = typeof schema.users.$inferSelect;
 type ProjectRow = typeof schema.projects.$inferSelect;
-type SelectionRow = typeof schema.pumpSelections.$inferSelect;
 
 /** Mirrors _user_to_dict(): raw snake_case columns, minus password_hash. */
 export function userToDict(u: UserRow) {
@@ -49,39 +48,6 @@ export function projectToDict(p: ProjectRow, createdByName?: string | null) {
     created_by_name: createdByName ?? null,
     created_at: p.createdAt,
     updated_at: p.updatedAt,
-  };
-}
-
-/** Mirrors _row_to_dict(PumpSelection): raw snake_case columns. */
-export function selectionToDict(s: SelectionRow) {
-  return {
-    id: s.id,
-    project_id: s.projectId,
-    project_name: s.projectName,
-    customer_name: s.customerName,
-    capacity: s.capacity,
-    capacity_unit: s.capacityUnit,
-    head: s.head,
-    head_unit: s.headUnit,
-    media: s.media,
-    temperature: s.temperature,
-    sg: s.sg,
-    ph: s.ph,
-    viscosity: s.viscosity,
-    viscosity_unit: s.viscosityUnit,
-    viscosity_range: s.viscosityRange,
-    solid_percentage: s.solidPercentage,
-    solid_size: s.solidSize,
-    pump_type: s.pumpType,
-    bearing_housing: s.bearingHousing,
-    suction_housing: s.suctionHousing,
-    joint_type: s.jointType,
-    drive_system: s.driveSystem,
-    sealing_type: s.sealingType,
-    motor_make: s.motorMake,
-    gearbox_make: s.gearboxMake,
-    motor_rpm: s.motorRpm,
-    created_at: s.createdAt,
   };
 }
 

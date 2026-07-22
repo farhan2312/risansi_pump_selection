@@ -1,12 +1,6 @@
-import { error, json } from "@/lib/api";
+import { json } from "@/lib/api";
 import { db } from "@/lib/db";
-import {
-  mechanicalSealChart,
-  motorMaster,
-  pumpModelMaster,
-  suctionVelocity,
-  veCorrection,
-} from "@/lib/db/schema";
+import { pumpModelMaster } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -21,25 +15,18 @@ function snakeKeys<T extends Record<string, unknown>>(row: T): Record<string, un
   return out;
 }
 
+// pump_model_master is the only master table built so far — ve_correction,
+// motor_master, suction_velocity, and mechanical_seal_chart don't exist in the
+// DB yet, so those keys come back empty rather than erroring the whole
+// endpoint. Fill them in once each table is built.
 export async function GET() {
-  try {
-    const [pumpModels, ve, motors, suction, seal] = await Promise.all([
-      db.select().from(pumpModelMaster),
-      db.select().from(veCorrection),
-      db.select().from(motorMaster),
-      db.select().from(suctionVelocity),
-      db.select().from(mechanicalSealChart),
-    ]);
+  const pumpModels = await db.select().from(pumpModelMaster);
 
-    return json({
-      pumpModels: pumpModels.map(snakeKeys),
-      veCorrection: ve.map(snakeKeys),
-      motors: motors.map(snakeKeys),
-      suctionVelocity: suction.map(snakeKeys),
-      mechanicalSeal: seal.map(snakeKeys),
-    });
-  } catch (e) {
-    console.error("masters query failed", e);
-    return error("Failed to load master data", 500);
-  }
+  return json({
+    pumpModels: pumpModels.map(snakeKeys),
+    veCorrection: [],
+    motors: [],
+    suctionVelocity: [],
+    mechanicalSeal: [],
+  });
 }
