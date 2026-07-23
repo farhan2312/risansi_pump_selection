@@ -7,6 +7,7 @@ import PumpDetailsCard from "../../components/recommendation/PumpDetailsCard";
 import TestReportModal from "../../components/recommendation/TestReportModal";
 import { useEffect, useState } from "react";
 import { getRecommendations } from "../../services/recommendationService";
+import { sizeForViscosityRange } from "../../lib/suction-discharge-size";
 import type {
   PumpRecommendation,
   PumpSelectionFormData,
@@ -106,7 +107,13 @@ const RecommendationStep = ({
           />
         )}
 
-        <PumpDetailsCard pump={selectedPumpData} />
+        <PumpDetailsCard
+          pump={selectedPumpData}
+          size={sizeForViscosityRange(formData.viscosityRange)}
+          pumpType={formData.pumpType}
+          agBk={formData.agBk}
+          sealingType={formData.sealingType}
+        />
 
         <div className="step-actions">
           <button onClick={onPrevious}>Previous</button>

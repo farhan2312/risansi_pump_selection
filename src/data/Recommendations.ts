@@ -72,6 +72,7 @@ export interface PumpSelectionFormData {
   solidPercentage: string;
   solidSize: string;
   pumpType: string;
+  agBk?: string; // AG / BK feed option — only set when viscosity > 10000 cP
   bearingHousing: string;
   suctionHousing: string;
   jointType: string;

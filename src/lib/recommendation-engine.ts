@@ -169,12 +169,12 @@ export async function findCandidates(
     // recommended for a 90 MWC duty just because 90 is "close" to 60 — this
     // is a hard catalog limit ("RPM within Model Limit? NO -> Reject Model"),
     // not a preference. headMax is this model's furthest charted head point.
-    const headMax = Math.max(...points.map((p) => toNum(p.headMwc)));
+   // const headMax = Math.max(...points.map((p) => toNum(p.headMwc)));
     let tierLo: number;
     let tierHi: number;
-    if (headMax <= 60) [tierLo, tierHi] = [0, 60];
-    else if (headMax <= 120) [tierLo, tierHi] = [60, 120];
-    else if (headMax <= 240) [tierLo, tierHi] = [120, 240];
+    if (headMwc <= 60) [tierLo, tierHi] = [0, 60];
+    else if (headMwc <= 120) [tierLo, tierHi] = [60, 120];
+    else if (headMwc <= 240) [tierLo, tierHi] = [120, 240];
     else [tierLo, tierHi] = [240, 480];
     if (!(tierLo < headMwc && headMwc <= tierHi)) continue; // Reject Model / Try Next Model
 

@@ -63,6 +63,7 @@ const PumpSelectionPage = () => {
 
     // Step 3
     pumpType: "",
+    agBk: "", // AG / BK feed option — only shown when viscosity > 10000 cP
     bearingHousing: "",
     suctionHousing: "",
     jointType: "",

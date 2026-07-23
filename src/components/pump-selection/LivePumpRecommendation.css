@@ -42,6 +42,11 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
   margin-top: 2px;
+  /* Full match list can be long (40+ models) — cap the height and scroll
+     inside the panel so the wizard's Next/Previous buttons stay reachable. */
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .live-rec-card {
@@ -103,7 +108,8 @@
 
 .live-rec-card-meta {
   display: flex;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 6px 10px;
 }
 
 .live-rec-card-meta > div {
@@ -120,6 +126,12 @@
 
 .live-rec-card-meta b {
   font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-2);
+}
+
+.live-rec-card-type {
+  font-size: 11px;
   font-weight: 600;
   color: var(--fg-2);
 }

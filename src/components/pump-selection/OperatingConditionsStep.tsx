@@ -1,6 +1,7 @@
 import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
-import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, label } from "./formStyles";
+import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, hint, label } from "./formStyles";
+import { needsBkAg } from "../../lib/suction-discharge-size";
 
 type Props = {
   onNext: () => void;
@@ -48,6 +49,28 @@ const OperatingConditionsStep = ({
               <option value="Vertical">Vertical</option>
             </select>
           </div>
+
+          {/* AG / BK feed option — only offered for very thick media
+              (viscosity > 10 000 cP), per the Step-5 spec. */}
+          {needsBkAg(formData.viscosityRange) && (
+            <div className={fieldWrap}>
+              <label className={label}>AG / BK</label>
+              <select
+                className={control}
+                value={formData.agBk ?? ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, agBk: e.target.value })
+                }
+              >
+                <option value="">Select AG / BK</option>
+                <option value="AG">AG</option>
+                <option value="BK">BK</option>
+              </select>
+              <span className={hint}>
+                Required for viscosity above 10&nbsp;000&nbsp;cP.
+              </span>
+            </div>
+          )}
 
           <div className={fieldWrap}>
             <label className={label}>Bearing Housing</label>

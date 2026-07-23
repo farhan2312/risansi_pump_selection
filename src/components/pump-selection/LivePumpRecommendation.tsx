@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import "./LivePumpRecommendation.css";
 import { previewRecommendations } from "../../services/recommendationService";
 import type { PumpRecommendation } from "../../data/Recommendations";
+import { sizeForViscosityRange } from "../../lib/suction-discharge-size";
+import { sealingShort } from "../../lib/sealing";
 
 type Props = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -64,10 +66,6 @@ const LivePumpRecommendation = ({ formData, setFormData }: Props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
-  // Quick sample only — the full list of every model that satisfies these
-  // inputs is on the final Recommendation step, for manual selection.
-  const preview = recs.slice(0, 3);
-
   const selectPump = (model: string) => {
     // Clicking the already-selected card deselects it.
     setFormData({
@@ -75,6 +73,12 @@ const LivePumpRecommendation = ({ formData, setFormData }: Props) => {
       selectedModel: formData.selectedModel === model ? "" : model,
     });
   };
+
+  // Step-5 Suction & Discharge Size — a single value from the viscosity range
+  // (same for every model), shown on the card so it's always reflected. Null
+  // until the viscosity (hence range) is entered on the Fluid Properties step.
+  const size = sizeForViscosityRange(formData.viscosityRange);
+  const seal = sealingShort(formData.sealingType);
 
   return (
     <div className="live-rec">
@@ -103,17 +107,17 @@ const LivePumpRecommendation = ({ formData, setFormData }: Props) => {
         </p>
       )}
 
-      {recs.length > 3 && (
+      {recs.length > 0 && (
         <p className="live-rec-hint">
-          Showing 3 of {recs.length} matching models — the full list is on the final
-          Recommendation step.
+          {recs.length} matching {recs.length === 1 ? "model" : "models"} — click one to
+          pin it as your pick.
         </p>
       )}
 
-      {(status === "ready" || (status === "loading" && preview.length > 0)) &&
-        preview.length > 0 && (
+      {(status === "ready" || (status === "loading" && recs.length > 0)) &&
+        recs.length > 0 && (
           <div className="live-rec-cards">
-            {preview.map((r) => {
+            {recs.map((r) => {
               const isSelected = Boolean(r.isSelected);
               return (
                 <button
@@ -143,7 +147,21 @@ const LivePumpRecommendation = ({ formData, setFormData }: Props) => {
                       <span>Mech Eff</span>
                       <b className="mono">{r.mechEff}%</b>
                     </div>
+                    <div>
+                      <span>Size</span>
+                      <b className="mono">{size !== null ? size : "—"}</b>
+                    </div>
                   </div>
+                  {/* Spec selections (same for every model), combined into one
+                      line like "Vertical · BK · MS" — Pump Type · AG/BK · Seal.
+                      Each part appears as it's chosen on its step. */}
+                  {(formData.pumpType || formData.agBk || seal) && (
+                    <span className="live-rec-card-type">
+                      {[formData.pumpType, formData.agBk, seal]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  )}
                   <span className="live-rec-card-action">
                     {isSelected ? "Click to unpin" : "Click to pin this pump"}
                   </span>
