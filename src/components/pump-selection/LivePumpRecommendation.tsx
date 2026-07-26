@@ -33,6 +33,10 @@ const engineKey = (f: any) =>
 const LivePumpRecommendation = ({ formData, setFormData }: Props) => {
   const [recs, setRecs] = useState<PumpRecommendation[]>([]);
   const [status, setStatus] = useState<Status>("idle");
+  // Local "re-pick" mode: after a model is confirmed, "Change model" re-opens
+  // the full list without dropping the confirmation (so step navigation stays
+  // unlocked while the user swaps their pick).
+  const [editing, setEditing] = useState(false);
   const key = engineKey(formData);
 
   useEffect(() => {
@@ -66,6 +70,23 @@ const LivePumpRecommendation = ({ formData, setFormData }: Props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
+  const confirmed = Boolean(formData.modelConfirmed);
+  const confirmedRec =
+    recs.find((r) => r.model === formData.selectedModel) ?? null;
+  const hasConfirmedRec = confirmedRec !== null;
+
+  // If a confirmed model stops matching the inputs (e.g. capacity/head edited
+  // on a later visit to step 1), drop the confirmation so the user must pick
+  // again — this also re-locks step navigation past the Fluid step.
+  useEffect(() => {
+    if (confirmed && status === "ready" && formData.selectedModel && !hasConfirmedRec) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setFormData((f: any) => ({ ...f, modelConfirmed: false }));
+      setEditing(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [confirmed, status, formData.selectedModel, hasConfirmedRec]);
+
   const selectPump = (model: string) => {
     // Clicking the already-selected card deselects it.
     setFormData({
@@ -74,25 +95,84 @@ const LivePumpRecommendation = ({ formData, setFormData }: Props) => {
     });
   };
 
+  const confirmModel = () => {
+    setFormData({ ...formData, modelConfirmed: true });
+    setEditing(false);
+  };
+
+  const changeModel = () => setEditing(true);
+
   // Step-5 Suction & Discharge Size — a single value from the viscosity range
   // (same for every model), shown on the card so it's always reflected. Null
   // until the viscosity (hence range) is entered on the Fluid Properties step.
   const size = sizeForViscosityRange(formData.viscosityRange);
   const seal = sealingShort(formData.sealingType);
 
+  const cardInner = (r: PumpRecommendation, showAction: boolean, confirmedBadge: boolean) => {
+    const isSelected = r.model === formData.selectedModel;
+    return (
+      <>
+        <div className="live-rec-card-badges">
+          {confirmedBadge && <span className="live-rec-badge confirmed">Confirmed</span>}
+          {!confirmedBadge && isSelected && (
+            <span className="live-rec-badge picked">Your Pick</span>
+          )}
+          {!r.isTested && <span className="live-rec-badge warn">Not Tested</span>}
+        </div>
+        <strong className="live-rec-card-model">{r.model}</strong>
+        <div className="live-rec-card-meta">
+          <div>
+            <span>RPM</span>
+            <b className="mono">{r.rpmRange}</b>
+          </div>
+          <div>
+            <span>VOLE</span>
+            <b className="mono">
+              {r.voleMin}–{r.voleMax}%
+            </b>
+          </div>
+          <div>
+            <span>Mech Eff</span>
+            <b className="mono">{r.mechEff}%</b>
+          </div>
+          <div>
+            <span>Size</span>
+            <b className="mono">{size !== null ? size : "—"}</b>
+          </div>
+        </div>
+        {/* Spec selections (same for every model), combined into one line like
+            "Vertical · BK · MS" — Pump Type · AG/BK · Seal. Each part appears as
+            it's chosen on its step. */}
+        {(formData.pumpType || formData.agBk || seal) && (
+          <span className="live-rec-card-type">
+            {[formData.pumpType, formData.agBk, seal].filter(Boolean).join(" · ")}
+          </span>
+        )}
+        {showAction && (
+          <span className="live-rec-card-action">
+            {isSelected ? "Click to unpin" : "Click to pin this pump"}
+          </span>
+        )}
+      </>
+    );
+  };
+
+  const confirmedView = confirmed && !editing && hasConfirmedRec;
+
   return (
     <div className="live-rec">
       <div className="live-rec-head">
-        <span className="section-label">Live Recommendation</span>
+        <span className="section-label">
+          {confirmedView ? "Selected Pump" : "Live Recommendation"}
+        </span>
         {status === "loading" && <span className="live-rec-status">Updating…</span>}
         {status === "ready" && <span className="live-dot" title="Live" />}
       </div>
 
-      {status === "idle" && (
+      {status === "idle" && !confirmedView && (
         <p className="live-rec-hint">
           Enter <strong>capacity</strong> and <strong>head</strong> to see live pump
-          matches — they refine as you continue. Click a pump below to pin it as your
-          pick; it&apos;ll keep being re-checked against every step from here on.
+          matches. After the Fluid step you&apos;ll pick one and confirm it to continue.
         </p>
       )}
 
@@ -100,76 +180,65 @@ const LivePumpRecommendation = ({ formData, setFormData }: Props) => {
         <p className="live-rec-hint">Couldn&apos;t update — check your connection.</p>
       )}
 
-      {status === "empty" && (
+      {status === "empty" && !confirmedView && (
         <p className="live-rec-hint">
           No model in the master data can reach this head at this capacity. Try
           adjusting capacity or head.
         </p>
       )}
 
-      {recs.length > 0 && (
-        <p className="live-rec-hint">
-          {recs.length} matching {recs.length === 1 ? "model" : "models"} — click one to
-          pin it as your pick.
-        </p>
-      )}
-
-      {(status === "ready" || (status === "loading" && recs.length > 0)) &&
-        recs.length > 0 && (
-          <div className="live-rec-cards">
-            {recs.map((r) => {
-              const isSelected = Boolean(r.isSelected);
-              return (
-                <button
-                  type="button"
-                  key={r.id}
-                  className={`live-rec-card${isSelected ? " is-selected" : ""}`}
-                  onClick={() => selectPump(r.model)}
-                  aria-pressed={isSelected}
-                >
-                  <div className="live-rec-card-badges">
-                    {isSelected && <span className="live-rec-badge picked">Your Pick</span>}
-                    {!r.isTested && <span className="live-rec-badge warn">Not Tested</span>}
-                  </div>
-                  <strong className="live-rec-card-model">{r.model}</strong>
-                  <div className="live-rec-card-meta">
-                    <div>
-                      <span>RPM</span>
-                      <b className="mono">{r.rpmRange}</b>
-                    </div>
-                    <div>
-                      <span>VOLE</span>
-                      <b className="mono">
-                        {r.voleMin}–{r.voleMax}%
-                      </b>
-                    </div>
-                    <div>
-                      <span>Mech Eff</span>
-                      <b className="mono">{r.mechEff}%</b>
-                    </div>
-                    <div>
-                      <span>Size</span>
-                      <b className="mono">{size !== null ? size : "—"}</b>
-                    </div>
-                  </div>
-                  {/* Spec selections (same for every model), combined into one
-                      line like "Vertical · BK · MS" — Pump Type · AG/BK · Seal.
-                      Each part appears as it's chosen on its step. */}
-                  {(formData.pumpType || formData.agBk || seal) && (
-                    <span className="live-rec-card-type">
-                      {[formData.pumpType, formData.agBk, seal]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </span>
-                  )}
-                  <span className="live-rec-card-action">
-                    {isSelected ? "Click to unpin" : "Click to pin this pump"}
-                  </span>
-                </button>
-              );
-            })}
+      {confirmedView && confirmedRec ? (
+        <>
+          <p className="live-rec-hint">
+            Model confirmed — the rest of the wizard is configured for this pump.
+          </p>
+          <div className="live-rec-cards live-rec-cards--single">
+            <div className="live-rec-card is-locked">
+              {cardInner(confirmedRec, false, true)}
+            </div>
           </div>
-        )}
+          <button type="button" className="live-rec-change" onClick={changeModel}>
+            Change model
+          </button>
+        </>
+      ) : (
+        <>
+          {recs.length > 0 && (
+            <p className="live-rec-hint">
+              {recs.length} matching {recs.length === 1 ? "model" : "models"} — click one,
+              then confirm it to continue.
+            </p>
+          )}
+
+          {(status === "ready" || (status === "loading" && recs.length > 0)) &&
+            recs.length > 0 && (
+              <div className="live-rec-cards">
+                {recs.map((r) => (
+                  <button
+                    type="button"
+                    key={r.id}
+                    className={`live-rec-card${r.model === formData.selectedModel ? " is-selected" : ""}`}
+                    onClick={() => selectPump(r.model)}
+                    aria-pressed={r.model === formData.selectedModel}
+                  >
+                    {cardInner(r, true, false)}
+                  </button>
+                ))}
+              </div>
+            )}
+
+          {hasConfirmedRec && (
+            <div className="live-rec-confirm-bar">
+              <span>
+                Confirm <strong>{formData.selectedModel}</strong> as your pump model?
+              </span>
+              <button type="button" className="live-rec-confirm-btn" onClick={confirmModel}>
+                Confirm
+              </button>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 };

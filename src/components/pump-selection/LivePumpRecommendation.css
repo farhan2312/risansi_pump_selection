@@ -71,6 +71,77 @@
   background: var(--accent-soft);
 }
 
+/* Confirmed single-model view: not clickable, no hover affordance. */
+.live-rec-cards--single {
+  grid-template-columns: minmax(0, 320px);
+  max-height: none;
+  overflow: visible;
+}
+
+.live-rec-card.is-locked {
+  cursor: default;
+  border-color: var(--pos, var(--title));
+  background: var(--accent-soft);
+}
+
+.live-rec-card.is-locked:hover {
+  border-color: var(--pos, var(--title));
+}
+
+.live-rec-badge.confirmed {
+  background: var(--pos, var(--title));
+  color: #fff;
+}
+
+/* Confirm prompt shown once a model is picked. */
+.live-rec-confirm-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius, 6px);
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.live-rec-confirm-btn {
+  padding: 6px 16px;
+  border: none;
+  border-radius: var(--radius, 6px);
+  background: var(--title);
+  color: #fff;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.live-rec-confirm-btn:hover {
+  filter: brightness(1.08);
+}
+
+.live-rec-change {
+  margin-top: 10px;
+  padding: 5px 14px;
+  border: 1px solid var(--line-strong, var(--line));
+  border-radius: var(--radius, 6px);
+  background: transparent;
+  color: var(--fg-2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.live-rec-change:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .live-rec-card-badges {
   display: flex;
   gap: 4px;

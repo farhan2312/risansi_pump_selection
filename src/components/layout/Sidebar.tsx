@@ -53,6 +53,13 @@ const icons = {
       <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
     </>,
   ),
+  database: icon(
+    <>
+      <ellipse cx="12" cy="5" rx="8" ry="3" />
+      <path d="M4 5v6a8 3 0 0 0 16 0V5" />
+      <path d="M4 11v6a8 3 0 0 0 16 0v-6" />
+    </>,
+  ),
 };
 
 const mainLinks = [
@@ -88,6 +95,7 @@ const Sidebar = () => {
           <>
             <p className="sidebar-group-label">Admin</p>
             {navLink("/admin/access-requests", "Access Requests", icons.users)}
+            {navLink("/admin/pump-model-master", "Pump Model Master", icons.database)}
           </>
         )}
       </nav>

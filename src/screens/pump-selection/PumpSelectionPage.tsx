@@ -52,7 +52,8 @@ const PumpSelectionPage = () => {
     sg: "", // Specific Gravity
     ph: "",
     rpmRange: "", // manual RPM band filter (low/medium/high/vhigh)
-    selectedModel: "", // pump pinned in the live panel; persists across steps
+    selectedModel: "", // pump picked in the live panel; persists across steps
+    modelConfirmed: false, // gate: a model must be picked + confirmed after the Fluid step before continuing
 
     // Step 2
     viscosity: "",
@@ -84,80 +85,89 @@ const PumpSelectionPage = () => {
 
   const [selectedPump, setSelectedPump] = useState<number | null>(null);
 
+  // Flow gate: a pump model must be picked AND confirmed (in the live panel,
+  // after the General + Fluid forms) before advancing past the Fluid step.
+  // Applies to Next buttons and to jumping via the stepper — backward nav and
+  // staying within steps 1–2 are always allowed.
+  const goToStep = (target: number) => {
+    if (target > 2 && !formData.modelConfirmed) return;
+    setStep(target);
+  };
+
   const renderStep = () => {
     switch (step) {
       case 1:
         return (
           <GeneralInformationStep
-            onNext={() => setStep(2)}
+            onNext={() => goToStep(2)}
             formData={formData}
             setFormData={setFormData}
-            onStepClick={setStep}
+            onStepClick={goToStep}
           />
         );
 
       case 2:
         return (
           <FluidPropertiesStep
-            onPrevious={() => setStep(1)}
-            onNext={() => setStep(3)}
+            onPrevious={() => goToStep(1)}
+            onNext={() => goToStep(3)}
             formData={formData}
             setFormData={setFormData}
-            onStepClick={setStep}
+            onStepClick={goToStep}
           />
         );
 
       case 3:
         return (
           <OperatingConditionsStep
-            onPrevious={() => setStep(2)}
-            onNext={() => setStep(4)}
+            onPrevious={() => goToStep(2)}
+            onNext={() => goToStep(4)}
             formData={formData}
             setFormData={setFormData}
-            onStepClick={setStep}
+            onStepClick={goToStep}
           />
         );
 
       case 4:
         return (
           <SealingDetailsStep
-            onPrevious={() => setStep(3)}
-            onNext={() => setStep(5)}
+            onPrevious={() => goToStep(3)}
+            onNext={() => goToStep(5)}
             formData={formData}
             setFormData={setFormData}
-            onStepClick={setStep}
+            onStepClick={goToStep}
           />
         );
 
       case 5:
         return (
           <DriveDetailsStep
-            onPrevious={() => setStep(4)}
-            onNext={() => setStep(6)}
+            onPrevious={() => goToStep(4)}
+            onNext={() => goToStep(6)}
             formData={formData}
             setFormData={setFormData}
-            onStepClick={setStep}
+            onStepClick={goToStep}
           />
         );
 
       case 6:
         return (
           <RecommendationStep
-            onPrevious={() => setStep(5)}
+            onPrevious={() => goToStep(5)}
             formData={formData}
             selectedPump={selectedPump}
             setSelectedPump={setSelectedPump}
-            onStepClick={setStep}
+            onStepClick={goToStep}
           />
         );
 
       default:
         return (
           <GeneralInformationStep
-            onNext={() => setStep(2)}
+            onNext={() => goToStep(2)}
             formData={formData}
             setFormData={setFormData}
-            onStepClick={setStep}
+            onStepClick={goToStep}
           />
         );
     }

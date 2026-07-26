@@ -2,7 +2,6 @@
 
 import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
-import RecommendationTable from "../../components/recommendation/RecommendationTable";
 import PumpDetailsCard from "../../components/recommendation/PumpDetailsCard";
 import TestReportModal from "../../components/recommendation/TestReportModal";
 import { useEffect, useState } from "react";
@@ -21,24 +20,18 @@ type Props = {
   onStepClick?: (step: number) => void;
 };
 
-const RecommendationStep = ({
-  onPrevious,
-  formData,
-  selectedPump,
-  setSelectedPump,
-  onStepClick,
-}: Props) => {
+// Read-only summary step: the pump model was already picked + confirmed after
+// the Fluid step, so this just reviews the confirmed model and every spec
+// configured along the way. No re-picking here.
+const RecommendationStep = ({ onPrevious, formData, onStepClick }: Props) => {
   const [showReport, setShowReport] = useState(false);
-  const [recommendations, setRecommendations] = useState<PumpRecommendation[]>(
-    []
-  );
+  const [recommendations, setRecommendations] = useState<PumpRecommendation[]>([]);
   const [inputEcho, setInputEcho] = useState<{ capacity: string; head: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-
     setIsLoading(true);
     setError(null);
 
@@ -52,7 +45,7 @@ const RecommendationStep = ({
       .catch(() => {
         if (!cancelled) {
           setError(
-            "Couldn't fetch pump recommendations. Please check your connection and try again."
+            "Couldn't load the pump summary. Please check your connection and try again."
           );
         }
       })
@@ -66,19 +59,40 @@ const RecommendationStep = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const selectedPumpData =
-    recommendations.find((pump) => pump.id === selectedPump) || null;
+  const confirmedPump =
+    recommendations.find((p) => p.model === formData.selectedModel) || null;
+
+  // Specs configured across the earlier steps (only the ones with a value).
+  const configItems: [string, string | undefined][] = [
+    ["Media / Application", formData.media],
+    [
+      "Viscosity",
+      formData.viscosity
+        ? `${formData.viscosity} ${formData.viscosityUnit || ""}`.trim()
+        : "",
+    ],
+    ["Temperature", formData.temperature ? `${formData.temperature} °C` : ""],
+    ["pH", formData.ph],
+    ["Bearing Housing", formData.bearingHousing],
+    ["Suction Housing", formData.suctionHousing],
+    ["Joint Type", formData.jointType],
+    ["Drive System", formData.driveSystem],
+    ["Motor Make", formData.motorMake],
+    ["Gearbox Make", formData.gearboxMake],
+    ["Motor RPM", formData.motorRPM],
+  ];
+  const configured = configItems.filter(([, v]) => v && String(v).trim() !== "");
 
   return (
     <div className="step-container">
       <Stepper currentStep={6} onStepClick={onStepClick} />
 
       <div className="step-card">
-        <h2>Recommended Pumps</h2>
+        <h2>Selection Summary</h2>
 
         <p>
-          Every pump model that satisfies these inputs is listed below — pick the one
-          you want.
+          Review your confirmed pump and its configuration. Go back to any step to
+          change something.
           {inputEcho && (
             <>
               {" "}
@@ -88,40 +102,49 @@ const RecommendationStep = ({
           )}
         </p>
 
-        {isLoading && <p>Finding the pump matches...</p>}
+        {isLoading && <p>Loading summary…</p>}
 
         {error && <p className="error-message">{error}</p>}
 
-        {!isLoading && !error && recommendations.length === 0 && (
+        {!isLoading && !error && !confirmedPump && (
           <p>
-            No pumps matched these requirements. Try adjusting capacity, head, or
-            viscosity.
+            No confirmed pump model found for these inputs. Go back and confirm a model
+            in the recommendation panel.
           </p>
         )}
 
-        {!isLoading && !error && recommendations.length > 0 && (
-          <RecommendationTable
-            recommendations={recommendations}
-            selectedPump={selectedPump}
-            setSelectedPump={setSelectedPump}
-          />
-        )}
+        {!isLoading && !error && confirmedPump && (
+          <>
+            <PumpDetailsCard
+              pump={confirmedPump}
+              size={sizeForViscosityRange(formData.viscosityRange)}
+              pumpType={formData.pumpType}
+              agBk={formData.agBk}
+              sealingType={formData.sealingType}
+            />
 
-        <PumpDetailsCard
-          pump={selectedPumpData}
-          size={sizeForViscosityRange(formData.viscosityRange)}
-          pumpType={formData.pumpType}
-          agBk={formData.agBk}
-          sealingType={formData.sealingType}
-        />
+            {configured.length > 0 && (
+              <div className="mt-4 rounded-md border border-line bg-elev p-4">
+                <span className="section-label">Configuration</span>
+                <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {configured.map(([label, value]) => (
+                    <div key={label} className="flex flex-col">
+                      <span className="text-[11px] uppercase tracking-wide text-fg-3">
+                        {label}
+                      </span>
+                      <strong className="text-fg">{value}</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
 
         <div className="step-actions">
           <button onClick={onPrevious}>Previous</button>
 
-          <button
-            disabled={selectedPump === null}
-            onClick={() => setShowReport(true)}
-          >
+          <button disabled={!confirmedPump} onClick={() => setShowReport(true)}>
             View Test Report
           </button>
 
@@ -136,7 +159,7 @@ const RecommendationStep = ({
         <TestReportModal
           isOpen={showReport}
           onClose={() => setShowReport(false)}
-          pump={selectedPumpData}
+          pump={confirmedPump}
         />
       </div>
     </div>

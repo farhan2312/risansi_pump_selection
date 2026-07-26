@@ -68,7 +68,8 @@ export interface PumpSelectionFormData {
   viscosityUnit: string;
   viscosityRange: string;
   rpmRange?: string; // manual RPM band filter: low/medium/high/vhigh
-  selectedModel?: string; // pump pinned by the user; persists across steps
+  selectedModel?: string; // pump picked by the user; persists across steps
+  modelConfirmed?: boolean; // true once the picked model is confirmed (gates advancing past Fluid)
   solidPercentage: string;
   solidSize: string;
   pumpType: string;

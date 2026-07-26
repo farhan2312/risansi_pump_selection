@@ -177,11 +177,21 @@ const FluidPropertiesStep = ({
           </div>
         )}
 
+        {!formData.modelConfirmed && (
+          <p className="mt-4 text-[12px] text-warn">
+            Pick a pump model in the recommendation panel below and confirm it to continue.
+          </p>
+        )}
+
         <div className={actions}>
           <button className={btnGhost} onClick={onPrevious}>
             Previous
           </button>
-          <button className={btnPrimary} onClick={onNext}>
+          <button
+            className={`${btnPrimary} disabled:opacity-50 disabled:cursor-not-allowed`}
+            onClick={onNext}
+            disabled={!formData.modelConfirmed}
+          >
             Next
           </button>
         </div>
