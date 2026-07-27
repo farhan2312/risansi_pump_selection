@@ -56,8 +56,8 @@ export function toM3PerHr(value: number, unit: string | null, sg: number): numbe
 export function toMwc(value: number, unit: string | null, sg: number): number {
   const u = (unit || "MWC").trim();
   if (u === "MWC") return value;
-  // Per "Backend Formulas Required" spec, Step-2: MWC = MLC / Specific Gravity.
-  if (u === "MLC") return value / (sg || 1.0);
+  // Per "Backend Formulas Required" spec, Step-2: MWC = MLC * Specific Gravity.
+  if (u === "MLC") return value * (sg || 1.0);
   // Per spec, Step-2: "Head = Pressure * 10" for both Bar and Kg/cm2.
   if (u === "Bar") return value * 10.0;
   if (u === "Kg/cm2" || u === "Kg/cm²") return value * 10.0;

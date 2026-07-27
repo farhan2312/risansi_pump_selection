@@ -50,9 +50,9 @@ const OperatingConditionsStep = ({
             </select>
           </div>
 
-          {/* AG / BK feed option — only offered for very thick media
-              (viscosity > 10 000 cP), per the Step-5 spec. */}
-          {needsBkAg(formData.viscosityRange) && (
+          {/* AG / BK feed option — offered for very thick media
+              (viscosity > 10 000 cP) OR any solids content (> 0 %). */}
+          {needsBkAg(formData.viscosityRange, formData.solidPercentage) && (
             <div className={fieldWrap}>
               <label className={label}>AG / BK</label>
               <select
@@ -67,7 +67,7 @@ const OperatingConditionsStep = ({
                 <option value="BK">BK</option>
               </select>
               <span className={hint}>
-                Required for viscosity above 10&nbsp;000&nbsp;cP.
+                Required for viscosity above 10&nbsp;000&nbsp;cP or any solids content.
               </span>
             </div>
           )}

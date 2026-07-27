@@ -1,7 +1,7 @@
 import Stepper from "./Stepper";
 import "./GeneralInformationStep.css";
 import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, hint, label } from "./formStyles";
-import { SIZE_BY_RANGE } from "../../lib/suction-discharge-size";
+import { SIZE_BY_RANGE, needsBkAg } from "../../lib/suction-discharge-size";
 
 type Props = {
   onNext: () => void;
@@ -26,6 +26,19 @@ const viscosityRangeFor = (viscosityCp: number): string => {
   return "10000+";
 };
 
+// Convert temperature to Celsius (the canonical value stored in formData.temperature).
+const toCelsius = (value: number, unit: string): number => {
+  if (unit === "F") return ((value - 32) * 5) / 9;
+  if (unit === "K") return value - 273.15;
+  return value;
+};
+
+// Round to 2 decimals for the derived Celsius value, without trailing zeros.
+const round2 = (n: number): string => {
+  const r = Math.round(n * 100) / 100;
+  return String(r);
+};
+
 
 const FluidPropertiesStep = ({
   onNext,
@@ -44,6 +57,20 @@ const FluidPropertiesStep = ({
     const viscosityRange = Number.isNaN(cp) ? "" : viscosityRangeFor(cp);
     setFormData({ ...formData, viscosity, viscosityUnit, viscosityRange });
   };
+
+  // Store the as-entered value in temperatureRaw + temperatureUnit for display,
+  // and the canonical Celsius conversion in temperature (what everything else
+  // reads). Empty input clears the derived Celsius so downstream checks
+  // (formData.temperature ? …) still work.
+  const applyTemperature = (temperatureRaw: string, temperatureUnit: string) => {
+    const num = parseFloat(temperatureRaw);
+    const temperature = Number.isNaN(num) ? "" : round2(toCelsius(num, temperatureUnit));
+    setFormData({ ...formData, temperatureRaw, temperatureUnit, temperature });
+  };
+
+  const tempUnit = formData.temperatureUnit || "C";
+  const tempRawNum = parseFloat(formData.temperatureRaw ?? "");
+  const tempCelsius = Number.isNaN(tempRawNum) ? null : toCelsius(tempRawNum, tempUnit);
 
   return (
     <div className="step-container">
@@ -127,6 +154,21 @@ const FluidPropertiesStep = ({
           </div>
 
           <div className={fieldWrap}>
+            <label className={label}>Solid Type</label>
+            <select
+              className={control}
+              value={formData.solidType ?? ""}
+              onChange={(e) =>
+                setFormData({ ...formData, solidType: e.target.value })
+              }
+            >
+              <option value="">Select Solid Type</option>
+              <option value="Hard Solid">Hard Solid</option>
+              <option value="Soft Solid">Soft Solid</option>
+            </select>
+          </div>
+
+          <div className={fieldWrap}>
             <label className={label}>pH Value</label>
             <input
               type="number"
@@ -138,16 +180,32 @@ const FluidPropertiesStep = ({
           </div>
 
           <div className={fieldWrap}>
-            <label className={label}>Temperature (°C)</label>
+            <label className={label}>Temperature</label>
             <input
               type="number"
               placeholder="Enter Temperature"
               className={control}
-              value={formData.temperature}
-              onChange={(e) =>
-                setFormData({ ...formData, temperature: e.target.value })
-              }
+              value={formData.temperatureRaw ?? ""}
+              onChange={(e) => applyTemperature(e.target.value, tempUnit)}
             />
+            {tempCelsius !== null && tempUnit !== "C" && (
+              <span className={hint}>
+                = <b className="mono font-semibold text-fg">{round2(tempCelsius)}</b> °C
+              </span>
+            )}
+          </div>
+
+          <div className={fieldWrap}>
+            <label className={label}>Temperature Unit</label>
+            <select
+              className={control}
+              value={tempUnit}
+              onChange={(e) => applyTemperature(formData.temperatureRaw ?? "", e.target.value)}
+            >
+              <option value="C">°C</option>
+              <option value="F">°F</option>
+              <option value="K">K</option>
+            </select>
           </div>
         </div>
 
@@ -163,10 +221,13 @@ const FluidPropertiesStep = ({
                 {formData.selectedModel ? ` · model ${formData.selectedModel}` : ""}
               </span>
             </div>
-            {formData.viscosityRange === "10000+" && (
+            {needsBkAg(formData.viscosityRange, formData.solidPercentage) && (
               <p className="mt-2 text-[12px] text-warn">
-                Viscosity above 10&nbsp;000&nbsp;cP — also recommend the{" "}
-                <b>BK</b> and <b>AG</b> feed/construction options for thick media.
+                {formData.viscosityRange === "10000+"
+                  ? "Viscosity above 10 000 cP"
+                  : "Solids content > 0 %"}
+                {" "}— also recommend the <b>BK</b> and <b>AG</b> feed/construction
+                options. Pick one on the Specifications step.
               </p>
             )}
             {!formData.selectedModel && (

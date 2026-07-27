@@ -22,7 +22,15 @@ export function sizeForViscosityRange(range: string | null | undefined): number 
   return size === undefined ? null : size;
 }
 
-/** Above 10 000 cP the BK/AG feed-construction options are also recommended. */
-export function needsBkAg(range: string | null | undefined): boolean {
-  return range === "10000+";
+/** BK/AG feed-construction options are recommended for very thick media
+ * (viscosity > 10 000 cP) OR any solids content (> 0%). Either trigger opens
+ * the AG/BK dropdown in the Specifications step and the note in the size box. */
+export function needsBkAg(
+  range: string | null | undefined,
+  solidPct?: string | number | null,
+): boolean {
+  if (range === "10000+") return true;
+  if (solidPct === null || solidPct === undefined || solidPct === "") return false;
+  const n = typeof solidPct === "number" ? solidPct : parseFloat(String(solidPct));
+  return !Number.isNaN(n) && n > 0;
 }

@@ -48,7 +48,9 @@ const PumpSelectionPage = () => {
     head: "",
     headUnit: "",
     media: "",
-    temperature: "",
+    temperature: "", // canonical °C value (converted from temperatureRaw + temperatureUnit)
+    temperatureRaw: "", // as-entered value in the currently-selected unit
+    temperatureUnit: "C", // display-only unit for the input: C / F / K
     sg: "", // Specific Gravity
     ph: "",
     rpmRange: "", // manual RPM band filter (low/medium/high/vhigh)
@@ -61,6 +63,7 @@ const PumpSelectionPage = () => {
     viscosityRange: "",
     solidPercentage: "",
     solidSize: "",
+    solidType: "", // "Hard Solid" / "Soft Solid" — only meaningful when solidPercentage > 0
 
     // Step 3
     pumpType: "",

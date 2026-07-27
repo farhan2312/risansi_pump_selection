@@ -61,7 +61,9 @@ export interface PumpSelectionFormData {
   head: string;
   headUnit: string;
   media: string;
-  temperature: string;
+  temperature: string; // canonical Celsius (derived from temperatureRaw + temperatureUnit)
+  temperatureRaw?: string;
+  temperatureUnit?: string; // "C" | "F" | "K"
   sg: string;
   ph: string;
   viscosity: string;
@@ -72,6 +74,7 @@ export interface PumpSelectionFormData {
   modelConfirmed?: boolean; // true once the picked model is confirmed (gates advancing past Fluid)
   solidPercentage: string;
   solidSize: string;
+  solidType?: string; // "Hard Solid" | "Soft Solid" — only relevant when solids > 0
   pumpType: string;
   agBk?: string; // AG / BK feed option — only set when viscosity > 10000 cP
   bearingHousing: string;
