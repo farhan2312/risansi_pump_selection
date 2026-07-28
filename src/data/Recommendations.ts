@@ -69,6 +69,7 @@ export interface PumpSelectionFormData {
   viscosity: string;
   viscosityUnit: string;
   viscosityRange: string;
+  viscosityCp?: string; // canonical cP value (cP = cSt × SG when entered in cSt)
   rpmRange?: string; // manual RPM band filter: low/medium/high/vhigh
   selectedModel?: string; // pump picked by the user; persists across steps
   modelConfirmed?: boolean; // true once the picked model is confirmed (gates advancing past Fluid)
@@ -89,6 +90,9 @@ export interface PumpSelectionFormData {
   gearBoxType?: string; // HISO / SISO — Geared Motor Drive only
   gearBoxMounting?: string; // Foot Mount B3 / Flange Mount B5 / Foot cum Flange B35 — Geared Motor Drive only
   asfRange?: string; // Application Service Factor band — Geared Motor Drive only
+  mocRecommendedMoc?: string; // system-computed from moc_recommendation (media/pH/temp lookup)
+  mocMinAcceptableMoc?: string;
+  mocElastomer?: string;
 }
 
 // Output shape — matches what RecommendationTable / PumpDetailsCard render.

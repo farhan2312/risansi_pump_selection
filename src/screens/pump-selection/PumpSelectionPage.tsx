@@ -7,6 +7,7 @@ import FluidPropertiesStep from "../../components/pump-selection/FluidProperties
 import OperatingConditionsStep from "../../components/pump-selection/OperatingConditionsStep";
 import DriveDetailsStep from "../../components/pump-selection/DriveDetailsStep";
 import SealingDetailsStep from "../../components/pump-selection/SealingDetailsStep";
+import MocDetailsStep from "../../components/pump-selection/MocDetailsStep";
 import RecommendationStep from "../../components/pump-selection/RecommendationStep";
 import ProjectHeader from "../../components/projects/ProjectHeader";
 import LivePumpRecommendation from "../../components/pump-selection/LivePumpRecommendation";
@@ -61,6 +62,7 @@ const PumpSelectionPage = () => {
     viscosity: "",
     viscosityUnit: "",
     viscosityRange: "",
+    viscosityCp: "", // canonical cP value (cP = cSt × SG when entered in cSt)
     solidPercentage: "",
     solidSize: "",
     solidType: "", // "Hard Solid" / "Soft Solid" — only meaningful when solidPercentage > 0
@@ -72,7 +74,7 @@ const PumpSelectionPage = () => {
     suctionHousing: "",
     jointType: "",
 
-    // Step 5
+    // Step 6
     driveSystem: "",
     motorMake: "",
     gearboxMake: "",
@@ -84,6 +86,11 @@ const PumpSelectionPage = () => {
     // Step 4
     sealingType: "",
     sealingSubType: "", // MSA / SCG / DCG — Mechanical Seal only
+
+    // Step 5 — system-computed from moc_recommendation (media/pH/temp lookup)
+    mocRecommendedMoc: "",
+    mocMinAcceptableMoc: "",
+    mocElastomer: "",
   });
 
   const [selectedPump, setSelectedPump] = useState<number | null>(null);
@@ -144,7 +151,7 @@ const PumpSelectionPage = () => {
 
       case 5:
         return (
-          <DriveDetailsStep
+          <MocDetailsStep
             onPrevious={() => goToStep(4)}
             onNext={() => goToStep(6)}
             formData={formData}
@@ -155,8 +162,19 @@ const PumpSelectionPage = () => {
 
       case 6:
         return (
-          <RecommendationStep
+          <DriveDetailsStep
             onPrevious={() => goToStep(5)}
+            onNext={() => goToStep(7)}
+            formData={formData}
+            setFormData={setFormData}
+            onStepClick={goToStep}
+          />
+        );
+
+      case 7:
+        return (
+          <RecommendationStep
+            onPrevious={() => goToStep(6)}
             formData={formData}
             selectedPump={selectedPump}
             setSelectedPump={setSelectedPump}
@@ -181,8 +199,8 @@ const PumpSelectionPage = () => {
       <ProjectHeader project={project} />
       {renderStep()}
       {/* Live recommendation that refines as the user fills each step. Sits at
-          the bottom of the page; hidden on step 6, which shows the full list. */}
-      {step < 6 && (
+          the bottom of the page; hidden on the final (read-only summary) step. */}
+      {step < 7 && (
         <LivePumpRecommendation formData={formData} setFormData={setFormData} />
       )}
     </>

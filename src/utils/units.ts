@@ -1,6 +1,8 @@
 // Client-side mirror of the engine's unit conversions (recommendation-engine.ts
-// toM3PerHr / toMwc), so the wizard can show the converted base-unit value
-// inline without importing server-only code. Keep in sync with the engine.
+// toM3PerHr / toMwc / toCp), so the wizard can show the converted base-unit
+// value inline without importing server-only code (recommendation-engine.ts
+// imports the DB client, which must never end up in a client bundle). Keep in
+// sync with the engine.
 
 export function toM3PerHr(value: number, unit: string, sg: number): number {
   const u = (unit || "M3/hr").trim();
@@ -15,9 +17,17 @@ export function toM3PerHr(value: number, unit: string, sg: number): number {
 export function toMwc(value: number, unit: string, sg: number): number {
   const u = (unit || "MWC").trim();
   if (u === "MWC") return value;
-  if (u === "MLC") return value / (sg || 1.0);
+  // MWC = MLC × SG (a denser liquid exerts more pressure per metre, so its
+  // water-equivalent column is taller) — matches recommendation-engine.ts.
+  if (u === "MLC") return value * (sg || 1.0);
   if (u === "Bar") return value * 10.0;
   if (u === "Kg/cm2" || u === "Kg/cm²") return value * 10.0;
+  return value;
+}
+
+export function toCp(value: number, unit: string, sg: number): number {
+  const u = (unit || "cP").trim();
+  if (u === "cSt") return value * (sg || 1.0);
   return value;
 }
 

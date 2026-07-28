@@ -2,6 +2,7 @@ import Stepper from "./Stepper";
 import "./GeneralInformationStep.css";
 import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, hint, label } from "./formStyles";
 import { SIZE_BY_RANGE, needsBkAg } from "../../lib/suction-discharge-size";
+import { toCp } from "../../utils/units";
 
 type Props = {
   onNext: () => void;
@@ -50,12 +51,16 @@ const FluidPropertiesStep = ({
   // Re-derive the viscosity range whenever viscosity or its unit changes, so
   // the range is auto-selected (spec: "when enter viscosity it automatically
   // select viscosity range"). Still overridable via the dropdown afterward.
+  // viscosityCp is the canonical converted value (cP = cSt × SG) — same shape
+  // as temperature's canonical Celsius field — so anything downstream can
+  // read the real cP value without re-parsing viscosity + viscosityUnit + sg.
   const applyViscosity = (viscosity: string, viscosityUnit: string) => {
     const num = parseFloat(viscosity);
     const sg = parseFloat(formData.sg) || 1;
-    const cp = viscosityUnit === "cSt" ? num * sg : num;
+    const cp = toCp(num, viscosityUnit, sg);
     const viscosityRange = Number.isNaN(cp) ? "" : viscosityRangeFor(cp);
-    setFormData({ ...formData, viscosity, viscosityUnit, viscosityRange });
+    const viscosityCp = Number.isNaN(cp) ? "" : round2(cp);
+    setFormData({ ...formData, viscosity, viscosityUnit, viscosityRange, viscosityCp });
   };
 
   // Store the as-entered value in temperatureRaw + temperatureUnit for display,
@@ -90,6 +95,11 @@ const FluidPropertiesStep = ({
               value={formData.viscosity}
               onChange={(e) => applyViscosity(e.target.value, formData.viscosityUnit)}
             />
+            {formData.viscosityCp && formData.viscosityUnit === "cSt" && (
+              <span className={hint}>
+                = <b className="mono font-semibold text-fg">{formData.viscosityCp}</b> cP
+              </span>
+            )}
           </div>
 
           <div className={fieldWrap}>

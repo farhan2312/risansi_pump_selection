@@ -9,6 +9,7 @@ const steps = [
   "Fluid",
   "Specifications",
   "Sealing",
+  "MOC",
   "Drive",
   "Recommendation",
 ];
