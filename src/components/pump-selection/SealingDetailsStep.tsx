@@ -64,6 +64,7 @@ const SealingDetailsStep = ({
                 <option value="MSA">MSA</option>
                 <option value="SCG">SCG</option>
                 <option value="DCG">DCG</option>
+                <option value="DCG">MSK</option>
               </select>
             </div>
           )}
