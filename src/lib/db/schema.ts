@@ -80,6 +80,38 @@ export const pumpModelMaster = pgTable(
   },
 );
 
+// MOC (Material of Construction) recommendation per media, from
+// PCP_MOC_Selection_Sugar_NonSugar.pdf. Despite the filename, that PDF only
+// contains the "Non-Sugar Industry Media" table (190 rows) — no Sugar-industry
+// section exists in it. `industry` is included so Sugar rows can be added
+// later without a schema change; right now every row has industry='Non-Sugar'.
+// pH and Temp were given as ranges in the source ("1-2", "20-60") — split into
+// min/max per request. Some source cells aren't a plain numeric range (e.g.
+// "<1", "N/A", "Variable") — phRaw/tempRaw keep the original text and
+// min/max are null in those cases rather than guessed.
+export const mocRecommendation = pgTable(
+  "moc_recommendation",
+  {
+    id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    industry: varchar("industry", { length: 20 }).notNull().default("Non-Sugar"),
+    sNo: integer("s_no").notNull(),
+    media: varchar("media", { length: 255 }).notNull(),
+    phMin: numeric("ph_min", { precision: 5, scale: 2 }),
+    phMax: numeric("ph_max", { precision: 5, scale: 2 }),
+    phRaw: varchar("ph_raw", { length: 20 }),
+    tempMin: numeric("temp_min", { precision: 6, scale: 2 }),
+    tempMax: numeric("temp_max", { precision: 6, scale: 2 }),
+    tempRaw: varchar("temp_raw", { length: 20 }),
+    solidPct: numeric("solid_pct", { precision: 5, scale: 2 }),
+    abrasive: varchar("abrasive", { length: 20 }),
+    corrosive: varchar("corrosive", { length: 20 }),
+    minAcceptableMoc: varchar("min_acceptable_moc", { length: 10 }),
+    recommendedMoc: varchar("recommended_moc", { length: 10 }),
+    elastomer: varchar("elastomer", { length: 50 }),
+    remarks: text("remarks"),
+  },
+);
+
 /*export const performanceCurve = pgTable("performance_curve", {
   id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   model: varchar("model", { length: 100 }).notNull(),
@@ -216,13 +248,8 @@ export const pumpRecommendations = pgTable("pump_recommendations", {
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
 
-// Growable media/application list for the pump-selection wizard — unlike the
-// tables above, this one was created by this app (id/created_at have real
-// Postgres-side defaults: gen_random_uuid()/now(), plus a case-insensitive
-// unique index on name so "Chemical" and "chemical" can't both exist).
+// media_types (growable media/application list) was dropped — the wizard's
+// Media/Application dropdown now sources from moc_recommendation.media
+// instead (see /api/moc-recommendation/media route), which is curated
+// reference data rather than something the wizard grows.
 */
-export const mediaTypes = pgTable("media_types", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  name: varchar("name", { length: 255 }).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-});

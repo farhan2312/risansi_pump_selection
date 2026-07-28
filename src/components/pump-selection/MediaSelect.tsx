@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createMediaType, listMediaTypes } from "../../services/mediaTypeService";
+import { listMocMedia } from "../../services/mocRecommendationService";
 import { btnGhostSm, btnPrimarySm, control, hint, hintError } from "./formStyles";
 
 type Props = {
@@ -9,77 +9,53 @@ type Props = {
   onChange: (value: string) => void;
 };
 
-const ADD_NEW = "__add_new__";
+const OTHER = "__other__";
 
-/** Media / Application dropdown backed by the shared media_types table — any
- * media added here (via "+ Add new media") is saved to the database, so it
- * shows up in everyone's dropdown from then on, not just this session. */
+/** Media / Application dropdown backed by the moc_recommendation reference
+ * table (curated MOC selection data — Sugar + Non-Sugar industry media). This
+ * list is curated reference data, not user-growable, so "Other" just sets a
+ * one-off value locally — it isn't saved anywhere for future sessions. */
 const MediaSelect = ({ value, onChange }: Props) => {
   const [options, setOptions] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
 
-  const [isAdding, setIsAdding] = useState(false);
-  const [newValue, setNewValue] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [isOther, setIsOther] = useState(false);
+  const [otherValue, setOtherValue] = useState("");
 
   useEffect(() => {
-    listMediaTypes()
-      .then((rows) => setOptions(rows.map((r) => r.name)))
+    listMocMedia()
+      .then(setOptions)
       .catch(() => setLoadFailed(true))
       .finally(() => setIsLoading(false));
   }, []);
 
   const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    if (e.target.value === ADD_NEW) {
-      setNewValue("");
-      setSaveError(null);
-      setIsAdding(true);
+    if (e.target.value === OTHER) {
+      setOtherValue(value && !options.includes(value) ? value : "");
+      setIsOther(true);
       return;
     }
     onChange(e.target.value);
   };
 
-  const addOption = (name: string) => {
-    setOptions((prev) =>
-      prev.some((o) => o.toLowerCase() === name.toLowerCase())
-        ? prev
-        : [...prev, name].sort((a, b) => a.localeCompare(b))
-    );
+  const handleOtherConfirm = () => {
+    const trimmed = otherValue.trim();
+    if (!trimmed) return;
+    onChange(trimmed);
+    setIsOther(false);
   };
 
-  const handleAdd = async () => {
-    const trimmed = newValue.trim();
-    if (!trimmed || isSaving) return;
-    setIsSaving(true);
-    setSaveError(null);
-    try {
-      const created = await createMediaType(trimmed);
-      addOption(created.name);
-      onChange(created.name);
-      setIsAdding(false);
-    } catch {
-      setSaveError("Couldn't add this media. Please try again.");
-    } finally {
-      setIsSaving(false);
-    }
-  };
+  const handleCancel = () => setIsOther(false);
 
-  const handleCancel = () => {
-    setIsAdding(false);
-    setSaveError(null);
-  };
-
-  // Always show the currently-selected value even if it hasn't finished
-  // loading into `options` yet (e.g. just-added, or set before the list load
-  // resolved).
+  // Always show the currently-selected value even if it's not in the loaded
+  // list (e.g. a one-off "Other" value from an earlier visit to this step).
   const allOptions =
     value && !options.some((o) => o.toLowerCase() === value.toLowerCase())
       ? [...options, value].sort((a, b) => a.localeCompare(b))
       : options;
 
-  if (isAdding) {
+  if (isOther) {
     return (
       <div className="flex flex-col gap-1.5">
         <div className="flex gap-2">
@@ -87,13 +63,13 @@ const MediaSelect = ({ value, onChange }: Props) => {
             type="text"
             autoFocus
             className={control}
-            placeholder="Type the new media / application..."
-            value={newValue}
-            onChange={(e) => setNewValue(e.target.value)}
+            placeholder="Type the media / application..."
+            value={otherValue}
+            onChange={(e) => setOtherValue(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
-                handleAdd();
+                handleOtherConfirm();
               } else if (e.key === "Escape") {
                 handleCancel();
               }
@@ -102,16 +78,18 @@ const MediaSelect = ({ value, onChange }: Props) => {
           <button
             type="button"
             className={btnPrimarySm}
-            disabled={isSaving || !newValue.trim()}
-            onClick={handleAdd}
+            disabled={!otherValue.trim()}
+            onClick={handleOtherConfirm}
           >
-            {isSaving ? "Adding…" : "Add"}
+            Use this
           </button>
-          <button type="button" className={btnGhostSm} disabled={isSaving} onClick={handleCancel}>
+          <button type="button" className={btnGhostSm} onClick={handleCancel}>
             Cancel
           </button>
         </div>
-        {saveError && <span className={hintError}>{saveError}</span>}
+        <span className={hint}>
+          Not part of the MOC reference list — used for this selection only.
+        </span>
       </div>
     );
   }
@@ -125,10 +103,12 @@ const MediaSelect = ({ value, onChange }: Props) => {
             {o}
           </option>
         ))}
-        <option value={ADD_NEW}>+ Add new media…</option>
+        <option value={OTHER}>Other (type manually)…</option>
       </select>
       {loadFailed && (
-        <span className={hint}>Couldn&apos;t load the saved list — you can still add a new one.</span>
+        <span className={hintError}>
+          Couldn&apos;t load the media list — check your connection and try again.
+        </span>
       )}
     </div>
   );
