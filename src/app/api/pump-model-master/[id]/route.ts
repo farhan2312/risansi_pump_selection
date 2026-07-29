@@ -29,6 +29,14 @@ function numOrNull(v: unknown): string | null {
   return Number.isNaN(n) ? null : String(n);
 }
 
+// `stage` is an integer column — Drizzle wants a real number here, not the
+// numeric-as-string convention numOrNull() uses for the NUMERIC columns above.
+function intOrNull(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n = typeof v === "number" ? v : parseInt(String(v), 10);
+  return Number.isNaN(n) ? null : n;
+}
+
 function guardAdmin(req: Request): Response | null {
   try {
     requireAdmin(req);
@@ -71,6 +79,9 @@ export async function PATCH(
   }
   for (const f of NUMERIC_FIELDS) {
     if (f in body) patch[f] = numOrNull(body[f]);
+  }
+  if ("stage" in body) {
+    patch.stage = intOrNull(body.stage);
   }
   if ("testingRemarks" in body) {
     const t = body.testingRemarks;

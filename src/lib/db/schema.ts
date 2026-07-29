@@ -60,12 +60,20 @@ export const projects = pgTable("projects", {
 // row of the model, not just the first, to preserve that meaning. Consumed by
 // `findCandidates` in recommendation-engine.ts.
 //
-// Since seeding: `4H48/50` was split into separate `4H48`/`4H50` models
-// (identical performance data duplicated onto each) per user request. And
-// hardSolidMm/softSolidMm were added from `solid.xlsx` (max hard/soft solid
-// particle size the model can pass, in mm) — that source only covers the
-// straight H*/4H* model families, not 2H*/L-variant/Barrel models, and not
-// every H*/4H* model either (e.g. H48 has no entry) — those rows are NULL.
+// Since seeding: `4H48/50` and `2H48/50` were each split into separate
+// `*48`/`*50` models (identical performance data duplicated onto each) per
+// user request — neither combined name exists anymore. And hardSolidMm/
+// softSolidMm were added from `solid.xlsx` (max hard/soft solid particle size
+// the model can pass, in mm) — that source only covers the straight H*/4H*
+// model families, not 2H*/L-variant/Barrel models, and not every H*/4H* model
+// either (e.g. H48 has no entry) — those rows are NULL.
+//
+// `stage` (1/2/4/8) is the pump's stage count, derived purely from the model
+// name: a leading digit+H prefix (2H/4H/8H…) IS the stage number; a bare
+// "H…" prefix (no leading digit) = 1. No 8-stage models exist in this table
+// yet. The two Barrel* models have no "H" prefix at all but were classified
+// stage 1 too — their own charted head range (0-60) matches the single-stage
+// band and there's no 2Barrel/4Barrel counterpart.
 export const pumpModelMaster = pgTable(
   "pump_model_master",
   {
@@ -83,6 +91,7 @@ export const pumpModelMaster = pgTable(
     testingRemarks: text("testing_remarks"),
     hardSolidMm: numeric("hard_solid_mm", { precision: 6, scale: 2 }),
     softSolidMm: numeric("soft_solid_mm", { precision: 6, scale: 2 }),
+    stage: integer("stage"),
   },
 );
 

@@ -18,6 +18,8 @@ export interface PumpModelRow {
   testingRemarks: string | null;
   hardSolidMm: string | null;
   softSolidMm: string | null;
+  /** integer column — pg returns this as a real number, not a string like the numeric columns above. */
+  stage: number | null;
 }
 
 export type PumpModelPatch = Partial<Omit<PumpModelRow, "id">>;

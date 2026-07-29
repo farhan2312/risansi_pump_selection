@@ -15,6 +15,7 @@ type FieldDef = { key: keyof PumpModelRow; label: string; numeric: boolean };
 // Editable columns, in form/details order. `id` is never editable.
 const FIELDS: FieldDef[] = [
   { key: "model", label: "Model", numeric: false },
+  { key: "stage", label: "Stage", numeric: true },
   { key: "headMwc", label: "Head (MWC)", numeric: true },
   { key: "voleMin", label: "VOLE Min", numeric: true },
   { key: "voleMax", label: "VOLE Max", numeric: true },
@@ -29,7 +30,7 @@ const FIELDS: FieldDef[] = [
   { key: "softSolidMm", label: "Soft Solid (mm)", numeric: true },
 ];
 
-const val = (v: string | null) => (v === null || v === "" ? "—" : v);
+const val = (v: string | number | null) => (v === null || v === "" ? "—" : v);
 
 const errorMessage = (err: unknown, fallback: string): string =>
   (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
@@ -106,6 +107,7 @@ const PumpModelMasterPage = () => {
               <thead>
                 <tr>
                   <th>Model</th>
+                  <th>Stage</th>
                   <th>Head (MWC)</th>
                   <th>VOLE Min</th>
                   <th>VOLE Max</th>
@@ -120,6 +122,7 @@ const PumpModelMasterPage = () => {
                 {filtered.map((r) => (
                   <tr key={r.id}>
                     <td className="pmm-model">{r.model}</td>
+                    <td className="mono">{val(r.stage)}</td>
                     <td className="mono">{val(r.headMwc)}</td>
                     <td className="mono">{val(r.voleMin)}</td>
                     <td className="mono">{val(r.voleMax)}</td>
@@ -147,7 +150,7 @@ const PumpModelMasterPage = () => {
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="pmm-empty">
+                    <td colSpan={10} className="pmm-empty">
                       No rows match “{search}”.
                     </td>
                   </tr>
@@ -222,7 +225,7 @@ const EditModal = ({
 }) => {
   const [form, setForm] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
-    for (const f of FIELDS) initial[f.key] = row[f.key] ?? "";
+    for (const f of FIELDS) initial[f.key] = String(row[f.key] ?? "");
     return initial;
   });
   const [saving, setSaving] = useState(false);
