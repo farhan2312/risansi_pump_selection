@@ -1,7 +1,6 @@
 import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
 import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, hint, label } from "./formStyles";
-import { needsBkAg } from "../../lib/suction-discharge-size";
 
 type Props = {
   onNext: () => void;
@@ -13,6 +12,41 @@ type Props = {
   onStepClick?: (step: number) => void;
 };
 
+// Cascading options driven by Pump Type. Each pump type constrains which AG/BK
+// feed option and which suction housings are valid:
+//   Horizontal Standard       -> no AG/BK; standard / CIP housings only
+//   Vertical                  -> AG only; vertical suction housing only
+//   Horizontal Bucket w/Auger -> AG & BK only; all housings
+//   Horizontal Auger Only     -> AG only; standard / CIP housings only
+const ALL_SUCTION_HOUSINGS = [
+  "Standard Pump Housing",
+  "Bucket",
+  "Pump Housing with CIP",
+  "Bucket with CIP",
+  "Vertical Suction Housing",
+];
+const STANDARD_CIP_HOUSINGS = ["Standard Pump Housing", "Pump Housing with CIP"];
+
+const AG_BK_OPTIONS_BY_PUMP_TYPE: Record<string, string[]> = {
+  "Horizontal Standard": [],
+  Vertical: ["AG"],
+  "Horizontal Bucket with Auger": ["AG & BK"],
+  "Horizontal Auger Only": ["AG"],
+};
+const SUCTION_HOUSINGS_BY_PUMP_TYPE: Record<string, string[]> = {
+  "Horizontal Standard": STANDARD_CIP_HOUSINGS,
+  Vertical: ["Vertical Suction Housing"],
+  "Horizontal Bucket with Auger": ALL_SUCTION_HOUSINGS,
+  "Horizontal Auger Only": STANDARD_CIP_HOUSINGS,
+};
+
+const agBkOptionsFor = (pumpType: string): string[] =>
+  AG_BK_OPTIONS_BY_PUMP_TYPE[pumpType] ?? [];
+// Before a pump type is chosen, show every housing so the field isn't empty;
+// once chosen it narrows, and an invalid prior pick is cleared on change.
+const suctionHousingOptionsFor = (pumpType: string): string[] =>
+  pumpType ? SUCTION_HOUSINGS_BY_PUMP_TYPE[pumpType] ?? ALL_SUCTION_HOUSINGS : ALL_SUCTION_HOUSINGS;
+
 const OperatingConditionsStep = ({
   onNext,
   onPrevious,
@@ -20,6 +54,30 @@ const OperatingConditionsStep = ({
   setFormData,
   onStepClick,
 }: Props) => {
+  // Pump Type cascades to AG/BK + Suction Housing: auto-pick the single valid
+  // AG/BK option (or clear it), and clear a suction housing the new pump type
+  // no longer allows.
+  const handlePumpTypeChange = (pumpType: string) => {
+    const agOpts = agBkOptionsFor(pumpType);
+    const suctionOpts = suctionHousingOptionsFor(pumpType);
+    setFormData({
+      ...formData,
+      pumpType,
+      agBk:
+        agOpts.length === 1
+          ? agOpts[0]
+          : agOpts.includes(formData.agBk)
+            ? formData.agBk
+            : "",
+      suctionHousing: suctionOpts.includes(formData.suctionHousing)
+        ? formData.suctionHousing
+        : "",
+    });
+  };
+
+  const agBkOptions = agBkOptionsFor(formData.pumpType);
+  const suctionHousingOptions = suctionHousingOptionsFor(formData.pumpType);
+
   return (
     <div className="step-container">
       <Stepper currentStep={3} onStepClick={onStepClick} />
@@ -34,9 +92,7 @@ const OperatingConditionsStep = ({
             <select
               className={control}
               value={formData.pumpType}
-              onChange={(e) =>
-                setFormData({ ...formData, pumpType: e.target.value })
-              }
+              onChange={(e) => handlePumpTypeChange(e.target.value)}
             >
               <option value="">Select Pump Type</option>
               <option value="Horizontal Standard">Horizontal Standard</option>
@@ -50,9 +106,9 @@ const OperatingConditionsStep = ({
             </select>
           </div>
 
-          {/* AG / BK feed option — offered for very thick media
-              (viscosity > 10 000 cP) OR any solids content (> 0 %). */}
-          {needsBkAg(formData.viscosityRange, formData.solidPercentage) && (
+          {/* AG / BK feed option — availability + choices are decided by the
+              selected pump type (Horizontal Standard has none). */}
+          {agBkOptions.length > 0 && (
             <div className={fieldWrap}>
               <label className={label}>AG / BK</label>
               <select
@@ -62,13 +118,14 @@ const OperatingConditionsStep = ({
                   setFormData({ ...formData, agBk: e.target.value })
                 }
               >
-                <option value="">Select AG / BK</option>
-                <option value="AG">AG</option>
-                <option value="BK">BK</option>
+                {agBkOptions.length > 1 && <option value="">Select AG / BK</option>}
+                {agBkOptions.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
               </select>
-              <span className={hint}>
-                Required for viscosity above 10&nbsp;000&nbsp;cP or any solids content.
-              </span>
+              <span className={hint}>Set by the selected pump type.</span>
             </div>
           )}
 
@@ -97,10 +154,11 @@ const OperatingConditionsStep = ({
               }
             >
               <option value="">Select Suction Housing</option>
-              <option value="Standard Pump Housing">Standard Pump Housing</option>
-              <option value="Bucket">Bucket</option>
-              <option value="Pump Housing with CIP">Pump Housing with CIP</option>
-              <option value="Bucket with CIP">Bucket with CIP</option>
+              {suctionHousingOptions.map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
             </select>
           </div>
 
