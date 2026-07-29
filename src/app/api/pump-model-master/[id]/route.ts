@@ -19,6 +19,8 @@ const NUMERIC_FIELDS = [
   "minStartingKwAt1Kg",
   "minKwTested",
   "minKwToBeTested",
+  "hardSolidMm",
+  "softSolidMm",
 ] as const;
 
 function numOrNull(v: unknown): string | null {

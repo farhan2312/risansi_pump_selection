@@ -25,6 +25,8 @@ const FIELDS: FieldDef[] = [
   { key: "minKwTested", label: "Min kW Tested", numeric: true },
   { key: "minKwToBeTested", label: "Min kW To Be Tested", numeric: true },
   { key: "testingRemarks", label: "Testing Remarks", numeric: false },
+  { key: "hardSolidMm", label: "Hard Solid (mm)", numeric: true },
+  { key: "softSolidMm", label: "Soft Solid (mm)", numeric: true },
 ];
 
 const val = (v: string | null) => (v === null || v === "" ? "—" : v);

@@ -16,6 +16,8 @@ export interface PumpModelRow {
   minKwTested: string | null;
   minKwToBeTested: string | null;
   testingRemarks: string | null;
+  hardSolidMm: string | null;
+  softSolidMm: string | null;
 }
 
 export type PumpModelPatch = Partial<Omit<PumpModelRow, "id">>;

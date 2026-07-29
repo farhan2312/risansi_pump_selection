@@ -52,16 +52,20 @@ export const projects = pgTable("projects", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
 
-// One row per (model, head) data point — an exact mirror of every column and
-// row in `src/assets/pump_model_master.xlsx` (540 rows / 53 models). In the
-// source file, qth/minKwExisting/minStartingKwAt1Kg/minKwTested/minKwToBeTested
-// are merged cells spanning every head-row of a model (one value governs the
+// One row per (model, head) data point — originally an exact mirror of
+// `src/assets/pump_model_master.xlsx` (540 rows / 53 models). In that source
+// file, qth/minKwExisting/minStartingKwAt1Kg/minKwTested/minKwToBeTested are
+// merged cells spanning every head-row of a model (one value governs the
 // whole model, not just its head=0 row) — the DB carries that value on every
-// row of the model, not just the first, to preserve that meaning.
-// NOTE: `findCandidates` in recommendation-engine.ts still expects a
-// one-row-per-model summary shape (pumpFamily/headMin/headMax/qTheoretical/
-// minKwTested as scalars) — this table no longer matches that; the engine
-// needs to be reconciled with this real shape before it will run again.
+// row of the model, not just the first, to preserve that meaning. Consumed by
+// `findCandidates` in recommendation-engine.ts.
+//
+// Since seeding: `4H48/50` was split into separate `4H48`/`4H50` models
+// (identical performance data duplicated onto each) per user request. And
+// hardSolidMm/softSolidMm were added from `solid.xlsx` (max hard/soft solid
+// particle size the model can pass, in mm) — that source only covers the
+// straight H*/4H* model families, not 2H*/L-variant/Barrel models, and not
+// every H*/4H* model either (e.g. H48 has no entry) — those rows are NULL.
 export const pumpModelMaster = pgTable(
   "pump_model_master",
   {
@@ -77,6 +81,8 @@ export const pumpModelMaster = pgTable(
     minKwTested: numeric("min_kw_tested", { precision: 10, scale: 2 }),
     minKwToBeTested: numeric("min_kw_to_be_tested", { precision: 10, scale: 2 }),
     testingRemarks: text("testing_remarks"),
+    hardSolidMm: numeric("hard_solid_mm", { precision: 6, scale: 2 }),
+    softSolidMm: numeric("soft_solid_mm", { precision: 6, scale: 2 }),
   },
 );
 
