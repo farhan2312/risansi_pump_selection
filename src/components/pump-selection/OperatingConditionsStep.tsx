@@ -23,7 +23,6 @@ const ALL_SUCTION_HOUSINGS = [
   "Bucket",
   "Pump Housing with CIP",
   "Bucket with CIP",
-  "Vertical Suction Housing",
 ];
 const STANDARD_CIP_HOUSINGS = ["Standard Pump Housing", "Pump Housing with CIP"];
 
