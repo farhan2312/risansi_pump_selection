@@ -101,6 +101,8 @@ export function resolveDrive(rpmRequired: number, motorRpm: number | null): stri
 
 export interface Candidate {
   model: string;
+  /** Pump stage count (1/2/4/8), derived from the model name (2H*=2, 4H*=4, bare H*=1). */
+  stage: number | null;
   /** Nearest charted head point (in pump_model_master) to the input duty head. */
   headMwc: number;
   voleMin: number;
@@ -116,6 +118,10 @@ export interface Candidate {
   rpmAtVoleMax: number;
   rpmClassAtVoleMin: string;
   rpmClassAtVoleMax: string;
+  /** Max hard-solid particle size this model can pass (mm), or null if unrecorded. */
+  hardSolidMm: number | null;
+  /** Max soft-solid particle size this model can pass (mm), or null if unrecorded. */
+  softSolidMm: number | null;
 }
 
 type ModelRow = typeof schema.pumpModelMaster.$inferSelect;
@@ -135,11 +141,19 @@ type ModelRow = typeof schema.pumpModelMaster.$inferSelect;
  * Two RPMs are returned per model, one per VOLE bound — the sheet's "2
  * output RPMs as per VE": VOLE MIN (lower efficiency ⇒ higher required
  * speed) and VOLE MAX (higher efficiency ⇒ lower, best-case speed).
+ *
+ * Optional solid-handling filter: if solidSizeMm + solidType are both given,
+ * a model is excluded unless its recorded hard/soft-solid capacity (per
+ * solidType) is >= solidSizeMm. Models with no recorded capacity for that
+ * solid type are excluded too (conservative — can't confirm suitability, per
+ * user decision) rather than passed through unfiltered.
  */
 export async function findCandidates(
   db: Db,
   capacityM3hr: number,
   headMwc: number,
+  solidSizeMm: number | null = null,
+  solidType: string | null = null,
 ): Promise<Candidate[]> {
   const rows = await db.select().from(schema.pumpModelMaster);
 
@@ -168,15 +182,22 @@ export async function findCandidates(
     // 120-240 = 4-stage, 240-480 = 8-stage. A single-stage model can't be
     // recommended for a 90 MWC duty just because 90 is "close" to 60 — this
     // is a hard catalog limit ("RPM within Model Limit? NO -> Reject Model"),
-    // not a preference. headMax is this model's furthest charted head point.
-   // const headMax = Math.max(...points.map((p) => toNum(p.headMwc)));
-    let tierLo: number;
-    let tierHi: number;
-    if (headMwc <= 60) [tierLo, tierHi] = [0, 60];
-    else if (headMwc <= 120) [tierLo, tierHi] = [60, 120];
-    else if (headMwc <= 240) [tierLo, tierHi] = [120, 240];
-    else [tierLo, tierHi] = [240, 480];
-    if (!(tierLo < headMwc && headMwc <= tierHi)) continue; // Reject Model / Try Next Model
+    // not a preference. Uses the model's own `stage` column (name-derived —
+    // see schema.ts) rather than inferring a tier from charted head data.
+    const requiredStage = headMwc <= 60 ? 1 : headMwc <= 120 ? 2 : headMwc <= 240 ? 4 : 8;
+    const stage = nearest.stage;
+    if (stage !== requiredStage) continue; // Reject Model / Try Next Model
+
+    const hardSolidMm = toNumOrNull(nearest.hardSolidMm);
+    const softSolidMm = toNumOrNull(nearest.softSolidMm);
+
+    // Solid-handling filter: only engages when BOTH a size and a type are
+    // given (need the type to know which column applies). A model with no
+    // recorded capacity for that type is excluded, not passed through.
+    if (solidSizeMm !== null && solidSizeMm > 0 && solidType) {
+      const capacity = solidType === "Hard Solid" ? hardSolidMm : solidType === "Soft Solid" ? softSolidMm : null;
+      if (capacity === null || capacity < solidSizeMm) continue;
+    }
 
     // RPM = 100 x Capacity / (QTH x VE). See formula note above.
     const rpmAtVoleMax = (100 * capacityM3hr) / (qth * (voleMaxPct / 100));
@@ -188,6 +209,7 @@ export async function findCandidates(
 
     candidates.push({
       model: modelName,
+      stage,
       headMwc: toNum(nearest.headMwc),
       voleMin: voleMinPct,
       voleMax: voleMaxPct,
@@ -199,6 +221,8 @@ export async function findCandidates(
       rpmAtVoleMax,
       rpmClassAtVoleMin: classifyRpm(rpmAtVoleMin),
       rpmClassAtVoleMax: classifyRpm(rpmAtVoleMax),
+      hardSolidMm,
+      softSolidMm,
     });
   }
 

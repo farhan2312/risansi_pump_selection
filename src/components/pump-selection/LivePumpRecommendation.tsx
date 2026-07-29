@@ -28,6 +28,8 @@ const engineKey = (f: any) =>
     sg: f.sg,
     rpmRange: f.rpmRange,
     selectedModel: f.selectedModel,
+    solidSize: f.solidSize,
+    solidType: f.solidType,
   });
 
 const LivePumpRecommendation = ({ formData, setFormData }: Props) => {

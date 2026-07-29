@@ -37,7 +37,14 @@ export async function POST(req: Request) {
   const capacityM3hr = toM3PerHr(capacityRaw, capacityUnit, sg);
   const headMwc = toMwc(headRaw, headUnit, sg);
 
-  const allCandidates = await findCandidates(db, capacityM3hr, headMwc);
+  // Solid-handling filter (Fluid Properties step: Solid Size (mm) + Solid
+  // Type) — only engages when both are present; see findCandidates for the
+  // exclude-if-unrecorded rule.
+  const solidSizeRaw = toFloat(body.solidSize, 0);
+  const solidSizeMm = solidSizeRaw > 0 ? solidSizeRaw : null;
+  const solidType = typeof body.solidType === "string" && body.solidType ? body.solidType : null;
+
+  const allCandidates = await findCandidates(db, capacityM3hr, headMwc, solidSizeMm, solidType);
 
   // Optional manual RPM-band filter from the General Information step (spec
   // Step-3: "final RPM selection is manual on the basis of RPM range, then
@@ -82,6 +89,8 @@ export async function POST(req: Request) {
       // "2 output RPMs as per VE": VOLE MAX speed (low) .. VOLE MIN speed (high).
       rpmRange: rpmHigh > rpmLow ? `${rpmLow}–${rpmHigh}` : `${rpmLow}`,
       isSelected: selectedModel !== null && c.model === selectedModel,
+      hardSolidMm: c.hardSolidMm,
+      softSolidMm: c.softSolidMm,
     };
   });
 

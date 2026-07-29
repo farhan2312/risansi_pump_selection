@@ -119,4 +119,8 @@ export interface PumpRecommendation {
   rpmRange: string;
   /** True if this is the model the user pinned on an earlier step. */
   isSelected?: boolean;
+  /** Max hard-solid particle size this model can pass (mm), or null if unrecorded. */
+  hardSolidMm: number | null;
+  /** Max soft-solid particle size this model can pass (mm), or null if unrecorded. */
+  softSolidMm: number | null;
 }
