@@ -144,9 +144,12 @@ type ModelRow = typeof schema.pumpModelMaster.$inferSelect;
  *
  * Optional solid-handling filter: if solidSizeMm + solidType are both given,
  * a model is excluded unless its recorded hard/soft-solid capacity (per
- * solidType) is >= solidSizeMm. Models with no recorded capacity for that
- * solid type are excluded too (conservative — can't confirm suitability, per
- * user decision) rather than passed through unfiltered.
+ * solidType) EXACTLY EQUALS solidSizeMm — the source sheet's values are a
+ * fixed set of standard size classes, not a continuous minimum spec, so a
+ * larger-rated model is not a valid substitute for a smaller entered size.
+ * Models with no recorded capacity for that solid type are excluded too
+ * (conservative — can't confirm suitability, per user decision) rather than
+ * passed through unfiltered.
  */
 export async function findCandidates(
   db: Db,
@@ -188,15 +191,26 @@ export async function findCandidates(
     const stage = nearest.stage;
     if (stage !== requiredStage) continue; // Reject Model / Try Next Model
 
-    const hardSolidMm = toNumOrNull(nearest.hardSolidMm);
-    const softSolidMm = toNumOrNull(nearest.softSolidMm);
+    // Hard/soft-solid capacity is a MODEL-level attribute — the same value on
+    // every head-row of a model (applied uniformly when solid.xlsx was
+    // seeded) — not something that varies by head, so it must NOT be read off
+    // `nearest` (which is selected purely by head-proximity to the input duty
+    // point). Scan the model's own rows directly instead.
+    const hardSolidMm = toNumOrNull(points.find((p) => p.hardSolidMm !== null)?.hardSolidMm ?? null);
+    const softSolidMm = toNumOrNull(points.find((p) => p.softSolidMm !== null)?.softSolidMm ?? null);
 
     // Solid-handling filter: only engages when BOTH a size and a type are
-    // given (need the type to know which column applies). A model with no
-    // recorded capacity for that type is excluded, not passed through.
+    // given (need the type to know which column applies). solid.xlsx's values
+    // are a fixed set of standard size classes (7.62, 12.7, ... 60.96), not a
+    // continuous minimum spec — a model is only a match for the EXACT size
+    // entered, not merely "big enough" (a 35.56mm-rated model is not a valid
+    // recommendation for a 30.48mm duty just because 35.56 > 30.48). A model
+    // with no recorded capacity for that type is excluded too.
     if (solidSizeMm !== null && solidSizeMm > 0 && solidType) {
       const capacity = solidType === "Hard Solid" ? hardSolidMm : solidType === "Soft Solid" ? softSolidMm : null;
-      if (capacity === null || capacity < solidSizeMm) continue;
+      // Compare to 2dp to avoid float-precision mismatches (numeric(6,2) columns).
+      const matches = capacity !== null && Math.round(capacity * 100) === Math.round(solidSizeMm * 100);
+      if (!matches) continue;
     }
 
     // RPM = 100 x Capacity / (QTH x VE). See formula note above.
@@ -230,5 +244,6 @@ export async function findCandidates(
   // run best slow) — NOT a cutoff. Every eligible model above is returned;
   // the caller does no top-N slicing, since selection is manual.
   candidates.sort((a, b) => a.rpmAtVoleMax - b.rpmAtVoleMax);
+ 
   return candidates;
 }
