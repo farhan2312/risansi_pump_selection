@@ -24,6 +24,8 @@
  * fail the production build the moment any of those tables were dropped from
  * schema.ts. Re-add each piece once its master table is built.
  */
+import { eq } from "drizzle-orm";
+
 import { db as defaultDb } from "./db";
 import * as schema from "./db/schema";
 
@@ -244,6 +246,94 @@ export async function findCandidates(
   // run best slow) — NOT a cutoff. Every eligible model above is returned;
   // the caller does no top-N slicing, since selection is manual.
   candidates.sort((a, b) => a.rpmAtVoleMax - b.rpmAtVoleMax);
- 
+
   return candidates;
+}
+
+// --- Motor rating (KW) --------------------------------------------------------
+
+export interface MotorRating {
+  model: string;
+  /** Nearest charted head point used for the mechanical-efficiency lookup. */
+  headMwc: number;
+  /** Mechanical efficiency (%) at the duty head for the selected model. */
+  mechEff: number;
+  /** BKW = Capacity × Head / 367 / (ME/100). Null if ME is 0/absent. */
+  bkw: number | null;
+  /** Motor KW = BKW × 1.2 (safety margin). Null if BKW is null. */
+  motorKw: number | null;
+  /** Cap: the model's "Min KW so far tested". Null if not recorded. */
+  minKwTested: number | null;
+  /** Distinct motor-KW options for this model from the pulley table, sorted. */
+  kwOptions: number[];
+  /** Smallest pulley KW >= motorKw (or the largest available if none reach it). */
+  recommendedKw: number | null;
+  /** True when recommendedKw exceeds minKwTested — recommend it anyway, but flag. */
+  exceedsMinTested: boolean;
+}
+
+/**
+ * Motor Rating KW calculation (wizard step after MOC). Per the spec:
+ *   ME  = selected model's mechanical efficiency at the duty head
+ *   BKW = Capacity × Head / 367 / (ME/100)          ("BKW as per tested ME")
+ *   Motor KW = BKW × 1.20                            (safety margin)
+ *   Recommendation = nearest next-highest KW from the pulley table for this
+ *     model that is >= Motor KW; normally within "Min KW so far tested", but
+ *     if the load needs more than that cap the recommendation is shown anyway
+ *     and flagged (exceedsMinTested).
+ * Final KW selection is manual, from the pulley-table KW dropdown.
+ */
+export async function computeMotorRating(
+  db: Db,
+  model: string,
+  capacityM3hr: number,
+  headMwc: number,
+): Promise<MotorRating | null> {
+  const rows = await db
+    .select()
+    .from(schema.pumpModelMaster)
+    .where(eq(schema.pumpModelMaster.model, model));
+  if (rows.length === 0) return null;
+
+  const nearest = rows.reduce((best, p) =>
+    Math.abs(toNum(p.headMwc) - headMwc) < Math.abs(toNum(best.headMwc) - headMwc) ? p : best,
+  );
+  const mechEff = toNum(nearest.mechEff);
+  const minKwTested = toNumOrNull(nearest.minKwTested);
+
+  let bkw: number | null = null;
+  let motorKw: number | null = null;
+  if (mechEff > 0) {
+    bkw = (capacityM3hr * headMwc) / 367 / (mechEff / 100);
+    motorKw = bkw * 1.2;
+  }
+
+  const kwRows = await db
+    .selectDistinct({ kw: schema.pulleyMotorOption.motorKw })
+    .from(schema.pulleyMotorOption)
+    .where(eq(schema.pulleyMotorOption.model, model));
+  const kwOptions = [...new Set(kwRows.map((r) => toNum(r.kw)).filter((k) => k > 0))].sort(
+    (a, b) => a - b,
+  );
+
+  let recommendedKw: number | null = null;
+  let exceedsMinTested = false;
+  if (motorKw !== null && kwOptions.length > 0) {
+    // Smallest pulley KW that meets the load; if none reach it, the largest
+    // available (best effort — the caller/UI can flag under-sizing).
+    recommendedKw = kwOptions.find((k) => k >= motorKw) ?? kwOptions[kwOptions.length - 1];
+    if (minKwTested !== null && recommendedKw > minKwTested) exceedsMinTested = true;
+  }
+
+  return {
+    model,
+    headMwc: toNum(nearest.headMwc),
+    mechEff,
+    bkw,
+    motorKw,
+    minKwTested,
+    kwOptions,
+    recommendedKw,
+    exceedsMinTested,
+  };
 }

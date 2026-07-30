@@ -93,6 +93,7 @@ export interface PumpSelectionFormData {
   mocRecommendedMoc?: string; // system-computed from moc_recommendation (media/pH/temp lookup)
   mocMinAcceptableMoc?: string;
   mocElastomer?: string;
+  driveMotorKw?: string; // final drive motor rating (KW) chosen on the Motor Rating step
 }
 
 // Output shape — matches what RecommendationTable / PumpDetailsCard render.

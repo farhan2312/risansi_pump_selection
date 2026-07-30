@@ -10,6 +10,7 @@ const steps = [
   "Specifications",
   "Sealing",
   "MOC",
+  "Motor Rating",
   "Drive",
   "Recommendation",
 ];

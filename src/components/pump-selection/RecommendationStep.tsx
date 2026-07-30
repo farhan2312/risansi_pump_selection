@@ -79,6 +79,7 @@ const RecommendationStep = ({ onPrevious, formData, onStepClick }: Props) => {
     ["Recommended MOC", formData.mocRecommendedMoc],
     ["Min. Acceptable MOC", formData.mocMinAcceptableMoc],
     ["Elastomer", formData.mocElastomer],
+    ["Drive Motor Rating", formData.driveMotorKw ? `${formData.driveMotorKw} kW` : ""],
     ["Drive System", formData.driveSystem],
     ["Motor Make", formData.motorMake],
     ["Gearbox Make", formData.gearboxMake],
@@ -88,7 +89,7 @@ const RecommendationStep = ({ onPrevious, formData, onStepClick }: Props) => {
 
   return (
     <div className="step-container">
-      <Stepper currentStep={7} onStepClick={onStepClick} />
+      <Stepper currentStep={8} onStepClick={onStepClick} />
 
       <div className="step-card">
         <h2>Selection Summary</h2>

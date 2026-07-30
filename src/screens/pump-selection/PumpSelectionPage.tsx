@@ -8,6 +8,7 @@ import OperatingConditionsStep from "../../components/pump-selection/OperatingCo
 import DriveDetailsStep from "../../components/pump-selection/DriveDetailsStep";
 import SealingDetailsStep from "../../components/pump-selection/SealingDetailsStep";
 import MocDetailsStep from "../../components/pump-selection/MocDetailsStep";
+import MotorRatingStep from "../../components/pump-selection/MotorRatingStep";
 import RecommendationStep from "../../components/pump-selection/RecommendationStep";
 import ProjectHeader from "../../components/projects/ProjectHeader";
 import LivePumpRecommendation from "../../components/pump-selection/LivePumpRecommendation";
@@ -91,6 +92,10 @@ const PumpSelectionPage = () => {
     mocRecommendedMoc: "",
     mocMinAcceptableMoc: "",
     mocElastomer: "",
+
+    // Step 6 — Motor Rating (KW) — final drive motor rating (manual pick from
+    // the pulley-table KW list, defaulted to the recommendation)
+    driveMotorKw: "",
   });
 
   const [selectedPump, setSelectedPump] = useState<number | null>(null);
@@ -162,7 +167,7 @@ const PumpSelectionPage = () => {
 
       case 6:
         return (
-          <DriveDetailsStep
+          <MotorRatingStep
             onPrevious={() => goToStep(5)}
             onNext={() => goToStep(7)}
             formData={formData}
@@ -173,8 +178,19 @@ const PumpSelectionPage = () => {
 
       case 7:
         return (
-          <RecommendationStep
+          <DriveDetailsStep
             onPrevious={() => goToStep(6)}
+            onNext={() => goToStep(8)}
+            formData={formData}
+            setFormData={setFormData}
+            onStepClick={goToStep}
+          />
+        );
+
+      case 8:
+        return (
+          <RecommendationStep
+            onPrevious={() => goToStep(7)}
             formData={formData}
             selectedPump={selectedPump}
             setSelectedPump={setSelectedPump}
@@ -200,7 +216,7 @@ const PumpSelectionPage = () => {
       {renderStep()}
       {/* Live recommendation that refines as the user fills each step. Sits at
           the bottom of the page; hidden on the final (read-only summary) step. */}
-      {step < 7 && (
+      {step < 8 && (
         <LivePumpRecommendation formData={formData} setFormData={setFormData} />
       )}
     </>
