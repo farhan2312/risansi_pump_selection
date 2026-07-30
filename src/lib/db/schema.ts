@@ -127,6 +127,56 @@ export const mocRecommendation = pgTable(
   },
 );
 
+// V-belt/pulley drive selection, from "pulley v belt master.xlsx". Two tables
+// mirroring the sheet's own nested structure — a parent "motor option" row
+// (model × motor RPM × HP/KW tier, with grooves + shaft dimensions) and child
+// "belt band" rows (up to 8 per parent, one per target pump-speed band —
+// 180/220/260/300/340/380/420/480 RPM — giving the pulley pair, actual
+// achieved RPM, center distance, and V-belt spec for that band). Not every
+// parent has all 8 bands — larger-HP motors have fewer (5-6), which is
+// genuine source data, not a gap.
+//
+// `model` is normalized to match pump_model_master (source writes "H-15",
+// stored as "H15"). Coverage: only 26 of pump_model_master's 30 single-stage
+// models — missing H70L3, H80L6, and both Barrel* models — and no 2H*/4H*
+// coverage at all (V-belt drive appears to only be offered for single-stage
+// pumps in this catalog). `grooves` (1A/1B/2A/2B/3B/3C/4D/5D) and `vBelt`
+// (~50-150) are stored as opaque reference values — their exact engineering
+// meaning (belt profile/groove count, pitch length, etc.) wasn't confirmed.
+export const pulleyMotorOption = pgTable(
+  "pulley_motor_option",
+  {
+    id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    model: varchar("model", { length: 100 }).notNull(),
+    motorRpm: integer("motor_rpm").notNull(),
+    srNo: integer("sr_no").notNull(),
+    motorHp: numeric("motor_hp", { precision: 6, scale: 2 }),
+    motorKw: numeric("motor_kw", { precision: 6, scale: 2 }),
+    maxCapAt60Mwc: numeric("max_cap_at_60mwc", { precision: 10, scale: 2 }),
+    grooves: varchar("grooves", { length: 10 }),
+    pumpShaftDia: numeric("pump_shaft_dia", { precision: 6, scale: 2 }),
+    pumpShaftLength: numeric("pump_shaft_length", { precision: 6, scale: 2 }),
+    motorShaftDia: numeric("motor_shaft_dia", { precision: 6, scale: 2 }),
+    motorShaftLength: numeric("motor_shaft_length", { precision: 6, scale: 2 }),
+  },
+);
+
+export const pulleyBeltOption = pgTable(
+  "pulley_belt_option",
+  {
+    id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    pulleyMotorOptionId: uuid("pulley_motor_option_id")
+      .notNull()
+      .references(() => pulleyMotorOption.id, { onDelete: "cascade" }),
+    targetRpm: integer("target_rpm").notNull(),
+    pmpPulley: numeric("pmp_pulley", { precision: 6, scale: 2 }),
+    mtrPulley: numeric("mtr_pulley", { precision: 6, scale: 2 }),
+    actualRpm: numeric("actual_rpm", { precision: 8, scale: 2 }),
+    centerDistance: numeric("center_distance", { precision: 8, scale: 2 }),
+    vBelt: numeric("v_belt", { precision: 8, scale: 2 }),
+  },
+);
+
 /*export const performanceCurve = pgTable("performance_curve", {
   id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   model: varchar("model", { length: 100 }).notNull(),
