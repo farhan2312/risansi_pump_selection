@@ -52,6 +52,61 @@ export const projects = pgTable("projects", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
 
+// Autosaved wizard state for the pump-selection form, one row per project
+// (unique projectId — a project has a single in-progress selection). Covers
+// steps 1-4 only (General Info / Fluid Properties / Operating Conditions /
+// Sealing) so the form can restore itself after a refresh; later steps
+// (MOC/Motor Rating/Drive/Recommendation) are re-derived live from the media
+// and duty point, not persisted here. Columns mirror PumpSelectionFormData's
+// field names/types exactly (values are the raw strings the wizard's
+// <input>/<select> elements produce) so rows can be spread directly into
+// formData with no remapping.
+export const pumpSelectionInput = pgTable("pump_selection_input", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  projectId: uuid("project_id")
+    .notNull()
+    .unique()
+    .references(() => projects.id, { onDelete: "cascade" }),
+
+  // Step 1 — General Information
+  capacity: varchar("capacity", { length: 50 }),
+  capacityUnit: varchar("capacity_unit", { length: 20 }),
+  head: varchar("head", { length: 50 }),
+  headUnit: varchar("head_unit", { length: 20 }),
+  media: varchar("media", { length: 255 }),
+  temperature: varchar("temperature", { length: 50 }),
+  temperatureRaw: varchar("temperature_raw", { length: 50 }),
+  temperatureUnit: varchar("temperature_unit", { length: 5 }),
+  sg: varchar("sg", { length: 50 }),
+  ph: varchar("ph", { length: 50 }),
+  rpmRange: varchar("rpm_range", { length: 20 }),
+  selectedModel: varchar("selected_model", { length: 100 }),
+  modelConfirmed: boolean("model_confirmed").default(false),
+
+  // Step 2 — Fluid Properties
+  viscosity: varchar("viscosity", { length: 50 }),
+  viscosityUnit: varchar("viscosity_unit", { length: 20 }),
+  viscosityRange: varchar("viscosity_range", { length: 20 }),
+  viscosityCp: varchar("viscosity_cp", { length: 50 }),
+  solidPercentage: varchar("solid_percentage", { length: 50 }),
+  solidSize: varchar("solid_size", { length: 50 }),
+  solidType: varchar("solid_type", { length: 20 }),
+
+  // Step 3 — Operating Conditions
+  pumpType: varchar("pump_type", { length: 50 }),
+  agBk: varchar("ag_bk", { length: 20 }),
+  bearingHousing: varchar("bearing_housing", { length: 50 }),
+  suctionHousing: varchar("suction_housing", { length: 50 }),
+  jointType: varchar("joint_type", { length: 50 }),
+
+  // Step 4 — Sealing Details
+  sealingType: varchar("sealing_type", { length: 30 }),
+  sealingSubType: varchar("sealing_sub_type", { length: 10 }),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
+});
+
 // One row per (model, head) data point — originally an exact mirror of
 // `src/assets/pump_model_master.xlsx` (540 rows / 53 models). In that source
 // file, qth/minKwExisting/minStartingKwAt1Kg/minKwTested/minKwToBeTested are

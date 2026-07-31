@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import GeneralInformationStep from "../../components/pump-selection/GeneralInformationStep";
 import FluidPropertiesStep from "../../components/pump-selection/FluidPropertiesStep";
@@ -13,6 +13,10 @@ import RecommendationStep from "../../components/pump-selection/RecommendationSt
 import ProjectHeader from "../../components/projects/ProjectHeader";
 import LivePumpRecommendation from "../../components/pump-selection/LivePumpRecommendation";
 import { SELECTED_PROJECT_KEY } from "../projects/ProjectsPage";
+import {
+  getPumpSelectionInput,
+  savePumpSelectionInput,
+} from "../../services/pumpSelectionInputService";
 
 type SelectedProject = {
   id: string;
@@ -20,6 +24,25 @@ type SelectedProject = {
   name?: string;
   customer?: string;
   status?: string;
+};
+
+// Steps 1-4 fields autosaved to pump_selection_input, keyed by project. Kept
+// in sync with the FIELDS whitelist in api/pump-selection-input/route.ts.
+const AUTOSAVE_FIELDS = [
+  "capacity", "capacityUnit", "head", "headUnit", "media",
+  "temperature", "temperatureRaw", "temperatureUnit", "sg", "ph",
+  "rpmRange", "selectedModel", "modelConfirmed",
+  "viscosity", "viscosityUnit", "viscosityRange", "viscosityCp",
+  "solidPercentage", "solidSize", "solidType",
+  "pumpType", "agBk", "bearingHousing", "suctionHousing", "jointType",
+  "sealingType", "sealingSubType",
+] as const;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const pickAutosaveFields = (data: any): Record<string, unknown> => {
+  const out: Record<string, unknown> = {};
+  for (const key of AUTOSAVE_FIELDS) out[key] = data[key];
+  return out;
 };
 
 const PumpSelectionPage = () => {
@@ -100,6 +123,53 @@ const PumpSelectionPage = () => {
     // the pulley-table KW list, defaulted to the recommendation)
     driveMotorKw: "",
   });
+
+  // Whether the autosaved draft has been loaded (or confirmed absent) for the
+  // current project — gates the autosave effect so it can't fire on the
+  // pre-load default formData and stomp a real saved draft with blanks.
+  const [restored, setRestored] = useState(false);
+
+  useEffect(() => {
+    if (!project?.id) return;
+    let cancelled = false;
+    getPumpSelectionInput(project.id)
+      .then((row) => {
+        if (cancelled || !row) return;
+        setFormData((f: typeof formData) => ({
+          ...f,
+          ...Object.fromEntries(
+            AUTOSAVE_FIELDS.map((key) => [
+              key,
+              row[key as keyof typeof row] ?? (key === "modelConfirmed" ? false : ""),
+            ])
+          ),
+        }));
+      })
+      .finally(() => {
+        if (!cancelled) setRestored(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.id]);
+
+  // Debounced autosave: whenever the persisted (step 1-4) fields change, push
+  // them to pump_selection_input so a refresh restores the form.
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!project?.id || !restored) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      savePumpSelectionInput(project.id, pickAutosaveFields(formData)).catch(() => {
+        // Best-effort — the wizard still works from in-memory state if a save fails.
+      });
+    }, 800);
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.id, restored, ...AUTOSAVE_FIELDS.map((key) => (formData as Record<string, unknown>)[key])]);
 
   const [selectedPump, setSelectedPump] = useState<number | null>(null);
 
