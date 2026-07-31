@@ -97,6 +97,13 @@ export interface PumpSelectionFormData {
   mocRubberCode?: string; // manual Stator Rubber selection, 1-letter (e.g. "E")
   mocFinalCode?: string; // mocCode + mocRubberCode combined (e.g. "BBBE")
   driveMotorKw?: string; // final drive motor rating (KW) chosen on the Motor Rating step
+  // V-Belt drive recommendation (Drive step, only when Drive System = V-Belt Drive)
+  driveVbeltGroove?: string;
+  drivePumpPulley?: string;
+  driveMotorPulley?: string;
+  driveVbeltRpm?: string; // recommended (or next-best) achieved pump RPM
+  driveCenterDistance?: string;
+  driveVbeltNo?: string;
 }
 
 // Output shape — matches what RecommendationTable / PumpDetailsCard render.

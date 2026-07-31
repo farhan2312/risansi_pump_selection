@@ -1,6 +1,10 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
-import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, label } from "./formStyles";
+import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, hint, label } from "./formStyles";
+import { getVBeltDrive, type VBeltDrive } from "../../services/vbeltDriveService";
 
 type Props = {
   onNext: () => void;
@@ -12,6 +16,10 @@ type Props = {
   onStepClick?: (step: number) => void;
 };
 
+type VbeltStatus = "idle" | "loading" | "ready" | "error";
+
+const num = (n: number | null): string => (n === null ? "—" : String(n));
+
 const DriveDetailsStep = ({
   onNext,
   onPrevious,
@@ -19,6 +27,56 @@ const DriveDetailsStep = ({
   setFormData,
   onStepClick,
 }: Props) => {
+  const isVBelt = formData.driveSystem === "V-Belt Drive";
+  const motorRpm = formData.motorRPM as string;
+
+  const [vbeltStatus, setVbeltStatus] = useState<VbeltStatus>("idle");
+  const [vbelt, setVbelt] = useState<VBeltDrive | null>(null);
+
+  useEffect(() => {
+    if (!isVBelt || !motorRpm || !formData.selectedModel || !formData.driveMotorKw) {
+      setVbeltStatus("idle");
+      setVbelt(null);
+      return;
+    }
+    let cancelled = false;
+    setVbeltStatus("loading");
+    getVBeltDrive(formData, motorRpm)
+      .then((res) => {
+        if (cancelled) return;
+        setVbelt(res);
+        setVbeltStatus("ready");
+        // Carry the recommended belt set into formData for the summary step.
+        const r = res.recommended;
+        setFormData((f: typeof formData) => ({
+          ...f,
+          driveVbeltGroove: res.grooves ?? "",
+          drivePumpPulley: r?.pumpPulley != null ? String(r.pumpPulley) : "",
+          driveMotorPulley: r?.motorPulley != null ? String(r.motorPulley) : "",
+          driveVbeltRpm: r?.actualRpm != null ? String(r.actualRpm) : "",
+          driveCenterDistance: r?.centerDistance != null ? String(r.centerDistance) : "",
+          driveVbeltNo: r?.vBelt != null ? String(r.vBelt) : "",
+        }));
+      })
+      .catch(() => {
+        if (!cancelled) setVbeltStatus("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    isVBelt,
+    motorRpm,
+    formData.selectedModel,
+    formData.driveMotorKw,
+    formData.capacity,
+    formData.capacityUnit,
+    formData.head,
+    formData.headUnit,
+    formData.sg,
+  ]);
+
   return (
     <div className="step-container">
       <Stepper currentStep={7} onStepClick={onStepClick} />
@@ -166,6 +224,94 @@ const DriveDetailsStep = ({
             </>
           )}
         </div>
+
+        {isVBelt && (
+          <div className="mt-4 rounded-md border border-line bg-elev p-4">
+            <span className="section-label">V-Belt Drive Recommendation</span>
+
+            {vbeltStatus === "idle" && (
+              <p className="mt-2 text-[13px] text-fg-3">
+                Select a Motor RPM above to get the belt/pulley recommendation
+                {!formData.driveMotorKw
+                  ? " (also set the Drive Motor Rating on the Motor Rating step)."
+                  : "."}
+              </p>
+            )}
+            {vbeltStatus === "loading" && (
+              <p className="mt-2 text-[13px] text-fg-3">Calculating belt drive…</p>
+            )}
+            {vbeltStatus === "error" && (
+              <p className="mt-2 text-[13px] text-warn">
+                Couldn&apos;t calculate the belt drive — check your connection and try again.
+              </p>
+            )}
+
+            {vbeltStatus === "ready" && vbelt && !vbelt.recommended && (
+              <p className="mt-2 text-[13px] text-warn">
+                No V-belt/pulley data for {vbelt.model} at {vbelt.motorRpm} rpm /{" "}
+                {vbelt.motorKw} kW — select the belt drive manually with engineering input.
+              </p>
+            )}
+
+            {vbeltStatus === "ready" && vbelt && vbelt.recommended && (
+              <>
+                <div className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-3">
+                  <div>
+                    <span className="section-label">Groove</span>
+                    <div className="mono text-[16px] font-semibold text-fg">
+                      {vbelt.grooves ?? "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="section-label">Pump Pulley</span>
+                    <div className="mono text-[16px] font-semibold text-fg">
+                      {num(vbelt.recommended.pumpPulley)}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="section-label">Motor Pulley</span>
+                    <div className="mono text-[16px] font-semibold text-fg">
+                      {num(vbelt.recommended.motorPulley)}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="section-label">Pump RPM</span>
+                    <div className="mono text-[16px] font-semibold text-fg">
+                      {num(vbelt.recommended.actualRpm)}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="section-label">Centre Distance</span>
+                    <div className="mono text-[16px] font-semibold text-fg">
+                      {num(vbelt.recommended.centerDistance)}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="section-label">V-Belt No.</span>
+                    <div className="mono text-[16px] font-semibold text-fg">
+                      {num(vbelt.recommended.vBelt)}
+                    </div>
+                  </div>
+                </div>
+
+                <p className="mt-2 text-[12px] text-fg-3">
+                  Pump&apos;s required speed window is{" "}
+                  <b className="mono text-fg-2">
+                    {vbelt.rpmLo.toFixed(0)}–{vbelt.rpmHi.toFixed(0)} rpm
+                  </b>{" "}
+                  (from its VE band at the duty point).
+                </p>
+                {!vbelt.withinRange && (
+                  <p className="mt-1 text-[12px] text-warn">
+                    No belt lands the pump exactly inside that window — the nearest
+                    available ratio ({num(vbelt.recommended.actualRpm)} rpm) was picked as
+                    the next best.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        )}
 
         <div className={actions}>
           <button className={btnGhost} onClick={onPrevious}>

@@ -24,7 +24,7 @@
  * fail the production build the moment any of those tables were dropped from
  * schema.ts. Re-add each piece once its master table is built.
  */
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { db as defaultDb } from "./db";
 import * as schema from "./db/schema";
@@ -335,5 +335,164 @@ export async function computeMotorRating(
     kwOptions,
     recommendedKw,
     exceedsMinTested,
+  };
+}
+
+// --- V-Belt drive recommendation ---------------------------------------------
+
+export interface VBeltOption {
+  targetRpm: number;
+  /** Driven (pump) pulley — the larger one in a speed reduction. */
+  pumpPulley: number | null;
+  /** Driving (motor) pulley. */
+  motorPulley: number | null;
+  /** Resulting pump speed for this pulley pair (the real achieved RPM). */
+  actualRpm: number | null;
+  centerDistance: number | null;
+  /** V-belt reference number from the pulley master sheet. */
+  vBelt: number | null;
+}
+
+export interface VBeltDrive {
+  model: string;
+  motorRpm: number;
+  motorKw: number;
+  /** Belt groove code for the matched motor option (e.g. "3B"). */
+  grooves: string | null;
+  /** Pump's required speed window at the duty point (from its VE band). */
+  rpmLo: number;
+  rpmHi: number;
+  /** The recommended belt option (nearest to the required window). */
+  recommended: VBeltOption | null;
+  /** True if the recommendation's actual RPM lands inside [rpmLo, rpmHi];
+   *  false means no belt hit the window exactly, so the nearest was taken. */
+  withinRange: boolean;
+  /** Every belt option for the matched motor option — lets the UI show the
+   *  full table and lets the user override the pick. */
+  options: VBeltOption[];
+}
+
+/**
+ * V-Belt drive selection (Drive Details step, only when Drive System =
+ * "V-Belt Drive"). Per the spec: after the motor RPM (960/1440) is chosen,
+ * take the selected model + its motor KW (from the Motor Rating step) to find
+ * the matching pulley/belt set, then pick the belt whose resulting pump speed
+ * falls inside the pump's required RPM window [rpmLo, rpmHi] (derived from the
+ * model's VE band at the duty point, same formula as findCandidates). The
+ * pulley master offers discrete belt ratios (target RPMs 180/220/260/300/…);
+ * if none lands inside the window, the nearest one is taken and flagged as a
+ * "next best" pick (withinRange=false).
+ */
+export async function computeVBeltDrive(
+  db: Db,
+  model: string,
+  capacityM3hr: number,
+  headMwc: number,
+  motorRpm: number,
+  motorKw: number,
+): Promise<VBeltDrive | null> {
+  const rows = await db
+    .select()
+    .from(schema.pumpModelMaster)
+    .where(eq(schema.pumpModelMaster.model, model));
+  if (rows.length === 0) return null;
+
+  const nearest = rows.reduce((best, p) =>
+    Math.abs(toNum(p.headMwc) - headMwc) < Math.abs(toNum(best.headMwc) - headMwc) ? p : best,
+  );
+  const qth = toNumOrNull(nearest.qth);
+  const voleMinPct = toNumOrNull(nearest.voleMin);
+  const voleMaxPct = toNumOrNull(nearest.voleMax);
+  if (!qth || qth <= 0 || !voleMinPct || !voleMaxPct) return null;
+
+  // RPM = 100 × Q / (QTH × VE). Higher VE ⇒ lower speed, so VOLE MAX gives the
+  // low end of the window and VOLE MIN the high end.
+  const rpmLo = (100 * capacityM3hr) / (qth * (voleMaxPct / 100));
+  const rpmHi = (100 * capacityM3hr) / (qth * (voleMinPct / 100));
+
+  // Match the motor option by (model, motorRpm, motorKw). motor_kw is a pg
+  // NUMERIC (string) — compare numerically, not by string equality.
+  const motorOptions = await db
+    .select()
+    .from(schema.pulleyMotorOption)
+    .where(
+      and(
+        eq(schema.pulleyMotorOption.model, model),
+        eq(schema.pulleyMotorOption.motorRpm, motorRpm),
+      ),
+    );
+  const motorOption = motorOptions.find(
+    (m) => Math.abs(toNum(m.motorKw) - motorKw) < 0.001,
+  );
+  if (!motorOption) {
+    // No pulley data for this model/rpm/kw combination.
+    return {
+      model,
+      motorRpm,
+      motorKw,
+      grooves: null,
+      rpmLo,
+      rpmHi,
+      recommended: null,
+      withinRange: false,
+      options: [],
+    };
+  }
+
+  const beltRows = await db
+    .select()
+    .from(schema.pulleyBeltOption)
+    .where(eq(schema.pulleyBeltOption.pulleyMotorOptionId, motorOption.id));
+
+  const options: VBeltOption[] = beltRows
+    .map((b) => ({
+      targetRpm: toNum(b.targetRpm),
+      pumpPulley: toNumOrNull(b.pmpPulley),
+      motorPulley: toNumOrNull(b.mtrPulley),
+      actualRpm: toNumOrNull(b.actualRpm),
+      centerDistance: toNumOrNull(b.centerDistance),
+      vBelt: toNumOrNull(b.vBelt),
+    }))
+    .sort((a, b) => (a.actualRpm ?? a.targetRpm) - (b.actualRpm ?? b.targetRpm));
+
+  // Compare against the real achieved speed (actual RPM), falling back to the
+  // nominal target RPM if a row somehow lacks an actual figure.
+  const speed = (o: VBeltOption) => o.actualRpm ?? o.targetRpm;
+
+  // Prefer a belt whose pump speed lands inside the window; among those, the
+  // slowest adequate one (PCP pumps run best slow). Otherwise take the belt
+  // nearest to the window — ties break toward the faster option so the duty
+  // flow is met rather than under-delivered — and flag it as "next best".
+  const inRange = options.filter((o) => speed(o) >= rpmLo && speed(o) <= rpmHi);
+  let recommended: VBeltOption | null = null;
+  let withinRange = false;
+  if (inRange.length > 0) {
+    recommended = inRange[0]; // options are sorted ascending by speed
+    withinRange = true;
+  } else if (options.length > 0) {
+    const dist = (o: VBeltOption) => {
+      const s = speed(o);
+      return s < rpmLo ? rpmLo - s : s - rpmHi;
+    };
+    recommended = options.reduce((best, o) => {
+      const d = dist(o);
+      const bd = dist(best);
+      if (d < bd) return o;
+      if (d === bd) return speed(o) > speed(best) ? o : best;
+      return best;
+    });
+    withinRange = false;
+  }
+
+  return {
+    model,
+    motorRpm,
+    motorKw,
+    grooves: motorOption.grooves,
+    rpmLo,
+    rpmHi,
+    recommended,
+    withinRange,
+    options,
   };
 }

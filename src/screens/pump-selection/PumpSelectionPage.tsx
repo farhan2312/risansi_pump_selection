@@ -122,6 +122,14 @@ const PumpSelectionPage = () => {
     // Step 6 — Motor Rating (KW) — final drive motor rating (manual pick from
     // the pulley-table KW list, defaulted to the recommendation)
     driveMotorKw: "",
+
+    // Step 7 — V-Belt drive recommendation (only when Drive System = V-Belt)
+    driveVbeltGroove: "",
+    drivePumpPulley: "",
+    driveMotorPulley: "",
+    driveVbeltRpm: "",
+    driveCenterDistance: "",
+    driveVbeltNo: "",
   });
 
   // Whether the autosaved draft has been loaded (or confirmed absent) for the
