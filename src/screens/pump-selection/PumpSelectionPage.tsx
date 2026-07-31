@@ -130,6 +130,15 @@ const PumpSelectionPage = () => {
     driveVbeltRpm: "",
     driveCenterDistance: "",
     driveVbeltNo: "",
+
+    // Step 7 — Drive System inputs (shown when Drive System = V-Belt Drive)
+    driveMotorSpeed: "",
+    driveMotorMake: "",
+    driveMotorMounting: "",
+    driveMotorType: "",
+    driveStarterType: "",
+    drivePowerSupply: "",
+    driveStdNonStd: "",
   });
 
   // Whether the autosaved draft has been loaded (or confirmed absent) for the

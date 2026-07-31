@@ -20,6 +20,17 @@ type VbeltStatus = "idle" | "loading" | "ready" | "error";
 
 const num = (n: number | null): string => (n === null ? "—" : String(n));
 
+// Drive System input option lists (from the drive-selection spec sheet).
+const MOTOR_MAKES = ["BBL", "Havells", "CGL", "ABB", "Siemens", "Other"];
+const MOTOR_MOUNTINGS = [
+  { value: "Foot B3", label: "Foot Mounted (B3)" },
+  { value: "Flange B5", label: "Flange Mounted (B5)" },
+  { value: "Foot cum Flange B35", label: "Foot cum Flange (B35)" },
+];
+const STARTER_TYPES = ["Star-Delta", "DOL"];
+const POWER_SUPPLIES = ["Single Phase", "Three Phase"];
+const STD_OPTIONS = ["Standard", "Non-Standard"];
+
 const DriveDetailsStep = ({
   onNext,
   onPrevious,
@@ -77,6 +88,15 @@ const DriveDetailsStep = ({
     formData.sg,
   ]);
 
+  // "Drive Motor Speed" is the motor's nameplate RPM — default it from the
+  // selected Motor RPM (960/1440), but leave it editable afterwards.
+  useEffect(() => {
+    if (isVBelt && motorRpm && !formData.driveMotorSpeed) {
+      setFormData((f: typeof formData) => ({ ...f, driveMotorSpeed: motorRpm }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isVBelt, motorRpm]);
+
   return (
     <div className="step-container">
       <Stepper currentStep={7} onStepClick={onStepClick} />
@@ -114,42 +134,6 @@ const DriveDetailsStep = ({
               <option value="Direct Drive">Direct Drive</option>
               <option value="V-Belt Drive">V-Belt Drive</option>
               <option value="Geared Motor Drive">Geared Motor Drive</option>
-            </select>
-          </div>
-
-          <div className={fieldWrap}>
-            <label className={label}>Motor Make</label>
-            <input
-              type="text"
-              placeholder="ABB / Siemens / CG..."
-              className={control}
-              value={formData.motorMake}
-              onChange={(e) =>
-                setFormData({ ...formData, motorMake: e.target.value })
-              }
-            />
-          </div>
-
-          <div className={fieldWrap}>
-            <label className={label}>Gearbox Make</label>
-            <select
-              className={control}
-              value={formData.gearboxMake}
-              onChange={(e) =>
-                setFormData({ ...formData, gearboxMake: e.target.value })
-              }
-            >
-              <option value="">Select Gearbox Make</option>
-              <option value="Bonfiglioli">Bonfiglioli</option>
-              <option value="Elecon">Elecon</option>
-              <option value="Flender">Flender</option>
-              <option value="Radicon">Radicon</option>
-              <option value="SEW Eurodrive">SEW Eurodrive</option>
-              <option value="Shanthi Gears">Shanthi Gears</option>
-              <option value="David Brown Santasalo">
-                David Brown Santasalo
-              </option>
-              <option value="Other">Other</option>
             </select>
           </div>
 
@@ -310,6 +294,142 @@ const DriveDetailsStep = ({
                 )}
               </>
             )}
+          </div>
+        )}
+
+        {isVBelt && (
+          <div className="mt-4 rounded-md border border-line bg-elev p-4">
+            <span className="section-label">Drive System Inputs</span>
+            <div className={`${grid} mt-2`}>
+              <div className={fieldWrap}>
+                <label className={label}>Drive Motor Rating</label>
+                <input
+                  type="text"
+                  readOnly
+                  className={`${control} opacity-80`}
+                  value={formData.driveMotorKw ? `${formData.driveMotorKw} kW` : ""}
+                  placeholder="Set on the Motor Rating step"
+                />
+                <span className={hint}>Auto-filled from the Motor Rating step.</span>
+              </div>
+
+              <div className={fieldWrap}>
+                <label className={label}>Drive Motor Speed (RPM)</label>
+                <input
+                  type="number"
+                  step="any"
+                  className={control}
+                  placeholder="Motor nameplate RPM"
+                  value={formData.driveMotorSpeed ?? ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, driveMotorSpeed: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className={fieldWrap}>
+                <label className={label}>Drive Motor Make</label>
+                <select
+                  className={control}
+                  value={formData.driveMotorMake ?? ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, driveMotorMake: e.target.value })
+                  }
+                >
+                  <option value="">Select Make</option>
+                  {MOTOR_MAKES.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className={fieldWrap}>
+                <label className={label}>Motor Mounting</label>
+                <select
+                  className={control}
+                  value={formData.driveMotorMounting ?? ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, driveMotorMounting: e.target.value })
+                  }
+                >
+                  <option value="">Select Mounting</option>
+                  {MOTOR_MOUNTINGS.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className={fieldWrap}>
+                <label className={label}>Motor Type</label>
+                <input
+                  type="text"
+                  className={control}
+                  placeholder="e.g. IE3 / IP55 / 50 Hz / 415 V"
+                  value={formData.driveMotorType ?? ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, driveMotorType: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className={fieldWrap}>
+                <label className={label}>Starter Type</label>
+                <select
+                  className={control}
+                  value={formData.driveStarterType ?? ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, driveStarterType: e.target.value })
+                  }
+                >
+                  <option value="">Select Starter</option>
+                  {STARTER_TYPES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className={fieldWrap}>
+                <label className={label}>Power Supply</label>
+                <select
+                  className={control}
+                  value={formData.drivePowerSupply ?? ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, drivePowerSupply: e.target.value })
+                  }
+                >
+                  <option value="">Select Supply</option>
+                  {POWER_SUPPLIES.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className={fieldWrap}>
+                <label className={label}>Std / Non-Std</label>
+                <select
+                  className={control}
+                  value={formData.driveStdNonStd ?? ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, driveStdNonStd: e.target.value })
+                  }
+                >
+                  <option value="">Select</option>
+                  {STD_OPTIONS.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
         )}
 

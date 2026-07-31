@@ -88,9 +88,14 @@ const RecommendationStep = ({ onPrevious, formData, onStepClick }: Props) => {
     ["V-Belt Pump RPM", formData.driveVbeltRpm],
     ["Centre Distance", formData.driveCenterDistance],
     ["V-Belt No.", formData.driveVbeltNo],
-    ["Motor Make", formData.motorMake],
-    ["Gearbox Make", formData.gearboxMake],
     ["Motor RPM", formData.motorRPM],
+    ["Drive Motor Speed", formData.driveMotorSpeed ? `${formData.driveMotorSpeed} RPM` : ""],
+    ["Drive Motor Make", formData.driveMotorMake],
+    ["Motor Mounting", formData.driveMotorMounting],
+    ["Motor Type", formData.driveMotorType],
+    ["Starter Type", formData.driveStarterType],
+    ["Power Supply", formData.drivePowerSupply],
+    ["Std / Non-Std", formData.driveStdNonStd],
   ];
   const configured = configItems.filter(([, v]) => v && String(v).trim() !== "");
 

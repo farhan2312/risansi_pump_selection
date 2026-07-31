@@ -104,6 +104,14 @@ export interface PumpSelectionFormData {
   driveVbeltRpm?: string; // recommended (or next-best) achieved pump RPM
   driveCenterDistance?: string;
   driveVbeltNo?: string;
+  // Drive System inputs (shown when Drive System = V-Belt Drive)
+  driveMotorSpeed?: string; // motor nameplate speed (RPM) — manual, defaults from motorRPM
+  driveMotorMake?: string; // BBL / Havells / CGL / ABB / Siemens / Other
+  driveMotorMounting?: string; // Foot (B3) / Flange (B5) / Foot cum Flange (B35)
+  driveMotorType?: string; // free text: IE class / IP / Hz / Volts
+  driveStarterType?: string; // Star-Delta / DOL
+  drivePowerSupply?: string; // Single Phase / Three Phase
+  driveStdNonStd?: string; // Standard / Non-Standard
 }
 
 // Output shape — matches what RecommendationTable / PumpDetailsCard render.
