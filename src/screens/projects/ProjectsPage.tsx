@@ -4,9 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import "./ProjectsPage.css";
 import CreateProjectModal from "../../components/projects/CreateProjectModal";
+import EditProjectModal from "../../components/projects/EditProjectModal";
 import {
   createProject,
+  deleteProject,
   listProjects,
+  updateProject,
   type ProjectRecord,
 } from "../../services/projectService";
 
@@ -19,6 +22,10 @@ const ProjectsPage = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+
+  const [editing, setEditing] = useState<ProjectRecord | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -70,10 +77,45 @@ const ProjectsPage = () => {
     router.push("/pump-selection");
   };
 
-  // Delete/Edit have no backend endpoint yet — this only affects the list
-  // shown in this session, it isn't persisted.
-  const handleDelete = (id: string) => {
-    setProjects((prev) => prev.filter((p) => p.id !== id));
+  const handleEditSave = async (input: {
+    name: string;
+    clientCode: string;
+    industry: string;
+    status: string;
+  }) => {
+    if (!editing) return;
+    setIsSaving(true);
+    setError(null);
+    try {
+      const updated = await updateProject(editing.id, input);
+      setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      setEditing(null);
+    } catch {
+      setError("Couldn't save the project changes. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async (project: ProjectRecord) => {
+    const label = project.name || project.project_code;
+    if (
+      !window.confirm(
+        `Delete project "${label}"? This also removes its saved pump-selection inputs and can't be undone.`
+      )
+    ) {
+      return;
+    }
+    setDeletingId(project.id);
+    setError(null);
+    try {
+      await deleteProject(project.id);
+      setProjects((prev) => prev.filter((p) => p.id !== project.id));
+    } catch {
+      setError("Couldn't delete the project. Please try again.");
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -119,19 +161,17 @@ const ProjectsPage = () => {
 
                     <button
                       className="edit-btn"
-                      onClick={() =>
-                        alert(
-                          `Edit Project\n\nProject ID: ${project.project_code}\nClient Name: ${
-                            project.name || "-"
-                          }\nClient Code: ${project.client_code || "-"}`
-                        )
-                      }
+                      onClick={() => setEditing(project)}
                     >
                       Edit
                     </button>
 
-                    <button className="delete-btn" onClick={() => handleDelete(project.id)}>
-                      Delete
+                    <button
+                      className="delete-btn"
+                      disabled={deletingId === project.id}
+                      onClick={() => handleDelete(project)}
+                    >
+                      {deletingId === project.id ? "Deleting…" : "Delete"}
                     </button>
                   </div>
                 </td>
@@ -145,6 +185,14 @@ const ProjectsPage = () => {
         isOpen={isModalOpen}
         onClose={() => !isCreating && setIsModalOpen(false)}
         onCreate={handleCreateProject}
+      />
+
+      <EditProjectModal
+        isOpen={editing !== null}
+        project={editing}
+        isSaving={isSaving}
+        onClose={() => !isSaving && setEditing(null)}
+        onSave={handleEditSave}
       />
     </div>
   );

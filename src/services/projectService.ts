@@ -34,3 +34,25 @@ export const createProject = async (
   const { data } = await apiClient.post<ProjectRecord>("/projects", input);
   return data;
 };
+
+// Any of these may be sent; only the provided keys are updated server-side.
+export interface UpdateProjectInput {
+  name?: string;
+  customerName?: string;
+  clientCode?: string;
+  industry?: string;
+  status?: string;
+  remarks?: string;
+}
+
+export const updateProject = async (
+  id: string,
+  input: UpdateProjectInput
+): Promise<ProjectRecord> => {
+  const { data } = await apiClient.patch<ProjectRecord>(`/projects/${id}`, input);
+  return data;
+};
+
+export const deleteProject = async (id: string): Promise<void> => {
+  await apiClient.delete(`/projects/${id}`);
+};

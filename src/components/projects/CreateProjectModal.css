@@ -38,7 +38,8 @@
 }
 
 .modal-form input,
-.modal-form textarea{
+.modal-form textarea,
+.modal-form select{
     width:100%;
     padding:12px;
     border:1px solid var(--border);
@@ -46,6 +47,12 @@
     font-size:15px;
     background:var(--bg-app);
     color:var(--text-h);
+}
+
+.create-btn:disabled,
+.cancel-btn:disabled{
+    opacity:.6;
+    cursor:not-allowed;
 }
 
 .modal-actions{
