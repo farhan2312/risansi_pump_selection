@@ -288,8 +288,9 @@ const DriveDetailsStep = ({
                 {!vbelt.withinRange && (
                   <p className="mt-1 text-[12px] text-warn">
                     No belt lands the pump exactly inside that window — the nearest
-                    available ratio ({num(vbelt.recommended.actualRpm)} rpm) was picked as
-                    the next best.
+                    available belt (target {num(vbelt.recommended.targetRpm)} rpm) was
+                    picked as the next best, giving a pump speed of{" "}
+                    {num(vbelt.recommended.actualRpm)} rpm.
                   </p>
                 )}
               </>
