@@ -79,6 +79,7 @@ const RecommendationStep = ({ onPrevious, formData, onStepClick }: Props) => {
     ["Recommended MOC", formData.mocRecommendedMoc],
     ["Min. Acceptable MOC", formData.mocMinAcceptableMoc],
     ["Elastomer", formData.mocElastomer],
+    ["MOC (Selected)", formData.mocFinalCode],
     ["Drive Motor Rating", formData.driveMotorKw ? `${formData.driveMotorKw} kW` : ""],
     ["Drive System", formData.driveSystem],
     ["Motor Make", formData.motorMake],

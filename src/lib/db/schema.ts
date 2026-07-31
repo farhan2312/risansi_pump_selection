@@ -124,6 +124,13 @@ export const mocRecommendation = pgTable(
     recommendedMoc: varchar("recommended_moc", { length: 10 }),
     elastomer: varchar("elastomer", { length: 50 }),
     remarks: text("remarks"),
+    // "MS" (Mechanical Seal) or "GD" (Gland Packing) — derived (not from the
+    // source MOC PDFs, which have no seal column) from corrosive severity,
+    // temperature, and hazard/flammability cues in the media/remarks per
+    // API 682 (ISO 21049) seal-selection guidance: mechanical seals for
+    // corrosive (High/Very High), high-temp (>100°C), or hazardous/toxic/
+    // flammable duty; gland packing otherwise.
+    sealType: varchar("seal_type", { length: 10 }),
   },
 );
 

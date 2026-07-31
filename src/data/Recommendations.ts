@@ -93,6 +93,9 @@ export interface PumpSelectionFormData {
   mocRecommendedMoc?: string; // system-computed from moc_recommendation (media/pH/temp lookup)
   mocMinAcceptableMoc?: string;
   mocElastomer?: string;
+  mocCode?: string; // manual MOC selection, 3-letter (e.g. "BBB") — defaults from mocRecommendedMoc
+  mocRubberCode?: string; // manual Stator Rubber selection, 1-letter (e.g. "E")
+  mocFinalCode?: string; // mocCode + mocRubberCode combined (e.g. "BBBE")
   driveMotorKw?: string; // final drive motor rating (KW) chosen on the Motor Rating step
 }
 

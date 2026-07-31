@@ -3,11 +3,23 @@
 import { useEffect, useState } from "react";
 import Stepper from "./Stepper";
 import "./GeneralInformationStep.css";
-import { actions, btnGhost, btnPrimary } from "./formStyles";
+import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, hint, label } from "./formStyles";
 import {
   lookupMocRecommendation,
   type MocRecommendationRow,
 } from "../../services/mocRecommendationService";
+
+// The 3-letter MOC prefix and 1-letter rubber suffix values actually used
+// across every recommended_moc / min_acceptable_moc code in moc_recommendation
+// (verified against the live table — 6 prefixes x 5 suffixes).
+const MOC_CODES = ["AAA", "AAB", "ABB", "BBB", "CCC", "XXX"];
+const RUBBER_CODES: { value: string; label: string }[] = [
+  { value: "N", label: "N - Nitrile" },
+  { value: "E", label: "E - EPDM" },
+  { value: "V", label: "V - Viton" },
+  { value: "F", label: "F - Food Grade Nitrile" },
+  { value: "X", label: "X - Other" },
+];
 
 type Props = {
   onNext: () => void;
@@ -44,12 +56,21 @@ const MocDetailsStep = ({ onNext, onPrevious, formData, setFormData, onStepClick
         setStatus(row ? "ready" : "not-found");
         // Carry the recommendation into formData so the final summary step
         // can show it without re-fetching.
-        setFormData((f: typeof formData) => ({
-          ...f,
-          mocRecommendedMoc: row?.recommendedMoc ?? "",
-          mocMinAcceptableMoc: row?.minAcceptableMoc ?? "",
-          mocElastomer: row?.elastomer ?? "",
-        }));
+        setFormData((f: typeof formData) => {
+          const recommended = row?.recommendedMoc ?? "";
+          // Default the manual selectors from the recommendation, once, if unset.
+          const mocCode = f.mocCode ? f.mocCode : recommended.slice(0, 3);
+          const mocRubberCode = f.mocRubberCode ? f.mocRubberCode : recommended.slice(3, 4);
+          return {
+            ...f,
+            mocRecommendedMoc: recommended,
+            mocMinAcceptableMoc: row?.minAcceptableMoc ?? "",
+            mocElastomer: row?.elastomer ?? "",
+            mocCode,
+            mocRubberCode,
+            mocFinalCode: f.mocFinalCode ? f.mocFinalCode : `${mocCode}${mocRubberCode}`,
+          };
+        });
       })
       .catch(() => {
         if (!cancelled) setStatus("error");
@@ -180,6 +201,61 @@ const MocDetailsStep = ({ onNext, onPrevious, formData, setFormData, onStepClick
                 suitability before finalizing.
               </p>
             )}
+          </div>
+        )}
+
+        {(status === "ready" || status === "not-found") && (
+          <div className="mt-4 rounded-md border border-line bg-elev p-4">
+            <span className="section-label">Final MOC Selection (Manual)</span>
+            <div className={`${grid} mt-2`}>
+              <div className={fieldWrap}>
+                <label className={label}>MOC</label>
+                <select
+                  className={control}
+                  value={formData.mocCode ?? ""}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      mocCode: e.target.value,
+                      mocFinalCode: `${e.target.value}${formData.mocRubberCode ?? ""}`,
+                    })
+                  }
+                >
+                  <option value="">Select MOC</option>
+                  {MOC_CODES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className={fieldWrap}>
+                <label className={label}>Stator Rubber</label>
+                <select
+                  className={control}
+                  value={formData.mocRubberCode ?? ""}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      mocRubberCode: e.target.value,
+                      mocFinalCode: `${formData.mocCode ?? ""}${e.target.value}`,
+                    })
+                  }
+                >
+                  <option value="">Select Rubber</option>
+                  {RUBBER_CODES.map((r) => (
+                    <option key={r.value} value={r.value}>
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <span className={hint}>
+              Final code:{" "}
+              <b className="mono text-fg-2">{formData.mocFinalCode || "—"}</b>
+            </span>
           </div>
         )}
 

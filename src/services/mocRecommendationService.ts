@@ -27,6 +27,9 @@ export interface MocRecommendationRow {
   recommendedMoc: string | null;
   elastomer: string | null;
   remarks: string | null;
+  /** "MS" (Mechanical Seal) or "GD" (Gland Packing) — see schema.ts for the
+   * derivation rule and source. */
+  sealType: string | null;
 }
 
 /** Looks up the MOC + elastomer recommendation for an exact (case-insensitive)

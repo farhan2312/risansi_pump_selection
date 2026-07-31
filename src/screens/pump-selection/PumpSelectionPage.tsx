@@ -92,6 +92,9 @@ const PumpSelectionPage = () => {
     mocRecommendedMoc: "",
     mocMinAcceptableMoc: "",
     mocElastomer: "",
+    mocCode: "",
+    mocRubberCode: "",
+    mocFinalCode: "",
 
     // Step 6 — Motor Rating (KW) — final drive motor rating (manual pick from
     // the pulley-table KW list, defaulted to the recommendation)

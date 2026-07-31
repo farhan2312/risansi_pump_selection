@@ -1,6 +1,10 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
-import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, label } from "./formStyles";
+import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, hint, label } from "./formStyles";
+import { lookupMocRecommendation } from "../../services/mocRecommendationService";
 
 type Props = {
   onNext: () => void;
@@ -12,6 +16,9 @@ type Props = {
   onStepClick?: (step: number) => void;
 };
 
+const sealTypeFullName = (code: string | null): string =>
+  code === "MS" ? "Mechanical Seal (MS)" : code === "GD" ? "Gland Packing (GD)" : "";
+
 const SealingDetailsStep = ({
   onNext,
   onPrevious,
@@ -19,6 +26,37 @@ const SealingDetailsStep = ({
   setFormData,
   onStepClick,
 }: Props) => {
+  const [recommendedSealType, setRecommendedSealType] = useState<string | null>(null);
+  const media = formData.media as string;
+
+  useEffect(() => {
+    if (!media) {
+      setRecommendedSealType(null);
+      return;
+    }
+    let cancelled = false;
+    lookupMocRecommendation(media)
+      .then((row) => {
+        if (cancelled) return;
+        const sealType = row?.sealType ?? null;
+        setRecommendedSealType(sealType);
+        // Default the Sealing Type select from the recommendation, once, if unset.
+        if (sealType && !formData.sealingType) {
+          setFormData((f: typeof formData) => ({
+            ...f,
+            sealingType: sealType === "MS" ? "Mechanical Seal" : "Gland Packing",
+          }));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setRecommendedSealType(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [media]);
+
   return (
     <div className="step-container">
       <Stepper currentStep={4} onStepClick={onStepClick} />
@@ -26,6 +64,13 @@ const SealingDetailsStep = ({
       <div className="step-card">
         <h2>Sealing Details</h2>
         <p>Select the sealing arrangement for this pump.</p>
+
+        {recommendedSealType && (
+          <p className={hint}>
+            Recommended from the MOC reference data for{" "}
+            <strong>{media}</strong>: {sealTypeFullName(recommendedSealType)}
+          </p>
+        )}
 
         <div className={grid}>
           <div className={fieldWrap}>
