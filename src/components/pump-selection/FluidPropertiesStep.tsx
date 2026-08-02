@@ -1,8 +1,12 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Stepper from "./Stepper";
 import "./GeneralInformationStep.css";
 import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, hint, label } from "./formStyles";
 import { SIZE_BY_RANGE, needsBkAg } from "../../lib/suction-discharge-size";
 import { toCp } from "../../utils/units";
+import { listSolidSizes } from "../../services/pumpModelMasterService";
 
 type Props = {
   onNext: () => void;
@@ -76,6 +80,54 @@ const FluidPropertiesStep = ({
   const tempUnit = formData.temperatureUnit || "C";
   const tempRawNum = parseFloat(formData.temperatureRaw ?? "");
   const tempCelsius = Number.isNaN(tempRawNum) ? null : toCelsius(tempRawNum, tempUnit);
+
+  // Solid Size options are the distinct standard classes recorded on
+  // pump_model_master.hard_solid_mm / soft_solid_mm — the recommendation
+  // engine matches on EXACT values, so a free-text entry can silently exclude
+  // every model. Fetch once on mount; the two lists are small (~9 each).
+  const [solidSizes, setSolidSizes] = useState<{ hard: number[]; soft: number[] } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    listSolidSizes()
+      .then((data) => {
+        if (!cancelled) setSolidSizes(data);
+      })
+      .catch(() => {
+        // Fall back to an empty list — user still sees the empty dropdown +
+        // Solid Type select, and can enter the rest of the wizard.
+        if (!cancelled) setSolidSizes({ hard: [], soft: [] });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const solidType = (formData.solidType ?? "") as string;
+  const solidSizeOptions =
+    solidType === "Hard Solid"
+      ? solidSizes?.hard ?? []
+      : solidType === "Soft Solid"
+        ? solidSizes?.soft ?? []
+        : [];
+
+  // Clearing/switching the Solid Type must clear a now-invalid size — the two
+  // lists differ, and the engine would silently exclude every model if the
+  // old value doesn't belong to the new type's list.
+  const changeSolidType = (nextType: string) => {
+    const nextList =
+      nextType === "Hard Solid"
+        ? solidSizes?.hard ?? []
+        : nextType === "Soft Solid"
+          ? solidSizes?.soft ?? []
+          : [];
+    const keepSize =
+      formData.solidSize && nextList.some((n) => Math.abs(n - Number(formData.solidSize)) < 1e-6);
+    setFormData({
+      ...formData,
+      solidType: nextType,
+      solidSize: keepSize ? formData.solidSize : "",
+    });
+  };
 
   return (
     <div className="step-container">
@@ -151,31 +203,46 @@ const FluidPropertiesStep = ({
           </div>
 
           <div className={fieldWrap}>
-            <label className={label}>Solid Size (mm)</label>
-            <input
-              type="number"
-              placeholder="Enter Solid Size"
-              className={control}
-              value={formData.solidSize}
-              onChange={(e) =>
-                setFormData({ ...formData, solidSize: e.target.value })
-              }
-            />
-          </div>
-
-          <div className={fieldWrap}>
             <label className={label}>Solid Type</label>
             <select
               className={control}
-              value={formData.solidType ?? ""}
-              onChange={(e) =>
-                setFormData({ ...formData, solidType: e.target.value })
-              }
+              value={solidType}
+              onChange={(e) => changeSolidType(e.target.value)}
             >
               <option value="">Select Solid Type</option>
               <option value="Hard Solid">Hard Solid</option>
               <option value="Soft Solid">Soft Solid</option>
             </select>
+          </div>
+
+          <div className={fieldWrap}>
+            <label className={label}>Solid Size (mm)</label>
+            <select
+              className={control}
+              value={formData.solidSize ?? ""}
+              disabled={!solidType || solidSizes === null}
+              onChange={(e) =>
+                setFormData({ ...formData, solidSize: e.target.value })
+              }
+            >
+              <option value="">
+                {solidType
+                  ? solidSizes === null
+                    ? "Loading sizes…"
+                    : `Select ${solidType} size`
+                  : "Select Solid Type first"}
+              </option>
+              {solidSizeOptions.map((mm) => (
+                <option key={mm} value={String(mm)}>
+                  {mm.toFixed(2)}
+                </option>
+              ))}
+            </select>
+            {solidType && solidSizes && solidSizeOptions.length === 0 && (
+              <span className={hint}>
+                No {solidType.toLowerCase()} sizes recorded in the pump master.
+              </span>
+            )}
           </div>
 
           <div className={fieldWrap}>

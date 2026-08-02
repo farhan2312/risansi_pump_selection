@@ -55,3 +55,19 @@ export const updatePumpModelRow = async (
 export const deletePumpModelRow = async (id: string): Promise<void> => {
   await apiClient.delete(`/pump-model-master/${id}`);
 };
+
+// Distinct solid-capacity values from pump_model_master, split by type.
+// Consumed by the Fluid Properties step's Solid Size dropdown — the engine
+// filters models on an EXACT match against these values, so a free-text
+// input would silently exclude every model.
+export interface SolidSizesResponse {
+  hard: number[];
+  soft: number[];
+}
+
+export const listSolidSizes = async (): Promise<SolidSizesResponse> => {
+  const { data } = await apiClient.get<SolidSizesResponse>(
+    "/pump-model-master/solid-sizes"
+  );
+  return data;
+};
