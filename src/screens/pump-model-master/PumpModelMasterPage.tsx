@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import "./PumpModelMasterPage.css";
 import {
+  createPumpModelRow,
   deletePumpModelRow,
   listPumpModelRows,
   updatePumpModelRow,
+  type PumpModelInsert,
   type PumpModelPatch,
   type PumpModelRow,
 } from "../../services/pumpModelMasterService";
@@ -45,6 +47,7 @@ const PumpModelMasterPage = () => {
   const [detailsRow, setDetailsRow] = useState<PumpModelRow | null>(null);
   const [editRow, setEditRow] = useState<PumpModelRow | null>(null);
   const [deleteRow, setDeleteRow] = useState<PumpModelRow | null>(null);
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     setIsLoading(true);
@@ -64,6 +67,17 @@ const PumpModelMasterPage = () => {
         String(r.headMwc).toLowerCase().includes(q)
     );
   }, [rows, search]);
+
+  const handleCreated = (created: PumpModelRow) => {
+    setRows((prev) =>
+      [...prev, created].sort((a, b) =>
+        a.model === b.model
+          ? Number(a.headMwc) - Number(b.headMwc)
+          : a.model.localeCompare(b.model)
+      )
+    );
+    setCreating(false);
+  };
 
   const handleSaved = (updated: PumpModelRow) => {
     setRows((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
@@ -85,13 +99,18 @@ const PumpModelMasterPage = () => {
             row, or view its full details.
           </p>
         </div>
-        <input
-          type="search"
-          className="pmm-search"
-          placeholder="Search by model or head…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <input
+            type="search"
+            className="pmm-search"
+            placeholder="Search by model or head…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <button className="btn-primary" onClick={() => setCreating(true)}>
+            + Add row
+          </button>
+        </div>
       </div>
 
       {isLoading && <p>Loading…</p>}
@@ -171,6 +190,12 @@ const PumpModelMasterPage = () => {
           onSaved={handleSaved}
         />
       )}
+      {creating && (
+        <CreateModal
+          onClose={() => setCreating(false)}
+          onCreated={handleCreated}
+        />
+      )}
       {deleteRow && (
         <DeleteModal
           row={deleteRow}
@@ -211,6 +236,94 @@ const DetailsModal = ({ row, onClose }: { row: PumpModelRow; onClose: () => void
     </div>
   </div>
 );
+
+// --- Create modal ----------------------------------------------------------
+
+const CreateModal = ({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated: (created: PumpModelRow) => void;
+}) => {
+  const [form, setForm] = useState<Record<string, string>>(() =>
+    Object.fromEntries(FIELDS.map((f) => [f.key, ""]))
+  );
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
+
+  const set = (key: string, value: string) => setForm((p) => ({ ...p, [key]: value }));
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (saving) return;
+    if (!form.model.trim()) {
+      setFormError("Model can't be empty.");
+      return;
+    }
+    if (form.headMwc.trim() === "" || Number.isNaN(Number(form.headMwc))) {
+      setFormError("Head (MWC) is required and must be a number.");
+      return;
+    }
+    setSaving(true);
+    setFormError("");
+    // Send every field as a raw string — the API's numOrNull/intOrNull handle
+    // parsing and null-on-blank server-side, matching the PATCH flow.
+    const values: Record<string, string> = { ...form, model: form.model.trim() };
+    try {
+      const created = await createPumpModelRow(values as unknown as PumpModelInsert);
+      onCreated(created);
+    } catch (err) {
+      setFormError(errorMessage(err, "Couldn't add row."));
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="pmm-modal-overlay" onClick={onClose}>
+      <div
+        className="pmm-modal"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <div className="pmm-modal-header">
+          <h3>Add pump model row</h3>
+          <button className="pmm-modal-close" onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        </div>
+        <form onSubmit={handleCreate}>
+          {formError && <div className="pmm-form-error">{formError}</div>}
+          <div className="pmm-form-grid">
+            {FIELDS.map((f) => (
+              <div key={f.key} className="pmm-field">
+                <label>
+                  {f.label}
+                  {(f.key === "model" || f.key === "headMwc") ? " *" : ""}
+                </label>
+                <input
+                  type={f.numeric ? "number" : "text"}
+                  step={f.numeric ? "any" : undefined}
+                  value={form[f.key]}
+                  onChange={(e) => set(f.key, e.target.value)}
+                />
+              </div>
+            ))}
+          </div>
+          <div className="pmm-modal-actions">
+            <button type="button" className="btn-secondary" onClick={onClose}>
+              Cancel
+            </button>
+            <button type="submit" className="btn-primary" disabled={saving}>
+              {saving ? "Adding…" : "Add row"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
 
 // --- Edit modal ------------------------------------------------------------
 

@@ -29,6 +29,21 @@ export const listPumpModelRows = async (): Promise<PumpModelRow[]> => {
   return data;
 };
 
+// Same fields as the PATCH shape — model + headMwc are required server-side,
+// everything else is optional. Values arrive as the raw strings from the
+// form's <input> elements (numeric fields become NULL server-side when blank).
+export type PumpModelInsert = Partial<Omit<PumpModelRow, "id">> & {
+  model: string;
+  headMwc: string;
+};
+
+export const createPumpModelRow = async (
+  values: PumpModelInsert
+): Promise<PumpModelRow> => {
+  const { data } = await apiClient.post<PumpModelRow>("/pump-model-master", values);
+  return data;
+};
+
 export const updatePumpModelRow = async (
   id: string,
   patch: PumpModelPatch
