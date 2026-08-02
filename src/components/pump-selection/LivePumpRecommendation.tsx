@@ -143,11 +143,13 @@ const LivePumpRecommendation = ({ formData, setFormData }: Props) => {
           </div>
         </div>
         {/* Spec selections (same for every model), combined into one line like
-            "Vertical · BK · MS" — Pump Type · AG/BK · Seal. Each part appears as
-            it's chosen on its step. */}
-        {(formData.pumpType || formData.agBk || seal) && (
+            "Vertical · BK · MS · BBBE" — Pump Type · AG/BK · Seal · MOC. Each
+            part appears as it's chosen on its step. */}
+        {(formData.pumpType || formData.agBk || seal || formData.mocFinalCode) && (
           <span className="live-rec-card-type">
-            {[formData.pumpType, formData.agBk, seal].filter(Boolean).join(" · ")}
+            {[formData.pumpType, formData.agBk, seal, formData.mocFinalCode]
+              .filter(Boolean)
+              .join(" · ")}
           </span>
         )}
         {showAction && (

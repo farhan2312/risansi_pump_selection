@@ -189,6 +189,35 @@ export const mocRecommendation = pgTable(
   },
 );
 
+// MOC nomenclature — decomposes each 4-letter MOC code (e.g. "AAAN", "BBBE")
+// into the material used for each of the 11 metal pump components plus the
+// stator rubber. Sourced from MOC_D.xlsx: 6 metal-prefix blocks × 5 rubber
+// suffixes (N/E/V/F/X = Nitrile/EPDM/Viton/FG Nitrile/Other Rubber) = 30 rows.
+// Given a code (e.g. from moc_recommendation.recommended_moc), the app looks
+// this up in one query to show/print the full material breakdown for a pump.
+// Material cells preserve the source sheet's slash-separated alternatives
+// (e.g. "CI / MS", "EN-19 / EN-8") — those are meaningful engineering options,
+// not a formatting choice, and must not be split.
+export const mocNomenclature = pgTable("moc_nomenclature", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  mocCode: varchar("moc_code", { length: 4 }).notNull().unique(),
+  prefix: varchar("prefix", { length: 3 }).notNull(),
+  rubberSuffix: varchar("rubber_suffix", { length: 1 }).notNull(),
+  suffixSrNo: integer("suffix_sr_no").notNull(),
+  pumpHousing: varchar("pump_housing", { length: 50 }).notNull(),
+  shaft: varchar("shaft", { length: 50 }).notNull(),
+  rotor: varchar("rotor", { length: 50 }).notNull(),
+  cRod: varchar("c_rod", { length: 50 }).notNull(),
+  shd: varchar("shd", { length: 50 }).notNull(),
+  slv: varchar("slv", { length: 50 }).notNull(),
+  bush: varchar("bush", { length: 50 }).notNull(),
+  hPin: varchar("h_pin", { length: 50 }).notNull(),
+  pin: varchar("pin", { length: 50 }).notNull(),
+  protector: varchar("protector", { length: 50 }).notNull(),
+  holder: varchar("holder", { length: 50 }).notNull(),
+  statorRubber: varchar("stator_rubber", { length: 50 }).notNull(),
+});
+
 // V-belt/pulley drive selection, from "pulley v belt master.xlsx". Two tables
 // mirroring the sheet's own nested structure — a parent "motor option" row
 // (model × motor RPM × HP/KW tier, with grooves + shaft dimensions) and child

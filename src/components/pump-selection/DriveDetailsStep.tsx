@@ -24,8 +24,8 @@ const num = (n: number | null): string => (n === null ? "—" : String(n));
 const MOTOR_MAKES = ["BBL", "Havells", "CGL", "ABB", "Siemens", "Other"];
 const MOTOR_MOUNTINGS = [
   { value: "Foot B3", label: "Foot Mounted (B3)" },
-  { value: "Flange B5", label: "Flange Mounted (B5)" },
-  { value: "Foot cum Flange B35", label: "Foot cum Flange (B35)" },
+ // { value: "Flange B5", label: "Flange Mounted (B5)" },
+  //{ value: "Foot cum Flange B35", label: "Foot cum Flange (B35)" },
 ];
 const STARTER_TYPES = ["Star-Delta", "DOL"];
 const POWER_SUPPLIES = ["Single Phase", "Three Phase"];
@@ -413,7 +413,7 @@ const DriveDetailsStep = ({
                 </select>
               </div>
 
-              <div className={fieldWrap}>
+            {/*  <div className={fieldWrap}>
                 <label className={label}>Std / Non-Std</label>
                 <select
                   className={control}
@@ -429,7 +429,7 @@ const DriveDetailsStep = ({
                     </option>
                   ))}
                 </select>
-              </div>
+              </div>*/}
             </div>
           </div>
         )}

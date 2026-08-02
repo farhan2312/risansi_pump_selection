@@ -137,6 +137,7 @@ const RecommendationStep = ({ onPrevious, formData, onStepClick }: Props) => {
               pumpType={formData.pumpType}
               agBk={formData.agBk}
               sealingType={formData.sealingType}
+              mocCode={formData.mocFinalCode}
             />
 
             {configured.length > 0 && (

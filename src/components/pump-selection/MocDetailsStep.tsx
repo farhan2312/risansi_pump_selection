@@ -8,6 +8,10 @@ import {
   lookupMocRecommendation,
   type MocRecommendationRow,
 } from "../../services/mocRecommendationService";
+import {
+  lookupMocNomenclature,
+  type MocNomenclatureRow,
+} from "../../services/mocNomenclatureService";
 
 // The 3-letter MOC prefix and 1-letter rubber suffix values actually used
 // across every recommended_moc / min_acceptable_moc code in moc_recommendation
@@ -36,10 +40,49 @@ type Status = "idle" | "loading" | "ready" | "not-found" | "error";
 const toNum = (v: string | null | undefined): number | null =>
   v === null || v === undefined || v === "" ? null : parseFloat(v);
 
+// Human-readable label pairs for the 11 metal-component columns in
+// moc_nomenclature — order matches the source MOC_D.xlsx sheet.
+const NOMENCLATURE_FIELDS: { key: keyof MocNomenclatureRow; label: string }[] = [
+  { key: "pumpHousing", label: "Pump Housing" },
+  { key: "shaft", label: "Shaft" },
+  { key: "rotor", label: "Rotor" },
+  { key: "cRod", label: "C. Rod" },
+  { key: "shd", label: "SHD" },
+  { key: "slv", label: "SLV" },
+  { key: "bush", label: "Bush" },
+  { key: "hPin", label: "H. Pin" },
+  { key: "pin", label: "Pin" },
+  { key: "protector", label: "Protector" },
+  { key: "holder", label: "Holder" },
+];
+
 const MocDetailsStep = ({ onNext, onPrevious, formData, setFormData, onStepClick }: Props) => {
   const [status, setStatus] = useState<Status>("idle");
   const [rec, setRec] = useState<MocRecommendationRow | null>(null);
+  const [nom, setNom] = useState<MocNomenclatureRow | null>(null);
   const media = formData.media as string;
+  const finalCode = formData.mocFinalCode as string | undefined;
+
+  // Fetch nomenclature (material breakdown) whenever the final 4-letter code
+  // is complete. Runs independently of the media lookup — the two are
+  // orthogonal (recommendation vs decomposition).
+  useEffect(() => {
+    if (!finalCode || finalCode.length !== 4) {
+      setNom(null);
+      return;
+    }
+    let cancelled = false;
+    lookupMocNomenclature(finalCode)
+      .then((row) => {
+        if (!cancelled) setNom(row);
+      })
+      .catch(() => {
+        if (!cancelled) setNom(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [finalCode]);
 
   useEffect(() => {
     if (!media) {
@@ -256,6 +299,35 @@ const MocDetailsStep = ({ onNext, onPrevious, formData, setFormData, onStepClick
               Final code:{" "}
               <b className="mono text-fg-2">{formData.mocFinalCode || "—"}</b>
             </span>
+          </div>
+        )}
+
+        {nom && (
+          <div className="mt-4 rounded-md border border-line bg-elev p-4">
+            <div className="flex items-baseline gap-3">
+              <span className="section-label">MOC Details</span>
+              <span className="mono text-[14px] font-semibold text-fg">
+                {nom.mocCode}
+              </span>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
+              {NOMENCLATURE_FIELDS.map((f) => (
+                <div key={f.key} className="flex flex-col">
+                  <span className="text-[11px] uppercase tracking-wide text-fg-3">
+                    {f.label}
+                  </span>
+                  <strong className="text-[13px] text-fg">
+                    {nom[f.key] as string}
+                  </strong>
+                </div>
+              ))}
+              <div className="flex flex-col">
+                <span className="text-[11px] uppercase tracking-wide text-fg-3">
+                  Stator + Rubber
+                </span>
+                <strong className="text-[13px] text-fg">{nom.statorRubber}</strong>
+              </div>
+            </div>
           </div>
         )}
 
