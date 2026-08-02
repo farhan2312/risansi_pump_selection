@@ -108,7 +108,7 @@ const PumpModelMasterPage = () => {
             onChange={(e) => setSearch(e.target.value)}
           />
           <button className="btn-primary" onClick={() => setCreating(true)}>
-            + Add row
+            + Add Model
           </button>
         </div>
       </div>
@@ -274,7 +274,7 @@ const CreateModal = ({
       const created = await createPumpModelRow(values as unknown as PumpModelInsert);
       onCreated(created);
     } catch (err) {
-      setFormError(errorMessage(err, "Couldn't add row."));
+      setFormError(errorMessage(err, "Couldn't add model."));
       setSaving(false);
     }
   };
@@ -316,7 +316,7 @@ const CreateModal = ({
               Cancel
             </button>
             <button type="submit" className="btn-primary" disabled={saving}>
-              {saving ? "Adding…" : "Add row"}
+              {saving ? "Adding…" : "Add model"}
             </button>
           </div>
         </form>

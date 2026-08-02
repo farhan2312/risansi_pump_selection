@@ -183,7 +183,7 @@ const PulleyMasterPage = () => {
             onChange={(e) => setSearch(e.target.value)}
           />
           <button className="btn-primary" onClick={() => setCreating(true)}>
-            + Add row
+            + Add Model Data
           </button>
         </div>
       </div>
@@ -242,7 +242,7 @@ const PulleyMasterPage = () => {
                   <tr>
                     <td colSpan={8} className="pmm-empty">
                       {rows.length === 0
-                        ? "No pulley rows yet — click + Add row to create one."
+                        ? "No pulley rows yet — click + Add Model Data to create one."
                         : `No rows match “${search}”.`}
                     </td>
                   </tr>
@@ -628,7 +628,7 @@ const CreateModal = ({
     initial={emptyForm()}
     initialBelts={[]}
     onCancel={onClose}
-    submitLabel="Add row"
+    submitLabel="Add Model Data"
     onSubmit={async (form, belts) => {
       // Send every field as a raw string — the API parses server-side.
       // motorRpm/srNo need to be real numbers to satisfy the required type.
