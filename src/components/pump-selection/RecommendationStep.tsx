@@ -6,7 +6,7 @@ import PumpDetailsCard from "../../components/recommendation/PumpDetailsCard";
 import TestReportModal from "../../components/recommendation/TestReportModal";
 import { useEffect, useState } from "react";
 import { getRecommendations } from "../../services/recommendationService";
-import { sizeForViscosityRange } from "../../lib/suction-discharge-size";
+import { SIZE_COLUMN_BY_RANGE, sizeForViscosityRange } from "../../lib/suction-discharge-size";
 import type {
   PumpRecommendation,
   PumpSelectionFormData,
@@ -131,14 +131,26 @@ const RecommendationStep = ({ onPrevious, formData, onStepClick }: Props) => {
 
         {!isLoading && !error && confirmedPump && (
           <>
-            <PumpDetailsCard
-              pump={confirmedPump}
-              size={sizeForViscosityRange(formData.viscosityRange)}
-              pumpType={formData.pumpType}
-              agBk={formData.agBk}
-              sealingType={formData.sealingType}
-              mocCode={formData.mocFinalCode}
-            />
+            {(() => {
+              // Prefer the confirmed model's own per-viscosity size; fall back
+              // to the flat SIZE_BY_RANGE hint when the model isn't covered by
+              // the per-model sheet (mostly L-variants).
+              const col = SIZE_COLUMN_BY_RANGE[formData.viscosityRange as string];
+              const perModel = col ? confirmedPump[col] : null;
+              const cardSize =
+                perModel ?? sizeForViscosityRange(formData.viscosityRange);
+              return (
+                <PumpDetailsCard
+                  pump={confirmedPump}
+                  size={cardSize}
+                  pumpType={formData.pumpType}
+                  agBk={formData.agBk}
+                  sealingType={formData.sealingType}
+                  mocCode={formData.mocFinalCode}
+                  stage={confirmedPump.stage}
+                />
+              );
+            })()}
 
             {configured.length > 0 && (
               <div className="mt-4 rounded-md border border-line bg-elev p-4">

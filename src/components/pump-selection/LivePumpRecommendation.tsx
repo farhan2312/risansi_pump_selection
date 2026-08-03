@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import "./LivePumpRecommendation.css";
 import { previewRecommendations } from "../../services/recommendationService";
 import type { PumpRecommendation } from "../../data/Recommendations";
-import { sizeForViscosityRange } from "../../lib/suction-discharge-size";
+import { SIZE_COLUMN_BY_RANGE, sizeForViscosityRange } from "../../lib/suction-discharge-size";
 import { sealingShort } from "../../lib/sealing";
 
 type Props = {
@@ -104,14 +104,22 @@ const LivePumpRecommendation = ({ formData, setFormData }: Props) => {
 
   const changeModel = () => setEditing(true);
 
-  // Step-5 Suction & Discharge Size — a single value from the viscosity range
-  // (same for every model), shown on the card so it's always reflected. Null
-  // until the viscosity (hence range) is entered on the Fluid Properties step.
-  const size = sizeForViscosityRange(formData.viscosityRange);
+  // Per-model suction/discharge pipe size — looked up from the pump's own
+  // pump_model_master.size_visc_* column matching the chosen viscosity range.
+  // Falls back to the flat SIZE_BY_RANGE hint when the model isn't covered
+  // by Model_vs_Viscosity_vs_Size.xlsx (mostly L-variants).
+  const fallbackSize = sizeForViscosityRange(formData.viscosityRange);
+  const perModelSize = (r: PumpRecommendation): number | null => {
+    const col = SIZE_COLUMN_BY_RANGE[formData.viscosityRange as string];
+    if (!col) return null;
+    const v = r[col];
+    return v ?? fallbackSize;
+  };
   const seal = sealingShort(formData.sealingType);
 
   const cardInner = (r: PumpRecommendation, showAction: boolean, confirmedBadge: boolean) => {
     const isSelected = r.model === formData.selectedModel;
+    const size = perModelSize(r);
     return (
       <>
         <div className="live-rec-card-badges">
@@ -123,6 +131,10 @@ const LivePumpRecommendation = ({ formData, setFormData }: Props) => {
         </div>
         <strong className="live-rec-card-model">{r.model}</strong>
         <div className="live-rec-card-meta">
+          <div>
+            <span>Stage</span>
+            <b className="mono">{r.stage ?? "—"}</b>
+          </div>
           <div>
             <span>RPM</span>
             <b className="mono">{r.rpmRange}</b>
@@ -139,7 +151,7 @@ const LivePumpRecommendation = ({ formData, setFormData }: Props) => {
           </div>
           <div>
             <span>Size</span>
-            <b className="mono">{size !== null ? size : "—"}</b>
+            <b className="mono">{size !== null ? `${size}"` : "—"}</b>
           </div>
         </div>
         {/* Spec selections (same for every model), combined into one line like

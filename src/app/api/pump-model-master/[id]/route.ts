@@ -21,6 +21,11 @@ const NUMERIC_FIELDS = [
   "minKwToBeTested",
   "hardSolidMm",
   "softSolidMm",
+  "sizeVisc0To1000In",
+  "sizeVisc1000To3000In",
+  "sizeVisc3000To5000In",
+  "sizeVisc5000To10000In",
+  "sizeViscGt10000In",
 ] as const;
 
 function numOrNull(v: unknown): string | null {

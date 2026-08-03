@@ -30,6 +30,11 @@ const FIELDS: FieldDef[] = [
   { key: "testingRemarks", label: "Testing Remarks", numeric: false },
   { key: "hardSolidMm", label: "Hard Solid (mm)", numeric: true },
   { key: "softSolidMm", label: "Soft Solid (mm)", numeric: true },
+  { key: "sizeVisc0To1000In", label: "Size 0-1000 cP (in)", numeric: true },
+  { key: "sizeVisc1000To3000In", label: "Size 1000-3000 cP (in)", numeric: true },
+  { key: "sizeVisc3000To5000In", label: "Size 3000-5000 cP (in)", numeric: true },
+  { key: "sizeVisc5000To10000In", label: "Size 5000-10000 cP (in)", numeric: true },
+  { key: "sizeViscGt10000In", label: "Size >10000 cP (in)", numeric: true },
 ];
 
 const val = (v: string | number | null) => (v === null || v === "" ? "—" : v);

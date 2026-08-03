@@ -91,6 +91,12 @@ export async function POST(req: Request) {
       isSelected: selectedModel !== null && c.model === selectedModel,
       hardSolidMm: c.hardSolidMm,
       softSolidMm: c.softSolidMm,
+      stage: c.stage,
+      sizeVisc0To1000In: c.sizeVisc0To1000In,
+      sizeVisc1000To3000In: c.sizeVisc1000To3000In,
+      sizeVisc3000To5000In: c.sizeVisc3000To5000In,
+      sizeVisc5000To10000In: c.sizeVisc5000To10000In,
+      sizeViscGt10000In: c.sizeViscGt10000In,
     };
   });
 

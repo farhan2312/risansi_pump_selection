@@ -20,6 +20,13 @@ export interface PumpModelRow {
   softSolidMm: string | null;
   /** integer column — pg returns this as a real number, not a string like the numeric columns above. */
   stage: number | null;
+  /** Suction/discharge pipe size (inches) per viscosity band, from
+   * Model_vs_Viscosity_vs_Size.xlsx. NULL when the model isn't covered by the source sheet. */
+  sizeVisc0To1000In: string | null;
+  sizeVisc1000To3000In: string | null;
+  sizeVisc3000To5000In: string | null;
+  sizeVisc5000To10000In: string | null;
+  sizeViscGt10000In: string | null;
 }
 
 export type PumpModelPatch = Partial<Omit<PumpModelRow, "id">>;

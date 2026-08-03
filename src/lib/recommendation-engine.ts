@@ -124,6 +124,15 @@ export interface Candidate {
   hardSolidMm: number | null;
   /** Max soft-solid particle size this model can pass (mm), or null if unrecorded. */
   softSolidMm: number | null;
+  /** Suction/discharge pipe size (inches) per viscosity band, from
+   * pump_model_master's size_visc_* columns (sourced from
+   * Model_vs_Viscosity_vs_Size.xlsx). NULL when this model isn't covered by
+   * the source sheet — the flat SIZE_BY_RANGE fallback is used then. */
+  sizeVisc0To1000In: number | null;
+  sizeVisc1000To3000In: number | null;
+  sizeVisc3000To5000In: number | null;
+  sizeVisc5000To10000In: number | null;
+  sizeViscGt10000In: number | null;
 }
 
 type ModelRow = typeof schema.pumpModelMaster.$inferSelect;
@@ -201,6 +210,15 @@ export async function findCandidates(
     const hardSolidMm = toNumOrNull(points.find((p) => p.hardSolidMm !== null)?.hardSolidMm ?? null);
     const softSolidMm = toNumOrNull(points.find((p) => p.softSolidMm !== null)?.softSolidMm ?? null);
 
+    // Suction/discharge pipe sizes per viscosity band — model-level (same on
+    // every head-row of the model, forward-fill pattern), so read off any
+    // populated row rather than `nearest`.
+    const sizeVisc0To1000In = toNumOrNull(points.find((p) => p.sizeVisc0To1000In !== null)?.sizeVisc0To1000In ?? null);
+    const sizeVisc1000To3000In = toNumOrNull(points.find((p) => p.sizeVisc1000To3000In !== null)?.sizeVisc1000To3000In ?? null);
+    const sizeVisc3000To5000In = toNumOrNull(points.find((p) => p.sizeVisc3000To5000In !== null)?.sizeVisc3000To5000In ?? null);
+    const sizeVisc5000To10000In = toNumOrNull(points.find((p) => p.sizeVisc5000To10000In !== null)?.sizeVisc5000To10000In ?? null);
+    const sizeViscGt10000In = toNumOrNull(points.find((p) => p.sizeViscGt10000In !== null)?.sizeViscGt10000In ?? null);
+
     // Solid-handling filter: only engages when BOTH a size and a type are
     // given (need the type to know which column applies). A model is kept if
     // its recorded capacity for that solid type is >= the entered size — the
@@ -239,6 +257,11 @@ export async function findCandidates(
       rpmClassAtVoleMax: classifyRpm(rpmAtVoleMax),
       hardSolidMm,
       softSolidMm,
+      sizeVisc0To1000In,
+      sizeVisc1000To3000In,
+      sizeVisc3000To5000In,
+      sizeVisc5000To10000In,
+      sizeViscGt10000In,
     });
   }
 

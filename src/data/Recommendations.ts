@@ -142,4 +142,14 @@ export interface PumpRecommendation {
   hardSolidMm: number | null;
   /** Max soft-solid particle size this model can pass (mm), or null if unrecorded. */
   softSolidMm: number | null;
+  /** Pump stage count (1/2/4/8) derived from the model name. */
+  stage: number | null;
+  /** Suction/discharge pipe sizes (inches) per viscosity band, sourced from
+   * pump_model_master. NULL when this model isn't covered by the source sheet
+   * (the flat SIZE_BY_RANGE fallback is used then). */
+  sizeVisc0To1000In: number | null;
+  sizeVisc1000To3000In: number | null;
+  sizeVisc3000To5000In: number | null;
+  sizeVisc5000To10000In: number | null;
+  sizeViscGt10000In: number | null;
 }

@@ -147,6 +147,17 @@ export const pumpModelMaster = pgTable(
     hardSolidMm: numeric("hard_solid_mm", { precision: 6, scale: 2 }),
     softSolidMm: numeric("soft_solid_mm", { precision: 6, scale: 2 }),
     stage: integer("stage"),
+    // Suction/discharge pipe size (inches) per viscosity band, sourced from
+    // Model_vs_Viscosity_vs_Size.xlsx. The source is one row per model with 5
+    // viscosity columns (0-1000, 1000-3000, 3000-5000, 5000-10000, >10000 cP);
+    // stored here on every head-row of the model (same value across a model's
+    // rows — same forward-fill pattern as qth/minKwTested). NULL means the
+    // model isn't covered by that source sheet.
+    sizeVisc0To1000In: numeric("size_visc_0_1000_in", { precision: 6, scale: 2 }),
+    sizeVisc1000To3000In: numeric("size_visc_1000_3000_in", { precision: 6, scale: 2 }),
+    sizeVisc3000To5000In: numeric("size_visc_3000_5000_in", { precision: 6, scale: 2 }),
+    sizeVisc5000To10000In: numeric("size_visc_5000_10000_in", { precision: 6, scale: 2 }),
+    sizeViscGt10000In: numeric("size_visc_gt_10000_in", { precision: 6, scale: 2 }),
   },
 );
 

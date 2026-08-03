@@ -14,17 +14,18 @@ type Props = {
   onStepClick?: (step: number) => void;
 };
 
-// Viscosity range list from the Step-5 spec sheet. Ranges are in cP; a cSt
-// input is converted with SG first (cP = cSt × SG). Boundaries are treated as
-// non-overlapping (upper-inclusive) — the sheet writes "3000-5000" but that
-// collides with "1001-3000" at 3000, so 3000 stays in the lower band here.
+// Viscosity range list — mirrors Model_vs_Viscosity_vs_Size.xlsx (the 5
+// columns whose labels are stored on pump_model_master as the size_visc_*
+// columns). Ranges are in cP; a cSt input is converted with SG first
+// (cP = cSt × SG). Boundaries are treated as non-overlapping (upper-inclusive)
+// — the source labels write "1000-3000" but that collides with "0-1000" at
+// 1000, so 1000 stays in the lower band here.
 const viscosityRangeFor = (viscosityCp: number): string => {
   if (viscosityCp <= 1000) return "0-1000";
-  if (viscosityCp <= 3000) return "1001-3000";
-  if (viscosityCp <= 5000) return "3001-5000";
-  if (viscosityCp <= 7000) return "5001-7000";
-  if (viscosityCp <= 10000) return "7001-10000";
-  return "10000+";
+  if (viscosityCp <= 3000) return "1000-3000";
+  if (viscosityCp <= 5000) return "3000-5000";
+  if (viscosityCp <= 10000) return "5000-10000";
+  return ">10000";
 };
 
 // Convert temperature to Celsius (the canonical value stored in formData.temperature).
@@ -126,11 +127,10 @@ const FluidPropertiesStep = ({
             >
               <option value="">Select Range</option>
               <option value="0-1000">0 - 1000</option>
-              <option value="1001-3000">1001 - 3000</option>
-              <option value="3001-5000">3001 - 5000</option>
-              <option value="5001-7000">5001 - 7000</option>
-              <option value="7001-10000">7001 - 10000</option>
-              <option value="10000+">10000 &amp; Above</option>
+              <option value="1000-3000">1000 - 3000</option>
+              <option value="3000-5000">3000 - 5000</option>
+              <option value="5000-10000">5000 - 10000</option>
+              <option value=">10000">10000 &amp; Above</option>
             </select>
             <span className={hint}>
               Auto-selected from viscosity — override if needed.
@@ -233,7 +233,7 @@ const FluidPropertiesStep = ({
             </div>
             {needsBkAg(formData.viscosityRange, formData.solidPercentage) && (
               <p className="mt-2 text-[12px] text-warn">
-                {formData.viscosityRange === "10000+"
+                {formData.viscosityRange === ">10000"
                   ? "Viscosity above 10 000 cP"
                   : "Solids content > 0 %"}
                 {" "}— also recommend the <b>BK</b> and <b>AG</b> feed/construction
