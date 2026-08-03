@@ -202,17 +202,17 @@ export async function findCandidates(
     const softSolidMm = toNumOrNull(points.find((p) => p.softSolidMm !== null)?.softSolidMm ?? null);
 
     // Solid-handling filter: only engages when BOTH a size and a type are
-    // given (need the type to know which column applies). solid.xlsx's values
-    // are a fixed set of standard size classes (7.62, 12.7, ... 60.96), not a
-    // continuous minimum spec — a model is only a match for the EXACT size
-    // entered, not merely "big enough" (a 35.56mm-rated model is not a valid
-    // recommendation for a 30.48mm duty just because 35.56 > 30.48). A model
-    // with no recorded capacity for that type is excluded too.
+    // given (need the type to know which column applies). A model is kept if
+    // its recorded capacity for that solid type is >= the entered size — the
+    // rating is the largest particle the model can pass, so anything at or
+    // above the duty size qualifies (a 35.56mm-rated model can handle a
+    // 30.48mm duty). Rounded to 2dp to avoid float-precision surprises on the
+    // numeric(6,2) column. Models with no recorded capacity for that type are
+    // excluded (conservative — can't confirm suitability).
     if (solidSizeMm !== null && solidSizeMm > 0 && solidType) {
       const capacity = solidType === "Hard Solid" ? hardSolidMm : solidType === "Soft Solid" ? softSolidMm : null;
-      // Compare to 2dp to avoid float-precision mismatches (numeric(6,2) columns).
-      const matches = capacity !== null && Math.round(capacity * 100) === Math.round(solidSizeMm * 100);
-      if (!matches) continue;
+      const ok = capacity !== null && Math.round(capacity * 100) >= Math.round(solidSizeMm * 100);
+      if (!ok) continue;
     }
 
     // RPM = 100 x Capacity / (QTH x VE). See formula note above.

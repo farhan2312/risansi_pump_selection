@@ -268,6 +268,35 @@ export const pulleyBeltOption = pgTable(
   },
 );
 
+// Gearbox selection masters from "pblptlgearBox.xlsx" — three side-by-side
+// tables in the source sheet (PBL / PTL / Top Gear), each row-grouped by a
+// shared "Power Rating" (merged cell spanning that power tier's rows across
+// all three blocks). Mirrored as three separate tables since each block has
+// its own independent set of (output RPM, model) options for that power —
+// a row in one block existing doesn't imply a matching row exists in another
+// ("-" placeholders in the source mean "no option here," and are dropped
+// rather than stored). powerRatingRaw preserves the source label verbatim
+// (e.g. "0.55kw", "22.00KW" — inconsistent casing/spacing in the sheet
+// itself); powerRatingKw is the parsed numeric value for filtering/joining.
+// Column builders are stateful per Drizzle table, so each table needs its own
+// fresh set of column definitions — a shared object literal passed to
+// multiple pgTable() calls would attach the same builder instances to three
+// different tables.
+const gearboxColumns = () => ({
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  powerRatingRaw: varchar("power_rating_raw", { length: 20 }).notNull(),
+  powerRatingKw: numeric("power_rating_kw", { precision: 8, scale: 3 }),
+  outputRpm: numeric("output_rpm", { precision: 8, scale: 2 }).notNull(),
+  model: varchar("model", { length: 50 }).notNull(),
+  gearBoxType: varchar("gear_box_type", { length: 50 }),
+  serviceFactor: numeric("service_factor", { precision: 6, scale: 2 }),
+  ratePerNos: numeric("rate_per_nos", { precision: 12, scale: 2 }),
+});
+
+export const pblGearbox = pgTable("pbl_gearbox", gearboxColumns());
+export const ptlGearbox = pgTable("ptl_gearbox", gearboxColumns());
+export const topGearGearbox = pgTable("top_gear_gearbox", gearboxColumns());
+
 /*export const performanceCurve = pgTable("performance_curve", {
   id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   model: varchar("model", { length: 100 }).notNull(),
