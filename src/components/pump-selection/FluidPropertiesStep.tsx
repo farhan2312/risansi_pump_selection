@@ -1,7 +1,7 @@
 import Stepper from "./Stepper";
 import "./GeneralInformationStep.css";
 import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, hint, label } from "./formStyles";
-import { SIZE_BY_RANGE, needsBkAg } from "../../lib/suction-discharge-size";
+import { needsBkAg } from "../../lib/suction-discharge-size";
 import { toCp } from "../../utils/units";
 
 type Props = {
@@ -219,33 +219,14 @@ const FluidPropertiesStep = ({
           </div>
         </div>
 
-        {formData.viscosityRange && SIZE_BY_RANGE[formData.viscosityRange] !== undefined && (
-          <div className="mt-4 rounded-md border border-line bg-elev p-4">
-            <span className="section-label">Suction &amp; Discharge Size</span>
-            <div className="mt-2 flex items-baseline gap-2">
-              <b className="mono text-[22px] font-semibold text-fg">
-                {SIZE_BY_RANGE[formData.viscosityRange]}
-              </b>
-              <span className="text-[12px] text-fg-3">
-                recommended size for viscosity range {formData.viscosityRange} cP
-                {formData.selectedModel ? ` · model ${formData.selectedModel}` : ""}
-              </span>
-            </div>
-            {needsBkAg(formData.viscosityRange, formData.solidPercentage) && (
-              <p className="mt-2 text-[12px] text-warn">
-                {formData.viscosityRange === ">10000"
-                  ? "Viscosity above 10 000 cP"
-                  : "Solids content > 0 %"}
-                {" "}— also recommend the <b>BK</b> and <b>AG</b> feed/construction
-                options. Pick one on the Specifications step.
-              </p>
-            )}
-            {!formData.selectedModel && (
-              <p className="mt-2 text-[12px] text-fg-3">
-                Pin a pump in the live panel below to tie this size to a specific model.
-              </p>
-            )}
-          </div>
+        {needsBkAg(formData.viscosityRange, formData.solidPercentage) && (
+          <p className="mt-4 text-[12px] text-warn">
+            {formData.viscosityRange === ">10000"
+              ? "Viscosity above 10 000 cP"
+              : "Solids content > 0 %"}
+            {" "}— also recommend the <b>BK</b> and <b>AG</b> feed/construction
+            options. Pick one on the Specifications step.
+          </p>
         )}
 
         {!formData.modelConfirmed && (
