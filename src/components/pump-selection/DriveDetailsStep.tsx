@@ -454,49 +454,62 @@ const DriveDetailsStep = ({
                 ).map(
                   ([source, opts]) =>
                     opts.length > 0 && (
-                      <div key={source} className="mt-3">
-                        <span className="section-label">{source}</span>
-                        <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                          {opts.map((o) => {
-                            const isSelected =
-                              formData.gearboxSource === source &&
-                              formData.gearboxModel === o.model &&
-                              formData.gearboxOutputRpm === String(o.outputRpm);
-                            return (
-                              <button
-                                type="button"
-                                key={o.id}
-                                onClick={() => selectGearbox(source, o)}
-                                className={`rounded-lg border p-2 text-left text-[12px] transition-colors ${
-                                  isSelected
-                                    ? "border-accent bg-accent-soft"
-                                    : "border-line-strong bg-paper hover:border-accent"
-                                }`}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <strong className="mono text-[13px] text-fg">
-                                    {o.model}
-                                  </strong>
-                                  {isSelected && (
-                                    <span className="text-[10px] font-semibold text-accent">
-                                      Selected
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="mt-1 text-fg-3">
-                                  RPM <b className="mono text-fg-2">{o.outputRpm}</b>
-                                  {" · "}SF{" "}
-                                  <b className="mono text-fg-2">{num(o.serviceFactor)}</b>
-                                </div>
-                                <div className="text-fg-3">
-                                  Rate{" "}
-                                  <b className="mono text-fg-2">{num(o.ratePerNos)}</b>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
+                    <div key={source} className="mt-4">
+  <span className="section-label text-orange-800">{source}</span>
+
+  <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+    {opts.map((o) => {
+      const isSelected =
+        formData.gearboxSource === source &&
+        formData.gearboxModel === o.model &&
+        formData.gearboxOutputRpm === String(o.outputRpm);
+
+      return (
+        <button
+          type="button"
+          key={o.id}
+          onClick={() => selectGearbox(source, o)}
+          className={`group rounded-xl border p-3 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
+            isSelected
+              ? "border-orange-400 bg-orange-100 ring-2 ring-orange-300"
+              : "border-orange-200 bg-orange-50 hover:border-orange-300 hover:bg-orange-100"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <strong className="mono text-[14px] font-bold text-orange-900">
+              {o.model}
+            </strong>
+
+            {isSelected && (
+              <span className="rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-semibold text-white">
+                ✓ Selected
+              </span>
+            )}
+          </div>
+
+          <div className="mt-3 rounded-lg bg-white/70 p-2">
+            <div className="flex justify-between text-[12px]">
+              <span className="text-slate-500">Output RPM</span>
+              <b className="mono text-slate-800">{o.outputRpm}</b>
+            </div>
+
+            <div className="mt-1 flex justify-between text-[12px]">
+              <span className="text-slate-500">Service Factor</span>
+              <b className="mono text-slate-800">{num(o.serviceFactor)}</b>
+            </div>
+
+            <div className="mt-2 border-t border-orange-200 pt-2">
+              <div className="flex justify-between text-[12px]">
+                <span className="text-slate-500">Rate</span>
+                <b className="mono text-slate-800">{num(o.ratePerNos)}</b>
+              </div>
+            </div>
+          </div>
+        </button>
+      );
+    })}
+  </div>
+</div>
                     ),
                 )}
               </>
@@ -540,7 +553,9 @@ const DriveDetailsStep = ({
                     {vbelt.rpmLo.toFixed(0)}–{vbelt.rpmHi.toFixed(0)} rpm
                   </b>{" "}
                   (from its VE band at the duty point). Groove{" "}
-                  <b className="mono text-fg-2">{vbelt.grooves ?? "—"}</b>.
+                  <b className="mono text-fg-2 bg-orange-100 px-2 py-1">
+                    {vbelt.grooves ?? "—"}
+                  </b>.
                 </p>
                 {!vbelt.withinRange && (
                   <p className="mt-1 text-[12px] text-warn">
@@ -549,46 +564,69 @@ const DriveDetailsStep = ({
                   </p>
                 )}
 
-                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {vbelt.candidates.map((o) => {
-                    const isSelected =
-                      formData.driveVbeltGroove === (vbelt.grooves ?? "") &&
-                      formData.drivePumpPulley === (o.pumpPulley != null ? String(o.pumpPulley) : "") &&
-                      formData.driveVbeltRpm === (o.actualRpm != null ? String(o.actualRpm) : "") &&
-                      formData.driveVbeltNo === (o.vBelt != null ? String(o.vBelt) : "");
-                    return (
-                      <button
-                        type="button"
-                        key={o.targetRpm}
-                        onClick={() => selectVBelt(vbelt.grooves, o)}
-                        className={`rounded-lg border p-2 text-left text-[12px] transition-colors ${
-                          isSelected
-                            ? "border-accent bg-accent-soft"
-                            : "border-line-strong bg-paper hover:border-accent"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <strong className="mono text-[13px] text-fg">
-                            {num(o.actualRpm)} rpm
-                          </strong>
-                          {isSelected && (
-                            <span className="text-[10px] font-semibold text-accent">
-                              Selected
-                            </span>
-                          )}
-                        </div>
-                        <div className="mt-1 text-fg-3">
-                          Pump <b className="mono text-fg-2">{num(o.pumpPulley)}</b>
-                          {" · "}Motor <b className="mono text-fg-2">{num(o.motorPulley)}</b>
-                        </div>
-                        <div className="text-fg-3">
-                          Centre <b className="mono text-fg-2">{num(o.centerDistance)}</b>
-                          {" · "}Belt <b className="mono text-fg-2">{num(o.vBelt)}</b>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+                <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+  {vbelt.candidates.map((o) => {
+    const isSelected =
+      formData.driveVbeltGroove === (vbelt.grooves ?? "") &&
+      formData.drivePumpPulley ===
+        (o.pumpPulley != null ? String(o.pumpPulley) : "") &&
+      formData.driveVbeltRpm ===
+        (o.actualRpm != null ? String(o.actualRpm) : "") &&
+      formData.driveVbeltNo ===
+        (o.vBelt != null ? String(o.vBelt) : "");
+
+    return (
+      <button
+        type="button"
+        key={o.targetRpm}
+        onClick={() => selectVBelt(vbelt.grooves, o)}
+        className={`group rounded-xl border p-3 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
+          isSelected
+            ? "border-orange-400 bg-orange-100 ring-2 ring-orange-300"
+            : "border-orange-200 bg-orange-50 hover:border-orange-300 hover:bg-orange-100"
+        }`}
+      >
+        <div className="flex items-center justify-between">
+          <strong className="mono text-[14px] font-bold text-orange-900">
+            {num(o.actualRpm)} RPM
+          </strong>
+
+          {isSelected && (
+            <span className="rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-semibold text-white">
+              ✓ Selected
+            </span>
+          )}
+        </div>
+
+        <div className="mt-3 rounded-lg bg-white/70 p-2">
+          <div className="flex justify-between text-[12px]">
+            <span className="text-slate-500">Pump Pulley</span>
+            <b className="mono text-slate-800">{num(o.pumpPulley)}</b>
+          </div>
+
+          <div className="mt-1 flex justify-between text-[12px]">
+            <span className="text-slate-500">Motor Pulley</span>
+            <b className="mono text-slate-800">{num(o.motorPulley)}</b>
+          </div>
+
+          <div className="mt-2 border-t border-orange-200 pt-2">
+            <div className="flex justify-between text-[12px]">
+              <span className="text-slate-500">Centre Distance</span>
+              <b className="mono text-slate-800">
+                {num(o.centerDistance)}
+              </b>
+            </div>
+
+            <div className="mt-1 flex justify-between text-[12px]">
+              <span className="text-slate-500">V-Belt</span>
+              <b className="mono text-slate-800">{num(o.vBelt)}</b>
+            </div>
+          </div>
+        </div>
+      </button>
+    );
+  })}
+</div>
               </>
             )}
           </div>

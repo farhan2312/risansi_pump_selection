@@ -20,6 +20,13 @@ type Props = {
   onStepClick?: (step: number) => void;
 };
 
+// Combines a manual material selection with its open-remarks note into one
+// summary line, e.g. "SS304 (verify with client spec)".
+const withRemarks = (value?: string, remarks?: string): string | undefined => {
+  if (!value) return undefined;
+  return remarks ? `${value} (${remarks})` : value;
+};
+
 // Read-only summary step: the pump model was already picked + confirmed after
 // the Fluid step, so this just reviews the confirmed model and every spec
 // configured along the way. No re-picking here.
@@ -80,6 +87,14 @@ const RecommendationStep = ({ onPrevious, formData, onStepClick }: Props) => {
     ["Min. Acceptable MOC", formData.mocMinAcceptableMoc],
     ["Elastomer", formData.mocElastomer],
     ["MOC (Selected)", formData.mocFinalCode],
+    ["Bearing Housing MOC", withRemarks(formData.mocAiBearingHousing, formData.mocAiBearingHousingRemarks)],
+    ["Bearing Plate MOC", withRemarks(formData.mocAiBearingPlate, formData.mocAiBearingPlateRemarks)],
+    ["Tie Rod MOC", withRemarks(formData.mocAiTieRod, formData.mocAiTieRodRemarks)],
+    ["Nut & Bolt MOC", withRemarks(formData.mocAiNutBolt, formData.mocAiNutBoltRemarks)],
+    ["Pump Housing MOC", withRemarks(formData.mocAiPumpHousing, formData.mocAiPumpHousingRemarks)],
+    ["Rotor MOC", withRemarks(formData.mocAiRotor, formData.mocAiRotorRemarks)],
+    ["Shaft MOC", withRemarks(formData.mocAiShaft, formData.mocAiShaftRemarks)],
+    ["Stator Rubber", withRemarks(formData.mocAiStatorRubber, formData.mocAiStatorRubberRemarks)],
     ["Drive Motor Rating", formData.driveMotorKw ? `${formData.driveMotorKw} kW` : ""],
     ["Drive System", formData.driveSystem],
     ["Configuration", formData.gearedConfigType],

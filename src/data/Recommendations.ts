@@ -106,6 +106,26 @@ export interface PumpSelectionFormData {
   mocCode?: string; // manual MOC selection, 3-letter (e.g. "BBB") — defaults from mocRecommendedMoc
   mocRubberCode?: string; // manual Stator Rubber selection, 1-letter (e.g. "E")
   mocFinalCode?: string; // mocCode + mocRubberCode combined (e.g. "BBBE")
+  // Per-component MOC (manual selection, optionally seeded from the AI
+  // recommendation panel) — non-wettable components
+  mocAiBearingHousing?: string;
+  mocAiBearingHousingRemarks?: string;
+  mocAiBearingPlate?: string;
+  mocAiBearingPlateRemarks?: string;
+  mocAiTieRod?: string;
+  mocAiTieRodRemarks?: string;
+  mocAiNutBolt?: string;
+  mocAiNutBoltRemarks?: string;
+  // Wettable casting components
+  mocAiPumpHousing?: string;
+  mocAiPumpHousingRemarks?: string;
+  mocAiRotor?: string;
+  mocAiRotorRemarks?: string;
+  mocAiShaft?: string;
+  mocAiShaftRemarks?: string;
+  // Elastomer
+  mocAiStatorRubber?: string;
+  mocAiStatorRubberRemarks?: string;
   driveMotorKw?: string; // final drive motor rating (KW) chosen on the Motor Rating step
   // V-Belt drive recommendation (Drive step, only when Drive System = V-Belt Drive)
   driveVbeltGroove?: string;
