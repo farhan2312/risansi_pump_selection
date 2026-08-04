@@ -87,10 +87,10 @@ const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GE
 
 const PROMPT_INSTRUCTIONS = `What is the basic material of construction, elastomer, and gland \
 packing or mechanical seal recommended — the optimum material of construction (MOC) for a single \
-screw (progressive cavity) pump. Please recommend the most economical material that will provide \
+screw (progressive cavity) pump. Recommend the most economical material that will provide \
 reliable service. Avoid unnecessarily expensive materials.
 
-With the process data given below, decide whether economical materials such as cast iron, SS410, \
+With the process data given, decide whether economical materials such as cast iron, SS410, \
 and SS304 are adequate, or whether more corrosion- or wear-resistant options (e.g., SS316, duplex \
 stainless steel, hardened rotors, or specialty elastomers) are justified.`
 
@@ -151,8 +151,25 @@ export async function getMocAiSuggestion(
       context.solidType ? ` mm (${context.solidType})` : " mm",
     );
 
-  const prompt =
-    `${PROMPT_INSTRUCTIONS}\n\nProcess data:\n${processData || "(none provided yet)"}`;
+const prompt = `
+Recommend the optimum low-cost MOC for a progressive cavity pump.
+
+${JSON.stringify({
+  fluid: context.media,
+  ph: context.ph,
+  tempC: context.temperatureC,
+  viscosityCp: context.viscosityCp,
+  sg: context.sg,
+  flow: `${context.capacity} ${context.capacityUnit ?? ""}`,
+  solids: context.solidPct,
+  particleMm: context.solidSize,
+  particleType: context.solidType,
+})}
+`;
+
+
+ /* const prompt =
+    `${PROMPT_INSTRUCTIONS}\n\nProcess data:\n${processData || "(none provided yet)"}`;*/
 
   try {
     const res = await fetch(`${GEMINI_URL}?key=${encodeURIComponent(apiKey)}`, {

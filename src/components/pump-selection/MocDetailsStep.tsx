@@ -258,14 +258,14 @@ const MocDetailsStep = ({
 
         {(status === "ready" || status === "not-found") && (
           <div className="mt-4 rounded-md border border-line bg-elev p-4">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="mb-2 block text-[13px] font-semibold text-fg">
               <div>
                 <span className="section-label">AI Recommendation</span>
-                <p className="mt-1 text-[12px] text-fg-3">
+                <span className="mt-1 text-[12px] text-fg-3">
                   Per-component material of construction, elastomer, and sealing
                   — from media, pH, temperature, viscosity, SG, flow rate, and
                   solids/particle size entered so far.
-                </p>
+                </span>
               </div>
               <button
                 type="button"
@@ -273,7 +273,7 @@ const MocDetailsStep = ({
                 onClick={requestAiSuggestion}
                 className={`
     inline-flex items-center justify-center gap-2
-    rounded-lg px-5 py-2.5
+    rounded-lg px-5 py-2.5 mt-2
     text-sm font-semibold text-white
     bg-gradient-to-r from-emerald-600 to-green-500
     shadow-md transition-all duration-200
