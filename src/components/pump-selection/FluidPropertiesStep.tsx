@@ -219,20 +219,26 @@ const FluidPropertiesStep = ({
           </div>
         </div>
 
-        {needsBkAg(formData.viscosityRange, formData.solidPercentage) && (
-          <p className="mt-4 text-[12px] text-warn">
-            {formData.viscosityRange === ">10000"
-              ? "Viscosity above 10 000 cP"
-              : "Solids content > 0 %"}
-            {" "}— also recommend the <b>BK</b> and <b>AG</b> feed/construction
-            options. Pick one on the Specifications step.
-          </p>
-        )}
+ {needsBkAg(formData.viscosityRange, formData.solidPercentage) && (
+  <div className="mt-4 rounded-lg border border-orange-200 bg-orange-50 p-4">
+    <p className="text-sm font-semibold text-orange-900">
+      BK / AG Recommendation
+    </p>
+
+    <p className="mt-2 text-sm text-orange-800">
+      Based on the selected viscosity and/or solids content, it is recommended
+      to use the <strong>BK</strong> or <strong>AG</strong> feed/construction
+      option. Please select either <strong>BK</strong> or <strong>AG</strong> in
+      the <strong>Specifications</strong> step.
+    </p>
+  </div>
+)}
+
 
         {!formData.modelConfirmed && (
-          <p className="mt-4 text-[12px] text-warn">
+          <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
             Pick a pump model in the recommendation panel below and confirm it to continue.
-          </p>
+          </div>
         )}
 
         <div className={actions}>

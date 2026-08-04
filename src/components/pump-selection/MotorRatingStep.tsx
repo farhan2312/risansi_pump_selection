@@ -118,7 +118,7 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
               </div>
               <p className="mt-2 text-[12px] text-fg-3">
                 BKW = Capacity × Head ÷ 367 ÷ (ME ÷ 100), at nearest charted head{" "}
-                {rating.headMwc} MWC. Recommendation = nearest pulley-table KW ≥ Motor KW
+                {rating.headMwc} MWC. Recommendation = nearest standard motor KW ≥ Motor KW
                 {rating.minKwTested !== null
                   ? `, within Min KW tested (${rating.minKwTested}).`
                   : "."}
@@ -165,8 +165,8 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
                 )}
                 <span className={hint}>
                   {hasKwOptions
-                    ? "Final selection is manual — from the pulley table for this model."
-                    : "No V-belt pulley data for this model — enter the motor KW manually."}
+                    ? "Final selection is manual — every standard KW rating above Motor KW."
+                    : "No standard KW rating above Motor KW for this duty — enter the motor KW manually."}
                 </span>
               </div>
             </div>

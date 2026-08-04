@@ -17,7 +17,7 @@ export interface VBeltDrive {
   grooves: string | null;
   rpmLo: number;
   rpmHi: number;
-  recommended: VBeltOption | null;
+  candidates: VBeltOption[];
   withinRange: boolean;
   options: VBeltOption[];
 }

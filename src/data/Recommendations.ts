@@ -88,8 +88,18 @@ export interface PumpSelectionFormData {
   gearboxMake?: string;
   motorRPM?: string;
   gearBoxType?: string; // HISO / SISO — Geared Motor Drive only
-  gearBoxMounting?: string; // Foot Mount B3 / Flange Mount B5 / Foot cum Flange B35 — Geared Motor Drive only
+  gearedConfigType?: string; // "Geared Motor" | "Gear Box + Motor" — cascades mounting + coupling below
+  gbConstructionType?: string; // IN LINE HELICAL / PLANTERY — Geared Motor Drive only
+  gearBoxMounting?: string; // Foot Mount B3 (Gear Box + Motor) / Flange Mount B5 / Foot cum Flange B35 (Geared Motor) — cascades on gearedConfigType
+  driveCoupling?: string; // derived from gearedConfigType: "Drive Coupling + Driven Coupling" (Gear Box + Motor) / "Driven Coupling" (Geared Motor)
   asfRange?: string; // Application Service Factor band — Geared Motor Drive only
+  // Gearbox drive recommendation (manual pick from PBL/PTL/Top Gear masters,
+  // screened by RPM window ±20% + Motor KW; narrowed by ASF Range + GB Type)
+  gearboxSource?: string; // "PBL" | "PTL" | "Top Gear" — which master the pick came from
+  gearboxModel?: string;
+  gearboxOutputRpm?: string;
+  gearboxServiceFactor?: string;
+  gearboxRatePerNos?: string;
   mocRecommendedMoc?: string; // system-computed from moc_recommendation (media/pH/temp lookup)
   mocMinAcceptableMoc?: string;
   mocElastomer?: string;

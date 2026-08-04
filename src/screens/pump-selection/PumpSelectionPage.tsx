@@ -104,8 +104,16 @@ const PumpSelectionPage = () => {
     gearboxMake: "",
     motorRPM: "",
     gearBoxType: "", // HISO / SISO — Geared Motor Drive only
-    gearBoxMounting: "", // Foot Mount B3 / Flange Mount B5 / Foot cum Flange B35 — Geared Motor Drive only
+    gearedConfigType: "", // "Geared Motor" | "Gear Box + Motor" — cascades mounting + coupling below
+    gbConstructionType: "", // IN LINE HELICAL / PLANTERY — Geared Motor Drive only
+    gearBoxMounting: "", // Foot Mount B3 / Flange Mount B5 / Foot cum Flange B35 — cascades on gearedConfigType
+    driveCoupling: "", // derived from gearedConfigType
     asfRange: "", // Application Service Factor band — Geared Motor Drive only
+    gearboxSource: "", // "PBL" | "PTL" | "Top Gear" — manual gearbox pick
+    gearboxModel: "",
+    gearboxOutputRpm: "",
+    gearboxServiceFactor: "",
+    gearboxRatePerNos: "",
 
     // Step 4
     sealingType: "",

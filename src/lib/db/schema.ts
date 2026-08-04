@@ -308,6 +308,14 @@ export const pblGearbox = pgTable("pbl_gearbox", gearboxColumns());
 export const ptlGearbox = pgTable("ptl_gearbox", gearboxColumns());
 export const topGearGearbox = pgTable("top_gear_gearbox", gearboxColumns());
 
+// Standard motor rating (KW ↔ HP) reference, from "MOTOR RATING.xlsx" — 25
+// rows, one KW value per row with its standard HP equivalent. kw is unique.
+export const motorRating = pgTable("motor_rating", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  kw: numeric("kw", { precision: 8, scale: 3 }).notNull().unique(),
+  hp: numeric("hp", { precision: 8, scale: 2 }).notNull(),
+});
+
 /*export const performanceCurve = pgTable("performance_curve", {
   id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   model: varchar("model", { length: 100 }).notNull(),

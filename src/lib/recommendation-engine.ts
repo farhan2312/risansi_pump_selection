@@ -287,9 +287,12 @@ export interface MotorRating {
   motorKw: number | null;
   /** Cap: the model's "Min KW so far tested". Null if not recorded. */
   minKwTested: number | null;
-  /** Distinct motor-KW options for this model from the pulley table, sorted. */
+  /** Standard motor KW ratings (from motor_rating) that exceed Motor KW
+   *  (BKW × 1.2) — every size actually adequate for the load with its safety
+   *  margin, for manual override. */
   kwOptions: number[];
-  /** Smallest pulley KW >= motorKw (or the largest available if none reach it). */
+  /** Nearest standard KW (from kwOptions) >= Motor KW (or the largest
+   *  available if none reach it). */
   recommendedKw: number | null;
   /** True when recommendedKw exceeds minKwTested — recommend it anyway, but flag. */
   exceedsMinTested: boolean;
@@ -300,11 +303,14 @@ export interface MotorRating {
  *   ME  = selected model's mechanical efficiency at the duty head
  *   BKW = Capacity × Head / 367 / (ME/100)          ("BKW as per tested ME")
  *   Motor KW = BKW × 1.20                            (safety margin)
- *   Recommendation = nearest next-highest KW from the pulley table for this
- *     model that is >= Motor KW; normally within "Min KW so far tested", but
- *     if the load needs more than that cap the recommendation is shown anyway
- *     and flagged (exceedsMinTested).
- * Final KW selection is manual, from the pulley-table KW dropdown.
+ *   Recommendation = nearest next-highest standard KW rating (from
+ *     motor_rating) that is >= Motor KW; normally within "Min KW so far
+ *     tested", but if the load needs more than that cap the recommendation is
+ *     shown anyway and flagged (exceedsMinTested). The dropdown offered for
+ *     manual override shows every standard KW rating above Motor KW (the
+ *     1.2x-padded figure, not raw BKW), so every option offered already
+ *     carries the safety margin.
+ * Final KW selection is manual, from the dropdown.
  */
 export async function computeMotorRating(
   db: Db,
@@ -331,19 +337,20 @@ export async function computeMotorRating(
     motorKw = bkw * 1.2;
   }
 
-  const kwRows = await db
-    .selectDistinct({ kw: schema.pulleyMotorOption.motorKw })
-    .from(schema.pulleyMotorOption)
-    .where(eq(schema.pulleyMotorOption.model, model));
-  const kwOptions = [...new Set(kwRows.map((r) => toNum(r.kw)).filter((k) => k > 0))].sort(
+  const ratingRows = await db.select({ kw: schema.motorRating.kw }).from(schema.motorRating);
+  const allKw = [...new Set(ratingRows.map((r) => toNum(r.kw)).filter((k) => k > 0))].sort(
     (a, b) => a - b,
   );
+  // Only standard sizes that exceed Motor KW (BKW × 1.2) are offered —
+  // anything at or below that already lacks the required safety margin.
+  const kwOptions = motorKw !== null ? allKw.filter((k) => k > motorKw) : allKw;
 
   let recommendedKw: number | null = null;
   let exceedsMinTested = false;
   if (motorKw !== null && kwOptions.length > 0) {
-    // Smallest pulley KW that meets the load; if none reach it, the largest
-    // available (best effort — the caller/UI can flag under-sizing).
+    // Nearest standard size that meets the load with its safety margin; if
+    // none reach it, the largest available (best effort — the caller/UI can
+    // flag under-sizing).
     recommendedKw = kwOptions.find((k) => k >= motorKw) ?? kwOptions[kwOptions.length - 1];
     if (minKwTested !== null && recommendedKw > minKwTested) exceedsMinTested = true;
   }
@@ -385,35 +392,36 @@ export interface VBeltDrive {
   /** Pump's required speed window at the duty point (from its VE band). */
   rpmLo: number;
   rpmHi: number;
-  /** The recommended belt option (nearest to the required window). */
-  recommended: VBeltOption | null;
-  /** True if the recommendation's actual RPM lands inside [rpmLo, rpmHi];
-   *  false means no belt hit the window exactly, so the nearest was taken. */
+  /** Belt options to show as recommendation cards: every option whose
+   *  achieved speed falls inside [rpmLo, rpmHi] — or, if none do, just the
+   *  single nearest option as a "next best" fallback. No auto-pick beyond
+   *  that; final selection is manual, same as pump model screening. */
+  candidates: VBeltOption[];
+  /** True when `candidates` are genuine in-range matches; false means it's
+   *  the next-best fallback (no belt landed inside the window). */
   withinRange: boolean;
-  /** Every belt option for the matched motor option — lets the UI show the
-   *  full table and lets the user override the pick. */
+  /** Every belt option for the matched motor option, unfiltered. */
   options: VBeltOption[];
 }
 
+interface PumpRpmWindow {
+  rpmLo: number;
+  rpmHi: number;
+}
+
 /**
- * V-Belt drive selection (Drive Details step, only when Drive System =
- * "V-Belt Drive"). Per the spec: after the motor RPM (960/1440) is chosen,
- * take the selected model + its motor KW (from the Motor Rating step) to find
- * the matching pulley/belt set, then pick the belt whose resulting pump speed
- * falls inside the pump's required RPM window [rpmLo, rpmHi] (derived from the
- * model's VE band at the duty point, same formula as findCandidates). The
- * pulley master offers discrete belt ratios (target RPMs 180/220/260/300/…);
- * if none lands inside the window, the nearest one is taken and flagged as a
- * "next best" pick (withinRange=false).
+ * The pump's required output-speed window at a duty point, derived from its
+ * VE band: RPM = 100 × Q / (QTH × VE). Higher VE ⇒ lower speed, so VOLE MAX
+ * gives the low end of the window and VOLE MIN the high end. Shared by every
+ * drive-selection calculation (V-Belt, Gearbox) that needs to match a duty
+ * point against a catalog's discrete speed options.
  */
-export async function computeVBeltDrive(
+async function computePumpRpmWindow(
   db: Db,
   model: string,
-  capacityM3hr: number,
   headMwc: number,
-  motorRpm: number,
-  motorKw: number,
-): Promise<VBeltDrive | null> {
+  capacityM3hr: number,
+): Promise<PumpRpmWindow | null> {
   const rows = await db
     .select()
     .from(schema.pumpModelMaster)
@@ -428,10 +436,35 @@ export async function computeVBeltDrive(
   const voleMaxPct = toNumOrNull(nearest.voleMax);
   if (!qth || qth <= 0 || !voleMinPct || !voleMaxPct) return null;
 
-  // RPM = 100 × Q / (QTH × VE). Higher VE ⇒ lower speed, so VOLE MAX gives the
-  // low end of the window and VOLE MIN the high end.
-  const rpmLo = (100 * capacityM3hr) / (qth * (voleMaxPct / 100));
-  const rpmHi = (100 * capacityM3hr) / (qth * (voleMinPct / 100));
+  return {
+    rpmLo: (100 * capacityM3hr) / (qth * (voleMaxPct / 100)),
+    rpmHi: (100 * capacityM3hr) / (qth * (voleMinPct / 100)),
+  };
+}
+
+/**
+ * V-Belt drive selection (Drive Details step, only when Drive System =
+ * "V-Belt Drive"). Per the spec: after the motor RPM (960/1440) is chosen,
+ * take the selected model + its motor KW (from the Motor Rating step) to find
+ * the matching pulley/belt set, then screen every belt option against the
+ * pump's required RPM window [rpmLo, rpmHi] (derived from the model's VE band
+ * at the duty point, same formula as findCandidates). The pulley master
+ * offers discrete belt ratios (target RPMs 180/220/260/300/…); every option
+ * landing inside the window is returned as a candidate for manual selection —
+ * if none land inside it, the single nearest option is returned instead as a
+ * "next best" fallback (withinRange=false).
+ */
+export async function computeVBeltDrive(
+  db: Db,
+  model: string,
+  capacityM3hr: number,
+  headMwc: number,
+  motorRpm: number,
+  motorKw: number,
+): Promise<VBeltDrive | null> {
+  const window = await computePumpRpmWindow(db, model, headMwc, capacityM3hr);
+  if (!window) return null;
+  const { rpmLo, rpmHi } = window;
 
   // Match the motor option by (model, motorRpm, motorKw). motor_kw is a pg
   // NUMERIC (string) — compare numerically, not by string equality.
@@ -456,7 +489,7 @@ export async function computeVBeltDrive(
       grooves: null,
       rpmLo,
       rpmHi,
-      recommended: null,
+      candidates: [],
       withinRange: false,
       options: [],
     };
@@ -482,28 +515,30 @@ export async function computeVBeltDrive(
   // nominal target RPM if a row somehow lacks an actual figure.
   const speed = (o: VBeltOption) => o.actualRpm ?? o.targetRpm;
 
-  // Prefer a belt whose pump speed lands inside the window; among those, the
-  // slowest adequate one (PCP pumps run best slow). Otherwise take the belt
-  // nearest to the window — ties break toward the faster option so the duty
-  // flow is met rather than under-delivered — and flag it as "next best".
+  // Every belt whose pump speed lands inside the window is a candidate — no
+  // single auto-pick, selection is manual (per spec, same as pump model
+  // screening). If none land inside it, fall back to the single nearest
+  // option as a "next best" — ties break toward the faster option so the
+  // duty flow is met rather than under-delivered.
   const inRange = options.filter((o) => speed(o) >= rpmLo && speed(o) <= rpmHi);
-  let recommended: VBeltOption | null = null;
+  let candidates: VBeltOption[] = [];
   let withinRange = false;
   if (inRange.length > 0) {
-    recommended = inRange[0]; // options are sorted ascending by speed
+    candidates = inRange; // already sorted ascending by speed
     withinRange = true;
   } else if (options.length > 0) {
     const dist = (o: VBeltOption) => {
       const s = speed(o);
       return s < rpmLo ? rpmLo - s : s - rpmHi;
     };
-    recommended = options.reduce((best, o) => {
+    const nextBest = options.reduce((best, o) => {
       const d = dist(o);
       const bd = dist(best);
       if (d < bd) return o;
       if (d === bd) return speed(o) > speed(best) ? o : best;
       return best;
     });
+    candidates = [nextBest];
     withinRange = false;
   }
 
@@ -514,8 +549,130 @@ export async function computeVBeltDrive(
     grooves: motorOption.grooves,
     rpmLo,
     rpmHi,
-    recommended,
+    candidates,
     withinRange,
     options,
+  };
+}
+
+// --- Gearbox drive recommendation (PBL / PTL / Top Gear) --------------------
+
+export interface GearboxOption {
+  id: string;
+  powerRatingRaw: string;
+  powerRatingKw: number | null;
+  outputRpm: number;
+  model: string;
+  gearBoxType: string | null;
+  serviceFactor: number | null;
+  ratePerNos: number | null;
+}
+
+export interface GearboxRecommendation {
+  model: string;
+  motorKw: number;
+  /** Pump's required speed window at the duty point (from its VE band). */
+  rpmLo: number;
+  rpmHi: number;
+  /** rpmLo/rpmHi widened ±20% — catalog gearboxes only offer discrete output
+   *  RPMs, so a hard window would exclude every option. This is the window
+   *  candidates are actually screened against. */
+  rpmLoPadded: number;
+  rpmHiPadded: number;
+  pbl: GearboxOption[];
+  ptl: GearboxOption[];
+  topGear: GearboxOption[];
+}
+
+// ASF Range bands, matching the Drive Details step's ASF Range dropdown.
+const ASF_BANDS: Record<string, [number, number]> = {
+  "1.4-2": [1.4, 2],
+  "2+": [2, Infinity],
+};
+
+type GearboxRow = {
+  id: string;
+  powerRatingRaw: string;
+  powerRatingKw: string | null;
+  outputRpm: string;
+  model: string;
+  gearBoxType: string | null;
+  serviceFactor: string | null;
+  ratePerNos: string | null;
+};
+
+function toGearboxOption(row: GearboxRow): GearboxOption {
+  return {
+    id: row.id,
+    powerRatingRaw: row.powerRatingRaw,
+    powerRatingKw: toNumOrNull(row.powerRatingKw),
+    outputRpm: toNum(row.outputRpm),
+    model: row.model,
+    gearBoxType: row.gearBoxType,
+    serviceFactor: toNumOrNull(row.serviceFactor),
+    ratePerNos: toNumOrNull(row.ratePerNos),
+  };
+}
+
+/**
+ * Gearbox drive recommendation (Drive Details step, only when Drive System =
+ * Geared Motor Drive/Gear Box + Motor). Per spec: candidates are screened
+ * from the PBL / PTL / Top Gear masters by (a) the pump's required RPM
+ * window (VE-band derived, same calc as V-Belt) widened ±20% — the catalogs
+ * only offer discrete output RPMs, so a hard window would exclude everything
+ * — and (b) an exact match on the motor KW chosen on the Motor Rating step.
+ * ASF Range and GB Type are optional additional filters that narrow the
+ * already-screened list once the user picks them on this step, rather than
+ * gating the initial screen — selection stays fully manual, same as pump
+ * model screening (no auto-pick/ranking, every match is returned).
+ */
+export async function findGearboxOptions(
+  db: Db,
+  model: string,
+  capacityM3hr: number,
+  headMwc: number,
+  motorKw: number,
+  asfRange: string | null = null,
+  gbConstructionType: string | null = null,
+): Promise<GearboxRecommendation | null> {
+  const window = await computePumpRpmWindow(db, model, headMwc, capacityM3hr);
+  if (!window) return null;
+  const { rpmLo, rpmHi } = window;
+  const rpmLoPadded = rpmLo * 0.8;
+  const rpmHiPadded = rpmHi * 1.2;
+
+  const asfBand = asfRange ? (ASF_BANDS[asfRange] ?? null) : null;
+
+  const matches = (row: GearboxRow): boolean => {
+    const rpm = toNum(row.outputRpm);
+    if (rpm < rpmLoPadded || rpm > rpmHiPadded) return false;
+    const kw = toNumOrNull(row.powerRatingKw);
+    if (kw === null || Math.abs(kw - motorKw) > 0.01) return false;
+    if (asfBand) {
+      const sf = toNumOrNull(row.serviceFactor);
+      if (sf === null || sf < asfBand[0] || sf > asfBand[1]) return false;
+    }
+    if (gbConstructionType && row.gearBoxType !== gbConstructionType) return false;
+    return true;
+  };
+
+  const byOutputRpm = (a: GearboxOption, b: GearboxOption) => a.outputRpm - b.outputRpm;
+
+  const [pblRows, ptlRows, topGearRows] = await Promise.all([
+    db.select().from(schema.pblGearbox),
+    db.select().from(schema.ptlGearbox),
+    db.select().from(schema.topGearGearbox),
+  ]);
+
+  return {
+    model,
+    motorKw,
+    rpmLo,
+    rpmHi,
+    rpmLoPadded,
+    rpmHiPadded,
+    pbl: pblRows.filter(matches).map(toGearboxOption).sort(byOutputRpm),
+    ptl: ptlRows.filter(matches).map(toGearboxOption).sort(byOutputRpm),
+    topGear: topGearRows.filter(matches).map(toGearboxOption).sort(byOutputRpm),
   };
 }
