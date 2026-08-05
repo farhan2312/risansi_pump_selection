@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 
 import GeneralInformationStep from "../../components/pump-selection/GeneralInformationStep";
 import FluidPropertiesStep from "../../components/pump-selection/FluidPropertiesStep";
@@ -13,6 +14,7 @@ import RecommendationStep from "../../components/pump-selection/RecommendationSt
 import ProjectHeader from "../../components/projects/ProjectHeader";
 import LivePumpRecommendation from "../../components/pump-selection/LivePumpRecommendation";
 import { SELECTED_PROJECT_KEY } from "../projects/ProjectsPage";
+import { getProject } from "../../services/projectService";
 import {
   getPumpSelectionInput,
   savePumpSelectionInput,
@@ -26,8 +28,11 @@ type SelectedProject = {
   status?: string;
 };
 
-// Steps 1-4 fields autosaved to pump_selection_input, keyed by project. Kept
-// in sync with the FIELDS whitelist in api/pump-selection-input/route.ts.
+// General/Fluid/Operating Conditions/Sealing fields autosaved to
+// pump_selection_input, keyed by project (MOC and everything after it is
+// re-derived live, not persisted here) — field-based, not step-number-based,
+// so this list doesn't need to change if the step order does. Kept in sync
+// with the FIELDS whitelist in api/pump-selection-input/route.ts.
 const AUTOSAVE_FIELDS = [
   "capacity", "capacityUnit", "head", "headUnit", "media",
   "temperature", "temperatureRaw", "temperatureUnit", "sg", "ph",
@@ -47,18 +52,56 @@ const pickAutosaveFields = (data: any): Record<string, unknown> => {
 
 const PumpSelectionPage = () => {
   // Replaces react-router's location.state.project — read the project stashed
-  // by ProjectsPage before navigating here.
+  // by ProjectsPage before navigating here. `projectChecked` gates the "no
+  // project selected" screen so it can't flash before this client-only read
+  // (sessionStorage) has actually run. sessionStorage is just a snapshot from
+  // whenever "Open" was last clicked — it doesn't know if the project has
+  // since been deleted, so it's re-validated against the DB below; `wasDeleted`
+  // distinguishes that case from "never picked one" for the empty-state copy.
   const [project, setProject] = useState<SelectedProject | undefined>(undefined);
+  const [projectChecked, setProjectChecked] = useState(false);
+  const [wasDeleted, setWasDeleted] = useState(false);
 
   useEffect(() => {
     const raw = sessionStorage.getItem(SELECTED_PROJECT_KEY);
-    if (raw) {
-      try {
-        setProject(JSON.parse(raw));
-      } catch {
-        setProject(undefined);
-      }
+    if (!raw) {
+      setProjectChecked(true);
+      return;
     }
+    let stashed: SelectedProject | undefined;
+    try {
+      stashed = JSON.parse(raw);
+    } catch {
+      stashed = undefined;
+    }
+    if (!stashed?.id) {
+      setProjectChecked(true);
+      return;
+    }
+    let cancelled = false;
+    getProject(stashed.id)
+      .then((live) => {
+        if (cancelled) return;
+        if (live) {
+          setProject(stashed);
+        } else {
+          // Deleted since it was picked — drop the stale cache so a future
+          // visit doesn't keep showing it either.
+          sessionStorage.removeItem(SELECTED_PROJECT_KEY);
+          setWasDeleted(true);
+        }
+      })
+      .catch(() => {
+        // Network/auth error — fail closed to the stashed copy rather than
+        // silently dropping a still-valid project the user picked.
+        if (!cancelled) setProject(stashed);
+      })
+      .finally(() => {
+        if (!cancelled) setProjectChecked(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const [step, setStep] = useState(1);
@@ -259,7 +302,7 @@ const PumpSelectionPage = () => {
 
       case 4:
         return (
-          <SealingDetailsStep
+          <MocDetailsStep
             onPrevious={() => goToStep(3)}
             onNext={() => goToStep(5)}
             formData={formData}
@@ -270,7 +313,7 @@ const PumpSelectionPage = () => {
 
       case 5:
         return (
-          <MocDetailsStep
+          <SealingDetailsStep
             onPrevious={() => goToStep(4)}
             onNext={() => goToStep(6)}
             formData={formData}
@@ -323,6 +366,32 @@ const PumpSelectionPage = () => {
         );
     }
   };
+
+  // Wait for the client-only sessionStorage check before deciding whether to
+  // show the wizard or the "no project" screen — avoids a flash.
+  if (projectChecked && !project) {
+    return (
+      <div className="mx-auto flex max-w-lg flex-col items-center gap-4 px-6 py-24 text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-elev text-2xl">
+          📁
+        </div>
+        <h2 className="text-[18px] font-semibold text-fg">
+          {wasDeleted ? "This project was deleted" : "No project selected"}
+        </h2>
+        <p className="text-[13px] text-fg-3">
+          {wasDeleted
+            ? "The project you had open has since been deleted. Open or create another one from the Projects page."
+            : "Pump selection is tied to a project. Open or create one from the Projects page, then click “Open” to start configuring a pump for it."}
+        </p>
+        <Link
+          href="/projects"
+          className="mt-2 rounded-lg bg-title px-6 py-2.5 text-[14px] font-semibold text-white transition-opacity hover:opacity-90"
+        >
+          Go to Projects
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <>

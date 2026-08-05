@@ -95,12 +95,19 @@
 
 .pmm-actions-col {
   text-align: right;
+  width: 1%;
+}
+
+.pmm-table td:last-child {
+  text-align: right;
 }
 
 .pmm-row-actions {
   display: flex;
+  flex-wrap: nowrap;
   gap: 6px;
   justify-content: flex-end;
+  align-items: center;
 }
 
 .pmm-btn {
@@ -111,6 +118,8 @@
   color: var(--fg-2);
   font-size: 12px;
   font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
   cursor: pointer;
 }
 

@@ -90,7 +90,13 @@ export interface MocComponentSuggestions {
   shaft: string;
   statorRubber: string;
   sealRecommendation: string;
-  rationale: string;
+  /** Short (1-2 sentence) reason for the seal pick specifically. */
+  sealRationale: string;
+  /** Detailed multi-paragraph engineering report — rendered in the Summary
+   * panel and exported to PDF. */
+  summary: string;
+  /** 1-3 alternative material/elastomer combinations with trade-off notes. */
+  alternatives: string;
 }
 
 /** Advisory AI-generated per-component MOC/elastomer/sealing suggestion (not

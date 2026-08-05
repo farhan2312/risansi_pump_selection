@@ -59,7 +59,7 @@ const SealingDetailsStep = ({
 
   return (
     <div className="step-container">
-      <Stepper currentStep={4} onStepClick={onStepClick} />
+      <Stepper currentStep={5} onStepClick={onStepClick} />
 
       <div className="step-card">
         <h2>Sealing Details</h2>

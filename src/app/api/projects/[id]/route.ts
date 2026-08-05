@@ -29,6 +29,27 @@ function textOrNull(v: unknown): string | null {
   return String(v).trim();
 }
 
+export async function GET(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const denied = guardAuth(req);
+  if (denied) return denied;
+
+  const { id } = await params;
+  if (!UUID_RE.test(id)) return error("Invalid project id", 400);
+
+  const [project] = await db
+    .select({ project: projects, createdByName: users.name })
+    .from(projects)
+    .leftJoin(users, eq(projects.createdBy, users.id))
+    .where(eq(projects.id, id))
+    .limit(1);
+  if (!project) return error("Project not found", 404);
+
+  return json(projectToDict(project.project, project.createdByName));
+}
+
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },

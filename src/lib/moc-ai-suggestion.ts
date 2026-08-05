@@ -9,16 +9,14 @@
  * Uses Google's Gemini API (free tier via Google AI Studio) over plain
  * fetch — no SDK dependency. Requires GEMINI_API_KEY.
  *
- * Component breakdown and material/elastomer option lists are per the user's
- * spec sheet: non-wettable components (Bearing Housing, Bearing Plate, Tie
- * Rod, Nut & Bolt) and wettable-casting components (Pump Housing, Rotor,
- * Shaft) both draw from the same 10-material list; the stator rubber draws
- * from a separate 7-item elastomer list. The engineering prompt itself is
- * the user's own wording (economical-first PCP MOC selection), scoped to
- * only the process data this wizard actually collects today — more
- * attributes (chemical composition, differential pressure, abrasiveness/
- * corrosiveness ratings, required speed, duty cycle, industry standard) are
- * intentionally left out until the form collects them.
+ * Component breakdown is per the user's spec sheet: non-wettable components
+ * (Bearing Housing, Bearing Plate, Tie Rod, Nut & Bolt) and wettable-casting
+ * components (Pump Housing, Rotor, Shaft), plus the stator rubber elastomer.
+ * MOC_AI_MATERIALS / MOC_AI_ELASTOMERS below are the options offered in the
+ * UI's *manual* dropdowns — they are NOT a hard constraint on the AI's own
+ * answer. The AI is free to recommend something outside those lists (e.g. an
+ * exotic alloy) when the media genuinely calls for it; it's told to say so
+ * explicitly rather than being forced into the closest list entry.
  */
 
 export const MOC_AI_MATERIALS = [
@@ -73,7 +71,10 @@ export interface MocComponentSuggestions {
   statorRubber: string;
   // Sealing
   sealRecommendation: string;
-  rationale: string;
+  sealRationale: string;
+  // Report content (rendered in the UI's Summary panel and exported to PDF)
+  summary: string;
+  alternatives: string;
 }
 
 // "gemini-2.0-flash" returns 429 RESOURCE_EXHAUSTED (limit: 0) on the free
@@ -85,43 +86,70 @@ export interface MocComponentSuggestions {
 const GEMINI_MODEL = "gemini-flash-latest";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
-const PROMPT_INSTRUCTIONS = `What is the basic material of construction, elastomer, and gland \
-packing or mechanical seal recommended — the optimum material of construction (MOC) for a single \
-screw (progressive cavity) pump. Recommend the most economical material that will provide \
-reliable service. Avoid unnecessarily expensive materials.
+const PROMPT_INSTRUCTIONS = `You are a senior rotating-equipment engineer selecting the material \
+of construction (MOC), stator elastomer, and shaft seal for a progressive cavity (single screw) \
+pump, for an economical-first sales engineering tool.
 
-With the process data given, decide whether economical materials such as cast iron, SS410, \
-and SS304 are adequate, or whether more corrosion- or wear-resistant options (e.g., SS316, duplex \
-stainless steel, hardened rotors, or specialty elastomers) are justified.`
+Guiding principle: recommend the most economical materials that will give reliable service for \
+the stated duty — do not over-specify. Cast Iron / Mild Steel / SS410 / SS304 are perfectly \
+correct answers for mild, non-corrosive, low-temperature duty; reach for SS316, duplex stainless \
+(SDSS 2507 / DSS 2505), Hastelloy, or specialty elastomers only when the process data actually \
+justifies it (corrosivity, temperature, oxidizers, chlorides, hazard).
 
-/*Not all process data that could inform this decision has been collected yet by this form (chemical \
-composition, differential pressure, particle abrasiveness/corrosiveness ratings, required pump \
-speed, duty cycle, and applicable industry standard are not yet available) — use only the process \
-data actually given below, plus standard PCP engineering judgment, and note in your rationale if \
-missing data would materially change the recommendation.
+Component reference (for material components — housings, structural fasteners, rotor, shaft):
+${MOC_AI_MATERIALS.join(", ")}. This is a reference list of what's normally stocked, not a hard
+constraint — if the duty genuinely calls for something outside it (e.g. an exotic alloy, a coated
+or lined option, PTFE, etc.), recommend that instead and say explicitly why the standard list
+isn't sufficient.
 
-You must choose the metal components (bearingHousing, bearingPlate, tieRod, nutBolt, pumpHousing, \
-rotor, shaft) ONLY from this material list: ${MOC_AI_MATERIALS.join(", ")}.
-You must choose statorRubber ONLY from this elastomer list: ${MOC_AI_ELASTOMERS.join(", ")}.
-You must choose sealRecommendation ONLY from: ${MOC_AI_SEAL_TYPES.join(", ")}.`;*/
+Elastomer reference: ${MOC_AI_ELASTOMERS.join(", ")}. Same rule — recommend outside this list only
+when justified, and explain why.
+
+Seal: choose exactly one of "${MOC_AI_SEAL_TYPES[0]}" or "${MOC_AI_SEAL_TYPES[1]}". Mechanical
+seal for corrosive (high/very high), hazardous/toxic/flammable, or high-temperature (>100°C) duty
+— near-zero leakage. Gland packing for mild, non-hazardous, general/utility duty where minor
+leakage is tolerable and cost matters.
+
+Not all process data that could refine this decision has been collected yet (chemical
+composition, differential pressure, particle abrasiveness/corrosiveness ratings, required pump
+speed, duty cycle, applicable industry standard) — use only the data given below plus standard
+PCP engineering judgment, and note in the summary if a missing datum would materially change the
+recommendation.
+
+Respond with:
+- The 8 component picks (bearingHousing, bearingPlate, tieRod, nutBolt, pumpHousing, rotor, shaft,
+  statorRubber) — each a short material name, e.g. "SS316".
+- sealRecommendation — exactly one of the two seal options above.
+- sealRationale — 1-2 sentences on why that seal type, specific to this duty.
+- summary — a detailed, well-organized engineering report (3-5 short paragraphs) covering: the
+  overall metallurgy/elastomer logic for this duty (why these picks, grouped by wetted vs.
+  structural parts rather than repeating every component one-by-one), the key process drivers
+  (corrosivity, temperature, hazard, cost), and any caveats from missing process data. Write it as
+  something a sales engineer could hand to a customer, not just a list.
+- alternatives — 1-3 concrete alternative material/elastomer combinations worth considering (e.g.
+  a lower-cost fallback, or a more resistant upgrade path), each with a one-line note on the
+  trade-off (cost vs. durability vs. availability). Plain text, not JSON.`;
 
 const RESPONSE_SCHEMA = {
   type: "object",
   properties: {
-    bearingHousing: { type: "string", enum: [...MOC_AI_MATERIALS] },
-    bearingPlate: { type: "string", enum: [...MOC_AI_MATERIALS] },
-    tieRod: { type: "string", enum: [...MOC_AI_MATERIALS] },
-    nutBolt: { type: "string", enum: [...MOC_AI_MATERIALS] },
-    pumpHousing: { type: "string", enum: [...MOC_AI_MATERIALS] },
-    rotor: { type: "string", enum: [...MOC_AI_MATERIALS] },
-    shaft: { type: "string", enum: [...MOC_AI_MATERIALS] },
-    statorRubber: { type: "string", enum: [...MOC_AI_ELASTOMERS] },
+    bearingHousing: { type: "string" },
+    bearingPlate: { type: "string" },
+    tieRod: { type: "string" },
+    nutBolt: { type: "string" },
+    pumpHousing: { type: "string" },
+    rotor: { type: "string" },
+    shaft: { type: "string" },
+    statorRubber: { type: "string" },
     sealRecommendation: { type: "string", enum: [...MOC_AI_SEAL_TYPES] },
-    rationale: { type: "string" },
+    sealRationale: { type: "string" },
+    summary: { type: "string" },
+    alternatives: { type: "string" },
   },
   required: [
     "bearingHousing", "bearingPlate", "tieRod", "nutBolt",
-    "pumpHousing", "rotor", "shaft", "statorRubber", "sealRecommendation", "rationale",
+    "pumpHousing", "rotor", "shaft", "statorRubber",
+    "sealRecommendation", "sealRationale", "summary", "alternatives",
   ],
 };
 
@@ -151,25 +179,8 @@ export async function getMocAiSuggestion(
       context.solidType ? ` mm (${context.solidType})` : " mm",
     );
 
-const prompt = `
-Recommend the optimum low-cost MOC for a progressive cavity pump.
-
-${JSON.stringify({
-  fluid: context.media,
-  ph: context.ph,
-  tempC: context.temperatureC,
-  viscosityCp: context.viscosityCp,
-  sg: context.sg,
-  flow: `${context.capacity} ${context.capacityUnit ?? ""}`,
-  solids: context.solidPct,
-  particleMm: context.solidSize,
-  particleType: context.solidType,
-})}
-`;
-
-
- /* const prompt =
-    `${PROMPT_INSTRUCTIONS}\n\nProcess data:\n${processData || "(none provided yet)"}`;*/
+  const prompt =
+    `${PROMPT_INSTRUCTIONS}\n\nProcess data:\n${processData || "(none provided yet)"}`;
 
   try {
     const res = await fetch(`${GEMINI_URL}?key=${encodeURIComponent(apiKey)}`, {
@@ -180,7 +191,7 @@ ${JSON.stringify({
         generationConfig: {
           responseMimeType: "application/json",
           responseSchema: RESPONSE_SCHEMA,
-          maxOutputTokens: 2048,
+          maxOutputTokens: 3072,
         },
       }),
     });
@@ -203,7 +214,8 @@ ${JSON.stringify({
     const parsed = JSON.parse(text) as Partial<MocComponentSuggestions>;
     const required: (keyof MocComponentSuggestions)[] = [
       "bearingHousing", "bearingPlate", "tieRod", "nutBolt",
-      "pumpHousing", "rotor", "shaft", "statorRubber", "sealRecommendation",
+      "pumpHousing", "rotor", "shaft", "statorRubber",
+      "sealRecommendation", "sealRationale", "summary", "alternatives",
     ];
     if (required.some((k) => typeof parsed[k] !== "string")) {
       return null;
@@ -218,7 +230,9 @@ ${JSON.stringify({
       shaft: parsed.shaft!.trim(),
       statorRubber: parsed.statorRubber!.trim(),
       sealRecommendation: parsed.sealRecommendation!.trim(),
-      rationale: (parsed.rationale ?? "").trim(),
+      sealRationale: parsed.sealRationale!.trim(),
+      summary: parsed.summary!.trim(),
+      alternatives: parsed.alternatives!.trim(),
     };
   } catch (err) {
     console.error("Gemini MOC-suggestion request failed", err);

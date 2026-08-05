@@ -37,13 +37,35 @@ several formulas/models, e.g. `recommendation_engine.py`). Only the
 - Styling: Tailwind utility classes for the wizard (`formStyles.ts` shared
   constants) + plain CSS modules for other pages (design system: flat panels,
   hairline borders, no shadows — see `--bg-paper`/`--line`/`--fg` CSS vars).
+  Green "positive" tokens (`--pos`/`--pos-soft`/`--pos-strong`, Tailwind
+  `bg-pos`/`text-pos`/`border-pos` + arbitrary-value `bg-[var(--pos-soft)]`
+  for the soft/strong shades) are the established way to badge something as a
+  confirmed/AI-suggested value — used for the AI-recommendation cells on the
+  MOC step.
+- **AI integration**: Google **Gemini** (`GEMINI_API_KEY` in `.env.local`),
+  called via plain `fetch` against the REST API — no SDK dependency. Use
+  model **`gemini-flash-latest`**, not `gemini-2.0-flash` — the latter 429s
+  with `RESOURCE_EXHAUSTED (limit: 0)` on at least this project's free-tier
+  key (verified by hitting the API directly). `gemini-flash-latest` is a
+  "thinking" model that spends tokens on internal reasoning before the visible
+  answer (shows up as `thoughtsTokenCount`) — give `maxOutputTokens` real
+  headroom (2048, not 1024) or responses truncate with `finishReason:
+  MAX_TOKENS` and no usable output. Use `generationConfig.responseSchema`
+  (with `enum` on constrained fields) for structured JSON output rather than
+  parsing free text. See `src/lib/moc-ai-suggestion.ts` for the working
+  pattern. There is also an older, separate, currently-unwired
+  `src/lib/ai-suggestions.ts` that uses `@anthropic-ai/sdk` — that one was
+  ported from the Python app for a not-yet-built report feature; don't
+  confuse the two or assume `ANTHROPIC_API_KEY` is what powers the MOC AI
+  button (it doesn't — that's Gemini).
 
 ## Directory map
 
 ```
 src/lib/db/schema.ts        Drizzle table definitions (source of truth for DB shape)
 src/lib/db/index.ts         Lazy pool + Drizzle instance (Proxy-wrapped so `next build` doesn't need DB creds)
-src/lib/recommendation-engine.ts   Core engine: findCandidates, computeMotorRating, computeVBeltDrive
+src/lib/recommendation-engine.ts   Core engine: findCandidates, computeMotorRating, computeVBeltDrive, findGearboxOptions
+src/lib/moc-ai-suggestion.ts       Gemini-backed per-component MOC/elastomer/sealing suggestion (advisory only)
 src/lib/auth.ts             JWT create/verify/requireAdmin
 src/lib/api.ts              json()/error() response helpers, toFloat, snake_case dict serializers
 src/app/api/**/route.ts     API route handlers (Next.js route handlers, not Azure Functions anymore)
@@ -58,23 +80,31 @@ Route files under `src/app/**/page.tsx` are almost always one-liners:
 `export { default } from "@/screens/.../XPage";` — the real component lives in
 `src/screens/`.
 
+Admin-only master-data pages live under `/admin/*` (page-level gate via
+middleware's role check) and mirror the same Details/Edit/Add/Delete modal
+pattern: `src/screens/pump-model-master/PumpModelMasterPage.tsx` and
+`src/screens/pulley-master/PulleyMasterPage.tsx` (the latter's Details modal
+also lists/edits the belt-option children inline). Both reuse
+`PumpModelMasterPage.css`'s `pmm-*` classes.
+
 ## Database — live tables (as of this writing)
 
-Everything else in `schema.ts` below `pblGearbox`/`ptlGearbox`/`topGearGearbox`
-is **commented out** (`/* ... */`) — unbuilt master tables from the old Python
-app, kept as a reference for what *might* get built later. Check the file
-directly before assuming a table exists; this list can drift.
+Everything else in `schema.ts` below `motorRating` is **commented out**
+(`/* ... */`) — unbuilt master tables from the old Python app, kept as a
+reference for what *might* get built later. Check the file directly before
+assuming a table exists; this list can drift.
 
 | Table | Purpose |
 |---|---|
 | `users_pump` (exported as `users`) | Forked from a shared `users` table (owned by a separate testing-portal project — **never touch the original `users` table**). Seeded once; no ongoing sync. |
-| `projects` | One row per sales project. `project_code` auto-numbered `PRJ-NNN`. |
-| `pump_selection_input` | Autosaved wizard state for **steps 1-4 only** (General/Fluid/Operating/Sealing), one row per project (`project_id` UNIQUE, cascade-delete). Restores the form after a page refresh. Steps 5-8 (MOC/Motor Rating/Drive/Recommendation) are re-derived live, not persisted. |
-| `pump_model_master` | The core catalog: one row per **(model, head)** point (540+ rows / ~55 models incl. 2H\*/4H\*/L-variants/Barrel\*). Columns include `stage` (1/2/4/8, derived from model name), `hard_solid_mm`/`soft_solid_mm`, `size_visc_*_in` (5 columns, per-viscosity-band suction/discharge pipe size). |
+| `projects` | One row per sales project. `project_code` auto-numbered `PRJ-NNN`. Full CRUD: `GET/POST /api/projects`, `PATCH/DELETE /api/projects/[id]` (any authenticated user, no ownership check — small internal tool). |
+| `pump_selection_input` | Autosaved wizard state for **steps 1-4 only** (General/Fluid/Operating/Sealing), one row per project (`project_id` UNIQUE, cascade-delete on project delete). Restores the form after a page refresh. Steps 5-8 (MOC/Motor Rating/Drive/Recommendation) are re-derived live, not persisted. |
+| `pump_model_master` | The core catalog: one row per **(model, head)** point (540+ rows / ~55 models incl. 2H\*/4H\*/L-variants/Barrel\*). Columns include `stage` (1/2/4/8, derived from model name), `hard_solid_mm`/`soft_solid_mm`, `size_visc_*_in` (5 columns, per-viscosity-band suction/discharge pipe size — 2H\*/4H\* auto-inherit their bare-H\* base's values, L-variants deliberately left NULL, per an explicit user rule). |
 | `moc_recommendation` | Curated media→MOC/elastomer/seal-type reference (200 rows: 190 Non-Sugar + 10 Sugar). Also the source of the General Info step's Media dropdown. Has a derived `seal_type` (MS/GD) column — NOT sourced from any PDF, it's a rule applied over corrosive/hazard/temp columns (see schema.ts comment for the exact rule + citations). |
-| `moc_nomenclature` | Decomposes a 4-letter MOC code (e.g. `"AAAN"`, `"BBBE"`) into per-component material (Pump Housing, Shaft, Rotor, ... 11 parts) + stator rubber. 30 rows = 6 metal-prefixes × 5 rubber-suffixes. |
-| `pulley_motor_option` + `pulley_belt_option` | V-belt drive master, mirroring the source sheet's own nested structure: a parent "motor option" (model × motor RPM × HP/KW tier, with belt-groove code) with child belt-ratio rows (target RPM → pump/motor pulley sizes, achieved RPM, V-belt number). Cascade-delete FK. |
-| `pbl_gearbox`, `ptl_gearbox`, `top_gear_gearbox` | Three independent gearbox-selection masters (from one source sheet with 3 side-by-side blocks sharing a merged Power Rating per row-group). Each has `power_rating_raw`/`power_rating_kw`, `output_rpm`, `model`, `gear_box_type`, `service_factor`, `rate_per_nos`. |
+| `moc_nomenclature` | Decomposes a 4-letter MOC code (e.g. `"AAAN"`, `"BBBE"`) into per-component material (Pump Housing, Shaft, Rotor, ... 11 parts) + stator rubber. 30 rows = 6 metal-prefixes × 5 rubber-suffixes. **Currently unused by the wizard UI** (the MOC step's manual-code selector and nomenclature-breakdown panel were removed — see wizard step 5 below) — the table and its API/service (`moc-nomenclature` route, `mocNomenclatureService.ts`) still exist, just nothing calls them right now. |
+| `pulley_motor_option` + `pulley_belt_option` | V-belt drive master, mirroring the source sheet's own nested structure: a parent "motor option" (model × motor RPM × HP/KW tier, with belt-groove code) with child belt-ratio rows (target RPM → pump/motor pulley sizes, achieved RPM, V-belt number). Cascade-delete FK. Admin CRUD at `/admin/pulley-master`, including inline belt-child add/edit via a `belts` array on the POST/PATCH body (replace-all-children semantics on PATCH). |
+| `pbl_gearbox`, `ptl_gearbox`, `top_gear_gearbox` | Three independent gearbox-selection masters (from one source sheet with 3 side-by-side blocks sharing a merged Power Rating per row-group). Each has `power_rating_raw`/`power_rating_kw`, `output_rpm`, `model`, `gear_box_type` (PBL/PTL are always `"IN LINE HELICAL"`, Top Gear is always `"PLANTERY"` — i.e. GB Type effectively selects which table applies), `service_factor`, `rate_per_nos`. |
+| `motor_rating` | Standard KW↔HP reference (25 rows, `kw` UNIQUE, from `MOTOR RATING.xlsx`). This is now the source for the Motor Rating step's KW dropdown (see step 6 below) — not model-specific pulley data, so every model gets full coverage. |
 
 ### How schema changes are made (important — this is NOT the standard Drizzle flow)
 
@@ -91,10 +121,14 @@ consistently across every schema change so far:
    (Drizzle camelCase field ↔ snake_case column).
 3. Run `npm run typecheck` then an **isolated** `rm -rf .next && npm run
    build` (never concurrently with a running dev/start server — corrupts
-   `.next` and produces misleading "Cannot find module" errors).
+   `.next` and produces misleading "Cannot find module" errors; a stray
+   flaky "Cannot find module for page: ..." on an unrelated route right after
+   a build has also shown up as pure `.next`-cache flake — just retry a full
+   `rm -rf .next && npm run build` before assuming it's a real regression).
 4. If the task allows live testing, start the built server (`npm run start`,
    after checking port 3000 isn't already held by a stale process from an
-   earlier session) and `curl` the new/changed endpoints directly.
+   earlier session — `netstat -ano | grep :3000` then kill it) and `curl` the
+   new/changed endpoints directly.
 
 `.env.local` uses `DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD`/
 `DB_SSLMODE` (not a single `DATABASE_URL`) — a scratch script needs its own
@@ -111,6 +145,10 @@ row. Placeholder cells like `"-"` mean "no data here", not zero — skip that
 row/column for that record rather than inserting a null-ish garbage row.
 Slash-separated alternatives in a source cell (`"CI / MS"`) are meaningful
 engineering options — preserve them, don't split them into separate columns.
+When a variant model (2H\*/4H\*) isn't explicitly in a source sheet, check
+whether the user wants it auto-inherited from its bare-H\* base before
+leaving it NULL — this has gone both ways depending on the attribute (pulley
+data: yes, inherit; viscosity-size L-variants: explicitly no, per user rule).
 
 ## The wizard (`src/screens/pump-selection/PumpSelectionPage.tsx`)
 
@@ -123,8 +161,9 @@ in `src/data/Recommendations.ts`):
 2. **Fluid Properties** — viscosity (+ unit, canonical cP stored separately),
    viscosity range (5 buckets: `0-1000`/`1000-3000`/`3000-5000`/
    `5000-10000`/`>10000` cP — mirrors `Model_vs_Viscosity_vs_Size.xlsx`,
-   upper-inclusive boundaries), solid % + solid size (manual entry, filtered
-   `>=` against the model's `hard_solid_mm`/`soft_solid_mm`) + solid type.
+   upper-inclusive boundaries), solid % + solid size (manual number entry,
+   filtered `>=` against the model's `hard_solid_mm`/`soft_solid_mm` — NOT a
+   dropdown; that was tried and explicitly reverted) + solid type.
 3. **Operating Conditions** — Pump Type, which cascades the valid AG/BK and
    Suction Housing options (Horizontal Standard → no AG/BK, standard housing
    only; Vertical → AG only, vertical housing only; Horizontal Bucket with
@@ -134,45 +173,102 @@ in `src/data/Recommendations.ts`):
    subtype for Mechanical Seal). Shows a **recommendation hint** (not
    auto-forced) looked up from `moc_recommendation.seal_type` for the chosen
    media, and defaults the select from it once if unset.
-5. **MOC & Elastomer** — auto-looks-up `moc_recommendation` by exact
-   media match, shows Recommended/Min-Acceptable MOC + Elastomer + reference
-   pH/temp (flags if entered pH/temp are outside that reference row's range).
-   Also has a **manual final-MOC selector**: two dropdowns (3-letter MOC
-   prefix: AAA/AAB/ABB/BBB/CCC/XXX; 1-letter rubber suffix: N/E/V/F/X),
-   defaulted from the recommendation, combined live into `mocFinalCode`
-   (e.g. `"BBBE"`). When complete, fetches `moc_nomenclature` and shows the
-   full per-component material breakdown.
+5. **MOC & Elastomer** — the curated `moc_recommendation` lookup still runs
+   in the background (gates "not-found" vs "ready", silently seeds
+   `mocCode`/`mocRubberCode`/`mocFinalCode` once) but **its result is no
+   longer displayed** — the old "Recommended MOC / Min. Acceptable / Elastomer
+   / reference pH-temp" panel, the manual MOC-prefix + rubber-suffix code
+   selector, and the `moc_nomenclature` breakdown panel were all removed at
+   the user's request. What's shown instead is the **AI Recommendation**
+   panel (Gemini-backed, see below) — this is now the step's primary UI.
 6. **Motor Rating (KW)** — `computeMotorRating()`: BKW = Capacity×Head/367/
-   (ME/100), Motor KW = BKW×1.2, recommendation = nearest pulley-table KW ≥
-   Motor KW (flagged if it exceeds the model's "min KW so far tested" cap,
-   but still shown). Final KW is a manual pick from the pulley-table dropdown
-   (falls back to free-text entry if the model has no pulley data).
-7. **Drive Details** — Drive System Type (Direct Drive / V-Belt Drive /
-   "Geared Motor Drive/Gear Box + Motor"). Motor RPM field only appears after
-   a drive type is chosen; fixed at 1440 (read-only) for the Geared option,
-   selectable 960/1440 otherwise. When V-Belt is chosen + Motor RPM + Motor
-   KW (from step 6) are known, `computeVBeltDrive()` recommends a belt/pulley
-   set from `pulley_motor_option`/`pulley_belt_option`, picking the belt
-   whose achieved pump speed falls inside the model's required RPM window
-   (derived from its VE band), or the nearest one flagged as "next best" if
-   none land exactly inside. A separate "Drive System Inputs" block (Motor
-   Speed/Make/Mounting/Type/Starter Type/Power Supply/Std-NonStd) shows for
-   V-Belt.
+   (ME/100), Motor KW = BKW×1.2. The KW dropdown (`kwOptions`) is sourced from
+   the **`motor_rating`** table (not model-specific pulley data anymore),
+   filtered to every standard KW **strictly above Motor KW** (not raw BKW —
+   this was corrected once; every option offered already carries the 1.2×
+   safety margin). Recommendation = nearest of those (i.e. `kwOptions[0]`),
+   flagged if it exceeds the model's "min KW so far tested" cap but still
+   shown. Because `motor_rating` is model-agnostic, every model now gets a
+   real dropdown (previously some models with no pulley data fell back to
+   free-text entry).
+7. **Drive Details** — Drive System Type: Direct Drive / V-Belt Drive /
+   **"Geared Motor Drive/Gear Box + Motor"** (renamed from "Geared Motor
+   Drive"). Motor RPM field only appears after a drive type is chosen; fixed
+   at 1440 (read-only) for the Geared option, selectable 960/1440 otherwise.
+   - **V-Belt**: once Motor RPM + Motor KW (step 6) are known,
+     `computeVBeltDrive()` returns **every** belt option whose achieved pump
+     speed falls inside the model's required RPM window (VE-band derived) as
+     clickable candidate cards — not a single auto-pick. If none land inside
+     the window, the single nearest one is returned as a flagged "next best"
+     fallback. Selection is manual (click a card); nothing is auto-filled
+     into formData on fetch anymore. A "Drive System Inputs" block (Motor
+     Speed/Make/Mounting/Type/Starter Type/Power Supply) also shows.
+   - **Geared Motor Drive/Gear Box + Motor**: a **Configuration** dropdown
+     ("Gear Box + Motor" vs "Geared Motor") cascades Mounting and Coupling:
+     Gear Box + Motor → Mounting fixed to Foot Mount (B3, read-only), Coupling
+     fixed to "2 Drive + Driven Coupling"; Geared Motor → Mounting is a real
+     2-option dropdown (Flange Mount B5 / Foot cum Flange B35), Coupling
+     fixed to "1 Drive + Driven Coupling". Also: **GB Type** dropdown (IN
+     LINE HELICAL / PLANTERY — matches `gear_box_type` values in the gearbox
+     tables), the existing Gear Box Shaft Type (HISO/SISO, unrelated
+     concept), ASF Range, and a **Gearbox Recommendation** panel:
+     `findGearboxOptions()` screens `pbl_gearbox`/`ptl_gearbox`/
+     `top_gear_gearbox` by the pump's required RPM window **widened ±20%**
+     (catalog gearboxes only offer discrete RPMs, so a hard window excludes
+     everything) and an **exact match** on Motor KW; ASF Range and GB Type
+     (if set) narrow the already-screened result further rather than gating
+     the initial screen. Every match across all 3 tables is shown as a
+     clickable card grouped by source table; manual pick only.
 8. **Recommendation** (read-only summary) — re-fetches `findCandidates()` for
    the confirmed model, shows `PumpDetailsCard` (Model, Stage, Pump Type,
    AG/BK, RPM range, Head, VOLE, Mech Eff, per-model Suction/Discharge Size
    looked up from `pump_model_master.size_visc_*` for the chosen viscosity
    range, Sealing Type, MOC code, Testing Status) plus every other configured
-   field.
+   field, including the V-Belt/Gearbox picks and the per-component MOC AI
+   selections (see below) with their remarks folded into each summary line.
 
 **Model confirm/lock gate**: a pump model must be picked in the live
 recommendation panel (bottom of every step 1-7 page) and explicitly confirmed
 before the wizard allows navigating past step 2 (`formData.modelConfirmed`).
-"Change model" re-opens the picker without losing the confirmation flag.
+"Change model" re-opens the picker without losing the confirmation flag. The
+live panel's pinned card shows Stage, RPM, VOLE, Mech Eff, per-model Size, and
+a spec-chain line (`Pump Type · AG/BK · Seal · MOC`).
 
 **Autosave**: steps 1-4's fields debounce-save (800ms) to
 `pump_selection_input` keyed by the open project's id, and are restored on
 page load — this is why that table only covers steps 1-4, not the whole wizard.
+
+### MOC AI Recommendation panel (step 5) — the current primary MOC UI
+
+`src/lib/moc-ai-suggestion.ts` + `POST /api/moc-recommendation/ai-suggest` +
+`getMocAiSuggestion()` in `mocRecommendationService.ts`. Advisory only, never
+throws (unset key / blocked response / request failure → `null` →
+`204 No Content` → UI shows "unavailable"), opt-in via a button click (not
+auto-fetched). The prompt is scoped to only the process data this wizard
+actually collects (media, pH, temperature, viscosity, SG, flow rate, solids
+%, particle size) — it explicitly tells the model which other attributes
+(chemical composition, differential pressure, abrasiveness/corrosiveness
+ratings, required speed, duty cycle, industry standard) aren't collected yet
+rather than silently omitting them.
+
+UI layout (top to bottom), per explicit user design direction:
+1. Button — while loading, cycles through `AI_LOADING_MESSAGES` (rotating
+   status text) every 1.4s rather than a static "Loading…".
+2. **Summary** box (the AI's `rationale`) — always at the top once fetched.
+3. **Recommended Sealing** box — kept separate from Summary.
+4. Three **always-visible** tables (Non-Wettable Components: Bearing
+   Housing/Bearing Plate/Tie Rod/Nut & Bolt; Wettable Casting Components:
+   Pump Housing/Rotor/Shaft; Elastomer: Stator Rubber Parts) — each row has
+   Component | AI Recommendation (green-boxed via `--pos`/`--pos-soft`/
+   `--pos-strong` tokens once fetched, `—` before that) | Manual dropdown
+   (`MOC_AI_MATERIALS`: Cast Iron/Mild Steel/SS304/SS316/SS316L/SDSS 2507/
+   DSS 2505/Hastelloy/Ni-Hard CI/SS410, or `MOC_AI_ELASTOMERS`: Nitrile/FG
+   Nitrile/White Nitrile/Natural/Hypalon/EPDM/Viton for the elastomer row) |
+   Open Remarks (free text). The tables render regardless of AI-fetch status
+   (once a media is entered) — only the AI column is gated on having a
+   response. Manual dropdown + remarks are independent `formData` fields per
+   row (`mocAi<Component>` / `mocAi<Component>Remarks`), never auto-filled
+   from the AI suggestion.
 
 ## The recommendation engine (`src/lib/recommendation-engine.ts`)
 
@@ -188,8 +284,17 @@ page load — this is why that table only covers steps 1-4, not the whole wizard
     `hard_solid_mm`/`soft_solid_mm` must be `>=` the entered size (not exact
     match — the rating is the largest particle the model can pass).
 - `computeMotorRating(db, model, capacityM3hr, headMwc)` — see step 6 above.
+- `computePumpRpmWindow(db, model, headMwc, capacityM3hr)` — private helper,
+  factored out of `computeVBeltDrive` and reused by `findGearboxOptions`; the
+  VE-band-derived `{rpmLo, rpmHi}` window shared by every drive-selection
+  calculation.
 - `computeVBeltDrive(db, model, capacityM3hr, headMwc, motorRpm, motorKw)` —
-  see step 7 above.
+  see step 7 above. Returns `candidates: VBeltOption[]` (every in-range
+  match, or a single next-best fallback), not a single `recommended` pick —
+  changed from an earlier single-pick design at the user's request.
+- `findGearboxOptions(db, model, capacityM3hr, headMwc, motorKw, asfRange?,
+  gbConstructionType?)` — see step 7 above (±20%-padded RPM window + exact
+  Motor KW match, ASF/GB Type as post-filters).
 - Unit conversions (`toM3PerHr`, `toMwc`, `toCp`) live here (server-only,
   imports `./db`) **and are duplicated** in `src/utils/units.ts` (client-safe,
   no DB import) for use inside `"use client"` components — keep both in sync
@@ -218,6 +323,15 @@ page load — this is why that table only covers steps 1-4, not the whole wizard
   (`() => ({...})`) — Drizzle column builders are stateful per-table, and
   reusing the same object literal across 3 `pgTable()` calls silently
   misbehaves.
+- **Advisory AI suggestions are never auto-applied** — always a separate
+  "AI Recommendation" affordance next to (not replacing) the real manual
+  input, clearly badged, opt-in via a button click, and explicitly disclaimed
+  as "not a verified specification". This is a firm, repeated user
+  preference, not a one-off choice.
+- **Gemini quirks to remember**: use `gemini-flash-latest`, give
+  `maxOutputTokens` generous headroom (thinking-token overhead), use
+  `responseSchema` with `enum` for constrained fields instead of prompting
+  for exact strings and hoping.
 - **Never push to GitHub** — the user pushes manually.
 - **Confirm genuine judgment calls before writing to the DB or making a
   design choice with more than one reasonable interpretation** — this project
@@ -233,6 +347,10 @@ page load — this is why that table only covers steps 1-4, not the whole wizard
 - The browser-based Claude preview tools can't get past this app's login
   screen without real credentials — don't attempt to bypass auth to verify UI
   changes; verify via typecheck/build/curl instead and say so.
+- This user iterates fast and often corrects direction mid-feature (e.g. "not
+  BKW, Motor KW", "remove the panel I just asked for", "all candidates not
+  just one") — treat your own just-built UI as provisional until they've seen
+  it, and be ready to cleanly remove/replace it rather than layering patches.
 
 ## Where to look for more detail
 

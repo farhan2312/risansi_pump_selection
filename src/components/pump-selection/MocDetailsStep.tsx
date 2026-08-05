@@ -12,6 +12,7 @@ import {
   type MocComponentSuggestions,
   type MocRecommendationRow,
 } from "../../services/mocRecommendationService";
+import { downloadMocReportPdf } from "../../lib/moc-pdf-report";
 
 type Props = {
   onNext: () => void;
@@ -211,9 +212,46 @@ const MocDetailsStep = ({
       .catch(() => setAiStatus("error"));
   };
 
+  const [pdfGenerating, setPdfGenerating] = useState(false);
+  const [pdfError, setPdfError] = useState(false);
+
+  const handleDownloadPdf = async () => {
+    if (!aiSuggestion) return;
+    setPdfGenerating(true);
+    setPdfError(false);
+    try {
+      const components = [...NON_WETTABLE_ROWS, ...WETTABLE_ROWS, ...ELASTOMER_ROWS].map(
+        (row) => ({
+          label: row.label,
+          aiPick: aiSuggestion[row.aiKey],
+          manualPick: formData[row.key] ?? "",
+          remarks: formData[`${row.key}Remarks`] ?? "",
+        }),
+      );
+      await downloadMocReportPdf({
+        media,
+        ph: formData.ph || undefined,
+        temperatureC: formData.temperature || undefined,
+        viscosityCp: formData.viscosityCp || undefined,
+        sg: formData.sg || undefined,
+        capacity: formData.capacity || undefined,
+        capacityUnit: formData.capacityUnit || undefined,
+        solidPct: formData.solidPercentage || undefined,
+        solidSize: formData.solidSize || undefined,
+        solidType: formData.solidType || undefined,
+        suggestion: aiSuggestion,
+        components,
+      });
+    } catch {
+      setPdfError(true);
+    } finally {
+      setPdfGenerating(false);
+    }
+  };
+
   return (
     <div className="step-container">
-      <Stepper currentStep={5} onStepClick={onStepClick} />
+      <Stepper currentStep={4} onStepClick={onStepClick} />
 
       <div className="step-card">
         <h2>MOC &amp; Elastomer</h2>
@@ -339,32 +377,63 @@ const MocDetailsStep = ({
               <>
                 <div className="mt-4 overflow-hidden rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white shadow-sm">
                   {/* Header */}
-                  <div className="flex items-center gap-2 border-b border-blue-100 px-4 py-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100">
-                      🤖
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-blue-100 px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100">
+                        🤖
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-slate-900">
+                          AI Material Recommendation
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          Generated based on the provided process conditions
+                        </p>
+                      </div>
                     </div>
 
-                    <div>
-                      <h3 className="text-sm font-semibold text-slate-900">
-                        AI Material Recommendation
-                      </h3>
-                      <p className="text-xs text-slate-500">
-                        Generated based on the provided process conditions
-                      </p>
-                    </div>
+                    <button
+                      type="button"
+                      disabled={pdfGenerating}
+                      onClick={handleDownloadPdf}
+                      className="inline-flex items-center gap-2 rounded-lg border border-blue-300 bg-white px-3 py-2 text-[13px] font-semibold text-blue-700 shadow-sm transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <span>📄</span>
+                      {pdfGenerating ? "Preparing PDF…" : "Download PDF Report"}
+                    </button>
                   </div>
 
                   {/* Content */}
                   <div className="space-y-4 p-4">
-                    {aiSuggestion.rationale ? (
-                      <div className="rounded-lg border-2 border-emerald-400 bg-emerald-50 p-3">
-                        <p className="text-sm text-emerald-900">
-                          {aiSuggestion.rationale}
-                        </p>
+                    {pdfError && (
+                      <p className="text-[12px] text-warn">
+                        Couldn&apos;t generate the PDF — try again.
+                      </p>
+                    )}
+
+                    {aiSuggestion.summary ? (
+                      <div>
+                        <span className="section-label">Summary</span>
+                        <div className="mt-1 rounded-lg border-2 border-emerald-400 bg-emerald-50 p-3">
+                          <p className="whitespace-pre-line text-sm text-emerald-900">
+                            {aiSuggestion.summary}
+                          </p>
+                        </div>
                       </div>
                     ) : (
                       <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-sm text-slate-500">
                         No recommendation generated yet.
+                      </div>
+                    )}
+
+                    {aiSuggestion.alternatives && (
+                      <div>
+                        <span className="section-label">Alternatives Considered</span>
+                        <div className="mt-1 rounded-lg border border-blue-200 bg-white p-3">
+                          <p className="whitespace-pre-line text-sm text-slate-700">
+                            {aiSuggestion.alternatives}
+                          </p>
+                        </div>
                       </div>
                     )}
 
@@ -393,6 +462,11 @@ const MocDetailsStep = ({
                   <div className="mt-1 text-[14px] font-semibold text-fg">
                     {aiSuggestion.sealRecommendation || "—"}
                   </div>
+                  {aiSuggestion.sealRationale && (
+                    <p className="mt-1 text-[12px] text-emerald-900">
+                      {aiSuggestion.sealRationale}
+                    </p>
+                  )}
                 </div>
               </>
             )}
