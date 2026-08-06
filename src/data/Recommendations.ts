@@ -132,7 +132,10 @@ export interface PumpSelectionFormData {
   driveMotorSpeed?: string; // motor nameplate speed (RPM) — manual, defaults from motorRPM
   driveMotorMake?: string; // BBL / Havells / CGL / ABB / Siemens / Other
   driveMotorMounting?: string; // Foot (B3) / Flange (B5) / Foot cum Flange (B35)
-  driveMotorType?: string; // free text: IE class / IP / Hz / Volts
+  driveMotorEfficiency?: string; // free text, e.g. "IE3"
+  driveMotorProtection?: string; // free text, e.g. "IP55"
+  driveMotorFrequency?: string; // free text, e.g. "50 Hz"
+  driveMotorVoltage?: string; // free text, e.g. "415 V"
   driveStarterType?: string; // Star-Delta / DOL
   drivePowerSupply?: string; // Single Phase / Three Phase
   driveStdNonStd?: string; // Standard / Non-Standard

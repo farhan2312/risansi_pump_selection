@@ -699,14 +699,53 @@ const DriveDetailsStep = ({
               </div>
 
               <div className={fieldWrap}>
-                <label className={label}>Motor Type</label>
+                <label className={label}>Efficiency</label>
                 <input
                   type="text"
                   className={control}
-                  placeholder="e.g. IE3 / IP55 / 50 Hz / 415 V"
-                  value={formData.driveMotorType ?? ""}
+                  placeholder="e.g. IE3"
+                  value={formData.driveMotorEfficiency ?? ""}
                   onChange={(e) =>
-                    setFormData({ ...formData, driveMotorType: e.target.value })
+                    setFormData({ ...formData, driveMotorEfficiency: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className={fieldWrap}>
+                <label className={label}>Protection</label>
+                <input
+                  type="text"
+                  className={control}
+                  placeholder="e.g. IP55"
+                  value={formData.driveMotorProtection ?? ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, driveMotorProtection: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className={fieldWrap}>
+                <label className={label}>Frequency</label>
+                <input
+                  type="text"
+                  className={control}
+                  placeholder="e.g. 50 Hz"
+                  value={formData.driveMotorFrequency ?? ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, driveMotorFrequency: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className={fieldWrap}>
+                <label className={label}>Voltage</label>
+                <input
+                  type="text"
+                  className={control}
+                  placeholder="e.g. 415 V"
+                  value={formData.driveMotorVoltage ?? ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, driveMotorVoltage: e.target.value })
                   }
                 />
               </div>
