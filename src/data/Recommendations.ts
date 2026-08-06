@@ -100,12 +100,6 @@ export interface PumpSelectionFormData {
   gearboxOutputRpm?: string;
   gearboxServiceFactor?: string;
   gearboxRatePerNos?: string;
-  mocRecommendedMoc?: string; // system-computed from moc_recommendation (media/pH/temp lookup)
-  mocMinAcceptableMoc?: string;
-  mocElastomer?: string;
-  mocCode?: string; // manual MOC selection, 3-letter (e.g. "BBB") — defaults from mocRecommendedMoc
-  mocRubberCode?: string; // manual Stator Rubber selection, 1-letter (e.g. "E")
-  mocFinalCode?: string; // mocCode + mocRubberCode combined (e.g. "BBBE")
   // Per-component MOC (manual selection, optionally seeded from the AI
   // recommendation panel) — non-wettable components
   mocAiBearingHousing?: string;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { listMocMedia } from "../../services/mocRecommendationService";
+import { addMedia, listMedia } from "../../services/mediaListService";
 import { btnGhostSm, btnPrimarySm, control, hint, hintError } from "./formStyles";
 
 type Props = {
@@ -11,10 +11,9 @@ type Props = {
 
 const OTHER = "__other__";
 
-/** Media / Application dropdown backed by the moc_recommendation reference
- * table (curated MOC selection data — Sugar + Non-Sugar industry media). This
- * list is curated reference data, not user-growable, so "Other" just sets a
- * one-off value locally — it isn't saved anywhere for future sessions. */
+/** Media / Application dropdown backed by the media_list reference table
+ * (industry + media only). Typing a new media via "Other" adds it to that
+ * table, so it shows up in the dropdown for everyone afterwards. */
 const MediaSelect = ({ value, onChange }: Props) => {
   const [options, setOptions] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -24,7 +23,7 @@ const MediaSelect = ({ value, onChange }: Props) => {
   const [otherValue, setOtherValue] = useState("");
 
   useEffect(() => {
-    listMocMedia()
+    listMedia()
       .then(setOptions)
       .catch(() => setLoadFailed(true))
       .finally(() => setIsLoading(false));
@@ -44,6 +43,12 @@ const MediaSelect = ({ value, onChange }: Props) => {
     if (!trimmed) return;
     onChange(trimmed);
     setIsOther(false);
+    addMedia(trimmed)
+      .then(() => setOptions((opts) => (opts.includes(trimmed) ? opts : [...opts, trimmed])))
+      .catch(() => {
+        // Selection already applied locally; the media just won't persist to
+        // the shared list if this failed — not worth blocking the wizard for.
+      });
   };
 
   const handleCancel = () => setIsOther(false);
@@ -88,7 +93,7 @@ const MediaSelect = ({ value, onChange }: Props) => {
           </button>
         </div>
         <span className={hint}>
-          Not part of the MOC reference list — used for this selection only.
+          Will be added to the media list for future selections.
         </span>
       </div>
     );

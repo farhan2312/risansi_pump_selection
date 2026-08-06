@@ -1,8 +1,8 @@
 /**
  * AI-assisted, per-component MOC/elastomer/sealing suggestion for the MOC &
  * Elastomer wizard step. Advisory only, clearly badged as an AI suggestion in
- * the UI, never a substitute for the curated moc_recommendation table or the
- * manual selectors — and never throws: an unset API key, a blocked response,
+ * the UI, never a substitute for the manual selectors — and never throws: an
+ * unset API key, a blocked response,
  * or any request failure just returns null and the caller falls back to
  * "unavailable".
  *

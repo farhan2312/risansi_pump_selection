@@ -83,10 +83,6 @@ const RecommendationStep = ({ onPrevious, formData, onStepClick }: Props) => {
     ["Bearing Housing", formData.bearingHousing],
     ["Suction Housing", formData.suctionHousing],
     ["Joint Type", formData.jointType],
-    ["Recommended MOC", formData.mocRecommendedMoc],
-    ["Min. Acceptable MOC", formData.mocMinAcceptableMoc],
-    ["Elastomer", formData.mocElastomer],
-    ["MOC (Selected)", formData.mocFinalCode],
     ["Bearing Housing MOC", withRemarks(formData.mocAiBearingHousing, formData.mocAiBearingHousingRemarks)],
     ["Bearing Plate MOC", withRemarks(formData.mocAiBearingPlate, formData.mocAiBearingPlateRemarks)],
     ["Tie Rod MOC", withRemarks(formData.mocAiTieRod, formData.mocAiTieRodRemarks)],
@@ -172,7 +168,6 @@ const RecommendationStep = ({ onPrevious, formData, onStepClick }: Props) => {
                   pumpType={formData.pumpType}
                   agBk={formData.agBk}
                   sealingType={formData.sealingType}
-                  mocCode={formData.mocFinalCode}
                   stage={confirmedPump.stage}
                 />
               );

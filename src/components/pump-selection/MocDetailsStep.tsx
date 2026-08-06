@@ -6,11 +6,9 @@ import "./GeneralInformationStep.css";
 import { actions, btnGhost, btnPrimary, control } from "./formStyles";
 import {
   getMocAiSuggestion,
-  lookupMocRecommendation,
   MOC_AI_ELASTOMERS,
   MOC_AI_MATERIALS,
   type MocComponentSuggestions,
-  type MocRecommendationRow,
 } from "../../services/mocRecommendationService";
 import { downloadMocReportPdf } from "../../lib/moc-pdf-report";
 
@@ -24,7 +22,6 @@ type Props = {
   onStepClick?: (step: number) => void;
 };
 
-type Status = "idle" | "loading" | "ready" | "not-found" | "error";
 type AiStatus = "idle" | "loading" | "ready" | "unavailable" | "error";
 
 // Rotating status text shown on the button/panel while the AI request is in
@@ -113,54 +110,7 @@ const MocDetailsStep = ({
   setFormData,
   onStepClick,
 }: Props) => {
-  const [status, setStatus] = useState<Status>("idle");
-  const [rec, setRec] = useState<MocRecommendationRow | null>(null);
   const media = formData.media as string;
-
-  // Curated-table lookup — no longer shown directly in the UI, but still
-  // gates "not-found" vs "ready" and silently seeds mocCode/mocRubberCode
-  // (used elsewhere, e.g. the final summary's "MOC (Selected)" line) once,
-  // if unset.
-  useEffect(() => {
-    if (!media) {
-      setStatus("idle");
-      setRec(null);
-      return;
-    }
-    let cancelled = false;
-    setStatus("loading");
-    lookupMocRecommendation(media)
-      .then((row) => {
-        if (cancelled) return;
-        setRec(row);
-        setStatus(row ? "ready" : "not-found");
-        setFormData((f: typeof formData) => {
-          const recommended = row?.recommendedMoc ?? "";
-          const mocCode = f.mocCode ? f.mocCode : recommended.slice(0, 3);
-          const mocRubberCode = f.mocRubberCode
-            ? f.mocRubberCode
-            : recommended.slice(3, 4);
-          return {
-            ...f,
-            mocRecommendedMoc: recommended,
-            mocMinAcceptableMoc: row?.minAcceptableMoc ?? "",
-            mocElastomer: row?.elastomer ?? "",
-            mocCode,
-            mocRubberCode,
-            mocFinalCode: f.mocFinalCode
-              ? f.mocFinalCode
-              : `${mocCode}${mocRubberCode}`,
-          };
-        });
-      })
-      .catch(() => {
-        if (!cancelled) setStatus("error");
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [media]);
 
   // AI-assisted per-component suggestion — advisory only, opt-in via button
   // click (not fetched automatically). Reset whenever the media changes so a
@@ -266,35 +216,13 @@ const MocDetailsStep = ({
           .
         </p>
 
-        {status === "idle" && (
+        {!media && (
           <p className="mt-4 text-[13px] text-fg-3">
-            Select a media on the General Information step to see a
-            recommendation.
+            Select a media on the General Information step to continue.
           </p>
         )}
 
-        {status === "loading" && (
-          <p className="mt-4 text-[13px] text-fg-3">
-            Looking up MOC recommendation…
-          </p>
-        )}
-
-        {status === "error" && (
-          <p className="mt-4 text-[13px] text-warn">
-            Couldn&apos;t load the MOC recommendation — check your connection
-            and try again.
-          </p>
-        )}
-
-        {status === "not-found" && (
-          <p className="mt-4 text-[13px] text-warn">
-            No MOC reference data found for &quot;{media}&quot; — this looks
-            like a custom/manually-typed media. Select MOC and elastomer
-            manually with engineering input.
-          </p>
-        )}
-
-        {(status === "ready" || status === "not-found") && (
+        {media && (
           <div className="mt-4 rounded-md border border-line bg-elev p-4">
             <div className="mb-2 block text-[13px] font-semibold text-fg">
               <div>

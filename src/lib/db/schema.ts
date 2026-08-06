@@ -161,73 +161,23 @@ export const pumpModelMaster = pgTable(
   },
 );
 
-// MOC (Material of Construction) recommendation per media, from
-// PCP_MOC_Selection_Sugar_NonSugar.pdf. Despite the filename, that PDF only
-// contains the "Non-Sugar Industry Media" table (190 rows) — no Sugar-industry
-// section exists in it. `industry` is included so Sugar rows can be added
-// later without a schema change; right now every row has industry='Non-Sugar'.
-// pH and Temp were given as ranges in the source ("1-2", "20-60") — split into
-// min/max per request. Some source cells aren't a plain numeric range (e.g.
-// "<1", "N/A", "Variable") — phRaw/tempRaw keep the original text and
-// min/max are null in those cases rather than guessed.
-export const mocRecommendation = pgTable(
-  "moc_recommendation",
+// Media / application reference list, used solely to populate the Media
+// dropdown on the General Information step. Formerly "moc_recommendation"
+// with curated MOC/pH/temp/seal columns from PCP_MOC_Selection_Sugar_NonSugar.pdf
+// — those columns (and the recommendations derived from them) were dropped;
+// this table is now pure reference data. New rows are added either by an
+// admin or by a user typing a custom media via "Other" on the Media dropdown.
+export const mediaList = pgTable(
+  "media_list",
   {
     id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
     industry: varchar("industry", { length: 20 }).notNull().default("Non-Sugar"),
-    sNo: integer("s_no").notNull(),
-    media: varchar("media", { length: 255 }).notNull(),
-    phMin: numeric("ph_min", { precision: 5, scale: 2 }),
-    phMax: numeric("ph_max", { precision: 5, scale: 2 }),
-    phRaw: varchar("ph_raw", { length: 20 }),
-    tempMin: numeric("temp_min", { precision: 6, scale: 2 }),
-    tempMax: numeric("temp_max", { precision: 6, scale: 2 }),
-    tempRaw: varchar("temp_raw", { length: 20 }),
-    solidPct: numeric("solid_pct", { precision: 5, scale: 2 }),
-    abrasive: varchar("abrasive", { length: 20 }),
-    corrosive: varchar("corrosive", { length: 20 }),
-    minAcceptableMoc: varchar("min_acceptable_moc", { length: 10 }),
-    recommendedMoc: varchar("recommended_moc", { length: 10 }),
-    elastomer: varchar("elastomer", { length: 50 }),
-    remarks: text("remarks"),
-    // "MS" (Mechanical Seal) or "GD" (Gland Packing) — derived (not from the
-    // source MOC PDFs, which have no seal column) from corrosive severity,
-    // temperature, and hazard/flammability cues in the media/remarks per
-    // API 682 (ISO 21049) seal-selection guidance: mechanical seals for
-    // corrosive (High/Very High), high-temp (>100°C), or hazardous/toxic/
-    // flammable duty; gland packing otherwise.
-    sealType: varchar("seal_type", { length: 10 }),
+    media: varchar("media", { length: 255 }).notNull().unique(),
   },
 );
 
-// MOC nomenclature — decomposes each 4-letter MOC code (e.g. "AAAN", "BBBE")
-// into the material used for each of the 11 metal pump components plus the
-// stator rubber. Sourced from MOC_D.xlsx: 6 metal-prefix blocks × 5 rubber
-// suffixes (N/E/V/F/X = Nitrile/EPDM/Viton/FG Nitrile/Other Rubber) = 30 rows.
-// Given a code (e.g. from moc_recommendation.recommended_moc), the app looks
-// this up in one query to show/print the full material breakdown for a pump.
-// Material cells preserve the source sheet's slash-separated alternatives
-// (e.g. "CI / MS", "EN-19 / EN-8") — those are meaningful engineering options,
-// not a formatting choice, and must not be split.
-export const mocNomenclature = pgTable("moc_nomenclature", {
-  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  mocCode: varchar("moc_code", { length: 4 }).notNull().unique(),
-  prefix: varchar("prefix", { length: 3 }).notNull(),
-  rubberSuffix: varchar("rubber_suffix", { length: 1 }).notNull(),
-  suffixSrNo: integer("suffix_sr_no").notNull(),
-  pumpHousing: varchar("pump_housing", { length: 50 }).notNull(),
-  shaft: varchar("shaft", { length: 50 }).notNull(),
-  rotor: varchar("rotor", { length: 50 }).notNull(),
-  cRod: varchar("c_rod", { length: 50 }).notNull(),
-  shd: varchar("shd", { length: 50 }).notNull(),
-  slv: varchar("slv", { length: 50 }).notNull(),
-  bush: varchar("bush", { length: 50 }).notNull(),
-  hPin: varchar("h_pin", { length: 50 }).notNull(),
-  pin: varchar("pin", { length: 50 }).notNull(),
-  protector: varchar("protector", { length: 50 }).notNull(),
-  holder: varchar("holder", { length: 50 }).notNull(),
-  statorRubber: varchar("stator_rubber", { length: 50 }).notNull(),
-});
+// (moc_nomenclature table dropped — decomposed MOC-code material breakdown
+// that depended on the removed moc_recommendation.recommended_moc column.)
 
 // V-belt/pulley drive selection, from "pulley v belt master.xlsx". Two tables
 // mirroring the sheet's own nested structure — a parent "motor option" row

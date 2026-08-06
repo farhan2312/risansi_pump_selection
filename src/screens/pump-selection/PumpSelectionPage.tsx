@@ -162,13 +162,6 @@ const PumpSelectionPage = () => {
     sealingType: "",
     sealingSubType: "", // MSA / SCG / DCG — Mechanical Seal only
 
-    // Step 5 — system-computed from moc_recommendation (media/pH/temp lookup)
-    mocRecommendedMoc: "",
-    mocMinAcceptableMoc: "",
-    mocElastomer: "",
-    mocCode: "",
-    mocRubberCode: "",
-    mocFinalCode: "",
     mocAiBearingHousing: "",
     mocAiBearingHousingRemarks: "",
     mocAiBearingPlate: "",

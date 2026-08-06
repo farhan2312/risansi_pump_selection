@@ -11,8 +11,6 @@ type Props = {
   agBk?: string;
   /** Sealing type chosen on the Sealing Details step (shown short: MS / GP). */
   sealingType?: string;
-  /** Final MOC code (4-letter, e.g. "AAAN" / "BBBE") from the MOC step. */
-  mocCode?: string;
   /** Pump stage count (1/2/4/8), from the confirmed pump's model. */
   stage?: number | null;
 };
@@ -23,7 +21,6 @@ const PumpDetailsCard = ({
   pumpType = "",
   agBk = "",
   sealingType = "",
-  mocCode = "",
   stage = null,
 }: Props) => {
   if (!pump) return null;
@@ -89,11 +86,6 @@ const PumpDetailsCard = ({
         <div>
           <span>Sealing Type</span>
           <strong>{seal || "—"}</strong>
-        </div>
-
-        <div>
-          <span>MOC</span>
-          <strong>{mocCode || "—"}</strong>
         </div>
 
         <div>
