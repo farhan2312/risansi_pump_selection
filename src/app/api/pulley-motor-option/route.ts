@@ -55,7 +55,6 @@ export async function GET(req: Request) {
     .orderBy(
       asc(pulleyMotorOption.model),
       asc(pulleyMotorOption.motorRpm),
-      asc(pulleyMotorOption.srNo),
     );
 
   return json(rows);
@@ -78,14 +77,10 @@ export async function POST(req: Request) {
   const motorRpm = intOrNull(body.motorRpm);
   if (motorRpm === null) return error("'motorRpm' is required and must be an integer", 400);
 
-  const srNo = intOrNull(body.srNo);
-  if (srNo === null) return error("'srNo' is required and must be an integer", 400);
-
   const values: Partial<typeof pulleyMotorOption.$inferInsert> & {
     model: string;
     motorRpm: number;
-    srNo: number;
-  } = { model, motorRpm, srNo };
+  } = { model, motorRpm };
   for (const f of NUMERIC_FIELDS) {
     if (f in body) values[f] = numOrNull(body[f]);
   }

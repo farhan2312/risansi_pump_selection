@@ -86,49 +86,13 @@ export interface MocComponentSuggestions {
 const GEMINI_MODEL = "gemini-flash-latest";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
-const PROMPT_INSTRUCTIONS = `You are a senior rotating-equipment engineer selecting the material \
-of construction (MOC), stator elastomer, and shaft seal for a progressive cavity (single screw) \
-pump, for an economical-first sales engineering tool.
-
-Guiding principle: recommend the most economical materials that will give reliable service for \
-the stated duty — do not over-specify. Cast Iron / Mild Steel / SS410 / SS304 are perfectly \
-correct answers for mild, non-corrosive, low-temperature duty; reach for SS316, duplex stainless \
-(SDSS 2507 / DSS 2505), Hastelloy, or specialty elastomers only when the process data actually \
-justifies it (corrosivity, temperature, oxidizers, chlorides, hazard).
-
-Component reference (for material components — housings, structural fasteners, rotor, shaft):
-${MOC_AI_MATERIALS.join(", ")}. This is a reference list of what's normally stocked, not a hard
-constraint — if the duty genuinely calls for something outside it (e.g. an exotic alloy, a coated
-or lined option, PTFE, etc.), recommend that instead and say explicitly why the standard list
-isn't sufficient.
-
-Elastomer reference: ${MOC_AI_ELASTOMERS.join(", ")}. Same rule — recommend outside this list only
-when justified, and explain why.
-
-Seal: choose exactly one of "${MOC_AI_SEAL_TYPES[0]}" or "${MOC_AI_SEAL_TYPES[1]}". Mechanical
-seal for corrosive (high/very high), hazardous/toxic/flammable, or high-temperature (>100°C) duty
-— near-zero leakage. Gland packing for mild, non-hazardous, general/utility duty where minor
-leakage is tolerable and cost matters.
-
-Not all process data that could refine this decision has been collected yet (chemical
-composition, differential pressure, particle abrasiveness/corrosiveness ratings, required pump
-speed, duty cycle, applicable industry standard) — use only the data given below plus standard
-PCP engineering judgment, and note in the summary if a missing datum would materially change the
-recommendation.
-
-Respond with:
-- The 8 component picks (bearingHousing, bearingPlate, tieRod, nutBolt, pumpHousing, rotor, shaft,
-  statorRubber) — each a short material name, e.g. "SS316".
-- sealRecommendation — exactly one of the two seal options above.
-- sealRationale — 1-2 sentences on why that seal type, specific to this duty.
-- summary — a detailed, well-organized engineering report (3-5 short paragraphs) covering: the
-  overall metallurgy/elastomer logic for this duty (why these picks, grouped by wetted vs.
-  structural parts rather than repeating every component one-by-one), the key process drivers
-  (corrosivity, temperature, hazard, cost), and any caveats from missing process data. Write it as
-  something a sales engineer could hand to a customer, not just a list.
-- alternatives — 1-3 concrete alternative material/elastomer combinations worth considering (e.g.
-  a lower-cost fallback, or a more resistant upgrade path), each with a one-line note on the
-  trade-off (cost vs. durability vs. availability). Plain text, not JSON.`;
+const PROMPT_INSTRUCTIONS = `As pump materials engineer.Recommend the lowest-cost reliable MOC, stator elastomer, shaft seal for progressive cavity pump.\
+Prefer economical materials unless process conditions require upgrades.\
+Preferred materials: \
+${MOC_AI_MATERIALS.join(", ")} \
+Preferred elastomers: \
+${MOC_AI_ELASTOMERS.join(", ")} \
+Use materials outside these lists only when technically justified.Use supplied process data.Mention any missing information that change recommendation`
 
 const RESPONSE_SCHEMA = {
   type: "object",

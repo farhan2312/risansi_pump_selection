@@ -61,7 +61,7 @@ export async function PATCH(
 
   const patch: Partial<typeof pulleyMotorOption.$inferInsert> = {};
 
-  // model, motorRpm, srNo are NOT NULL — reject blanks rather than nulling them.
+  // model, motorRpm are NOT NULL — reject blanks rather than nulling them.
   if ("model" in body) {
     const m = String(body.model ?? "").trim();
     if (!m) return error("'model' can't be empty", 400);
@@ -71,11 +71,6 @@ export async function PATCH(
     const n = intOrNull(body.motorRpm);
     if (n === null) return error("'motorRpm' is required and must be an integer", 400);
     patch.motorRpm = n;
-  }
-  if ("srNo" in body) {
-    const n = intOrNull(body.srNo);
-    if (n === null) return error("'srNo' is required and must be an integer", 400);
-    patch.srNo = n;
   }
   for (const f of NUMERIC_FIELDS) {
     if (f in body) patch[f] = numOrNull(body[f]);

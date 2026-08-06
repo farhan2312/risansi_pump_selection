@@ -201,7 +201,6 @@ export const pulleyMotorOption = pgTable(
     id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
     model: varchar("model", { length: 100 }).notNull(),
     motorRpm: integer("motor_rpm").notNull(),
-    srNo: integer("sr_no").notNull(),
     motorHp: numeric("motor_hp", { precision: 6, scale: 2 }),
     motorKw: numeric("motor_kw", { precision: 6, scale: 2 }),
     maxCapAt60Mwc: numeric("max_cap_at_60mwc", { precision: 10, scale: 2 }),

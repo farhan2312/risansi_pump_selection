@@ -94,10 +94,11 @@ const Sidebar = () => {
         {user?.role === "admin" && (
           <>
             <p className="sidebar-group-label">Admin</p>
-            {navLink("/admin/access-requests", "Access Requests", icons.users)}
+            
             {navLink("/admin/pump-model-master", "Pump Model Master", icons.database)}
             {navLink("/admin/pulley-master", "Pulley Master", icons.database)}
             {navLink("/admin/gearbox-master", "Gearbox Type", icons.database)}
+            {navLink("/admin/access-requests", "Access Requests", icons.users)}
           </>
         )}
       </nav>

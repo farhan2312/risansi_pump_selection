@@ -21,7 +21,6 @@ type FieldDef = { key: keyof PulleyMotorRow; label: string; numeric: boolean; re
 const FIELDS: FieldDef[] = [
   { key: "model", label: "Model", numeric: false, required: true },
   { key: "motorRpm", label: "Motor RPM", numeric: true, required: true },
-  { key: "srNo", label: "Sr. No.", numeric: true, required: true },
   { key: "motorHp", label: "Motor HP", numeric: true },
   { key: "motorKw", label: "Motor kW", numeric: true },
   { key: "maxCapAt60Mwc", label: "Max Cap @ 60 MWC", numeric: true },
@@ -145,9 +144,7 @@ const PulleyMasterPage = () => {
     setRows((prev) =>
       [...prev, created].sort((a, b) =>
         a.model === b.model
-          ? a.motorRpm === b.motorRpm
-            ? a.srNo - b.srNo
-            : a.motorRpm - b.motorRpm
+          ? a.motorRpm - b.motorRpm
           : a.model.localeCompare(b.model)
       )
     );
@@ -170,7 +167,7 @@ const PulleyMasterPage = () => {
         <div>
           <h1>Pulley Master</h1>
           <p>
-            Every (model, motor RPM, sr. no.) row from the pulley/motor master. Edit
+            Every (model, motor RPM) row from the pulley/motor master. Edit
             or delete a row, or view its full details including the belt options.
           </p>
         </div>
@@ -202,7 +199,6 @@ const PulleyMasterPage = () => {
                 <tr>
                   <th>Model</th>
                   <th>Motor RPM</th>
-                  <th>Sr. No.</th>
                   <th>Motor HP</th>
                   <th>Motor kW</th>
                   <th>Grooves</th>
@@ -215,7 +211,6 @@ const PulleyMasterPage = () => {
                   <tr key={r.id}>
                     <td className="pmm-model">{r.model}</td>
                     <td className="mono">{val(r.motorRpm)}</td>
-                    <td className="mono">{val(r.srNo)}</td>
                     <td className="mono">{val(r.motorHp)}</td>
                     <td className="mono">{val(r.motorKw)}</td>
                     <td className="mono">{val(r.grooves)}</td>
@@ -307,7 +302,7 @@ const DetailsModal = ({ row, onClose }: { row: PulleyMotorRow; onClose: () => vo
       >
         <div className="pmm-modal-header">
           <h3>
-            {row.model} · {row.motorRpm} rpm · sr. {row.srNo}
+            {row.model} · {row.motorRpm} rpm
           </h3>
           <button className="pmm-modal-close" onClick={onClose} aria-label="Close">
             ✕
@@ -448,10 +443,6 @@ const RowForm = ({
     }
     if (form.motorRpm.trim() === "" || Number.isNaN(Number(form.motorRpm))) {
       setFormError("Motor RPM is required and must be a number.");
-      return;
-    }
-    if (form.srNo.trim() === "" || Number.isNaN(Number(form.srNo))) {
-      setFormError("Sr. No. is required and must be a number.");
       return;
     }
     // Every non-blank belt row must have a valid targetRpm — blank rows are
@@ -631,12 +622,11 @@ const CreateModal = ({
     submitLabel="Add Model Data"
     onSubmit={async (form, belts) => {
       // Send every field as a raw string — the API parses server-side.
-      // motorRpm/srNo need to be real numbers to satisfy the required type.
+      // motorRpm needs to be a real number to satisfy the required type.
       const values = {
         ...form,
         model: form.model.trim(),
         motorRpm: Number(form.motorRpm),
-        srNo: Number(form.srNo),
         belts: beltFormToApi(belts),
       } as unknown as PulleyMotorInsert;
       const created = await createPulleyMotorRow(values);
@@ -741,7 +731,7 @@ const DeleteModal = ({
           </button>
         </div>
         <p className="pmm-delete-text">
-          Delete <strong>{row.model}</strong> ({row.motorRpm} rpm, sr. {row.srNo})?
+          Delete <strong>{row.model}</strong> ({row.motorRpm} rpm)?
           This also removes all its belt options (cascade). Affects the V-belt drive
           recommendation and can&apos;t be undone.
         </p>

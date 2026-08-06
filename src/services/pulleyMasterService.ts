@@ -7,7 +7,6 @@ export interface PulleyMotorRow {
   id: string;
   model: string;
   motorRpm: number;
-  srNo: number;
   motorHp: string | null;
   motorKw: string | null;
   maxCapAt60Mwc: string | null;
@@ -51,7 +50,6 @@ export type PulleyMotorPatch = Partial<Omit<PulleyMotorRow, "id">> & {
 export type PulleyMotorInsert = Partial<Omit<PulleyMotorRow, "id">> & {
   model: string;
   motorRpm: number;
-  srNo: number;
   /** Optional belt children created atomically with the parent. */
   belts?: PulleyBeltInput[];
 };
