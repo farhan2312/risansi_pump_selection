@@ -36,11 +36,20 @@ export async function POST(req: Request) {
   // could otherwise attribute a project to any arbitrary user id.
   const createdBy = tryDecodeToken(req)?.sub ?? null;
 
-  const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(projects);
+  // Derived from the highest existing numeric suffix, not row count — a
+  // count-based scheme collides with an existing code once any project has
+  // ever been deleted (e.g. count=5 after PRJ-004 was deleted, but PRJ-006
+  // already exists), which is exactly the bug this replaced.
+  const [{ maxNum }] = await db
+    .select({
+      maxNum: sql<number>`coalesce(max(substring(${projects.projectCode} from 5)::int), 0)::int`,
+    })
+    .from(projects)
+    .where(sql`${projects.projectCode} ~ '^PRJ-[0-9]+$'`);
   const [project] = await db
     .insert(projects)
     .values({
-      projectCode: `PRJ-${String(count + 1).padStart(3, "0")}`,
+      projectCode: `PRJ-${String(maxNum + 1).padStart(3, "0")}`,
       name: String(name),
       customerName: (body.customer as string) ?? null,
       industry: (body.industry as string) ?? null,

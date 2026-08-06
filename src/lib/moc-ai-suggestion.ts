@@ -87,12 +87,9 @@ const GEMINI_MODEL = "gemini-flash-latest";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 const PROMPT_INSTRUCTIONS = `As pump materials engineer.Recommend the lowest-cost reliable MOC, stator elastomer, shaft seal for progressive cavity pump.\
-Prefer economical materials unless process conditions require upgrades.\
-Preferred materials: \
-${MOC_AI_MATERIALS.join(", ")} \
-Preferred elastomers: \
-${MOC_AI_ELASTOMERS.join(", ")} \
-Use materials outside these lists only when technically justified.Use supplied process data.Mention any missing information that change recommendation`
+Prefer most economical materials.\
+Prefer materials: ${MOC_AI_MATERIALS.join(", ")}.\
+Use supplied process data. Suggest what temperature, pH, viscosity, solids concentration, particle size, and specific gravity ranges are acceptable for the recommended materials IF NOT provided.`
 
 const RESPONSE_SCHEMA = {
   type: "object",
