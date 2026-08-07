@@ -10,6 +10,9 @@ import {
   type GearboxOption,
   type GearboxRecommendation,
 } from "../../services/gearboxOptionsService";
+import { getRecommendations } from "../../services/recommendationService";
+import type { PumpRecommendation } from "../../data/Recommendations";
+import { toM3PerHr, toMwc } from "../../utils/units";
 
 type Props = {
   onNext: () => void;
@@ -67,6 +70,71 @@ const DriveDetailsStep = ({
   const isVBelt = formData.driveSystem === "V-Belt Drive";
   const isGeared = formData.driveSystem === "Geared Motor Drive/Gear Box + Motor";
   const motorRpm = formData.motorRPM as string;
+
+  // Recheck modal: computes the actual delivered capacity + BKW at the
+  // drive-achieved pump RPM (v-belt actual RPM, gearbox output RPM, or motor
+  // RPM for direct drive) using the pump's own qth/VE/ME. Fetched lazily on
+  // first Recheck click via getRecommendations — kept out of the mount effect
+  // so it doesn't hit the API for users who don't open the modal.
+  const [showRecheck, setShowRecheck] = useState(false);
+  const [recheckLoading, setRecheckLoading] = useState(false);
+  const [recheckError, setRecheckError] = useState<string | null>(null);
+  const [pumpSpecs, setPumpSpecs] = useState<PumpRecommendation | null>(null);
+
+  const finalPumpRpmRaw: string = isVBelt
+    ? (formData.driveVbeltRpm as string) || ""
+    : isGeared
+      ? (formData.gearboxOutputRpm as string) || ""
+      : (motorRpm as string) || "";
+  const finalPumpRpmSource: string = isVBelt
+    ? "V-Belt achieved pump RPM"
+    : isGeared
+      ? "Gearbox output RPM"
+      : "Motor RPM (direct drive)";
+
+  const handleRecheck = async () => {
+    setRecheckError(null);
+    if (!formData.selectedModel) {
+      setRecheckError("Confirm a pump model first.");
+      setShowRecheck(true);
+      return;
+    }
+    if (!formData.driveSystem) {
+      setRecheckError("Pick a drive system first.");
+      setShowRecheck(true);
+      return;
+    }
+    if (!finalPumpRpmRaw) {
+      setRecheckError(
+        isVBelt
+          ? "Pick a V-Belt option first — final pump RPM comes from the belt selection."
+          : isGeared
+            ? "Pick a gearbox first — final pump RPM comes from the gearbox output."
+            : "Motor RPM is required.",
+      );
+      setShowRecheck(true);
+      return;
+    }
+    setRecheckLoading(true);
+    setShowRecheck(true);
+    try {
+      const { recommendations } = await getRecommendations(formData);
+      const match = recommendations.find((p) => p.model === formData.selectedModel);
+      if (!match) {
+        setRecheckError(
+          "Couldn't find the confirmed pump in the current recommendation set — it may no longer satisfy the entered duty point.",
+        );
+        setPumpSpecs(null);
+      } else {
+        setPumpSpecs(match);
+      }
+    } catch {
+      setRecheckError("Couldn't load pump specifications. Check your connection and try again.");
+      setPumpSpecs(null);
+    } finally {
+      setRecheckLoading(false);
+    }
+  };
 
   const [vbeltStatus, setVbeltStatus] = useState<VbeltStatus>("idle");
   const [vbelt, setVbelt] = useState<VBeltDrive | null>(null);
@@ -811,13 +879,296 @@ const DriveDetailsStep = ({
           <button className={btnGhost} onClick={onPrevious}>
             Previous
           </button>
-          <button className={btnPrimary} onClick={onNext}>
-            Get Recommendations
+          <button className={btnPrimary} onClick={handleRecheck}>
+            Recheck
+          </button>
+        </div>
+      </div>
+
+      {showRecheck && (
+        <RecheckModal
+          loading={recheckLoading}
+          error={recheckError}
+          pumpSpecs={pumpSpecs}
+          finalRpm={finalPumpRpmRaw}
+          finalRpmSource={finalPumpRpmSource}
+          formData={formData}
+          onClose={() => setShowRecheck(false)}
+          onProceed={() => {
+            setShowRecheck(false);
+            onNext();
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+// --- Recheck modal ---------------------------------------------------------
+// Recomputes the delivered capacity + BKW at the drive-achieved pump RPM
+// (not the entered duty capacity) so the engineer can see whether the
+// selected drive actually lands close to the duty point. Formulas match
+// recommendation-engine.ts:
+//   Q (at 100 rpm, per VE) = qth × VE/100
+//   Cap at final RPM       = Q × final_rpm / 100
+//   BKW                    = Cap × head(MWC) / 367 / (ME/100)
+//   Motor KW               = BKW × 1.2
+
+type RecheckModalProps = {
+  loading: boolean;
+  error: string | null;
+  pumpSpecs: PumpRecommendation | null;
+  finalRpm: string;
+  finalRpmSource: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  formData: any;
+  onClose: () => void;
+  onProceed: () => void;
+};
+
+const fmtNum = (n: number, dp = 2): string =>
+  Number.isFinite(n) ? n.toFixed(dp) : "—";
+
+const RecheckModal = ({
+  loading,
+  error,
+  pumpSpecs,
+  finalRpm,
+  finalRpmSource,
+  formData,
+  onClose,
+  onProceed,
+}: RecheckModalProps) => {
+  const finalRpmNum = Number(finalRpm);
+  const sg = Number(formData.sg) || 1;
+  const headMwc = formData.head
+    ? toMwc(Number(formData.head), formData.headUnit || "MWC", sg)
+    : NaN;
+  const dutyCap = formData.capacity
+    ? toM3PerHr(Number(formData.capacity), formData.capacityUnit || "m3/hr", sg)
+    : NaN;
+
+  const canCompute =
+    pumpSpecs !== null &&
+    Number.isFinite(finalRpmNum) &&
+    finalRpmNum > 0 &&
+    Number.isFinite(headMwc);
+
+  let calc: {
+    qAtMax: number;
+    qAtMin: number;
+    capAtMax: number;
+    capAtMin: number;
+    bkwAtMax: number;
+    bkwAtMin: number;
+    motorKwAtMax: number;
+    motorKwAtMin: number;
+  } | null = null;
+
+  if (canCompute && pumpSpecs) {
+    const qth = pumpSpecs.qth;
+    const veMax = pumpSpecs.voleMax;
+    const veMin = pumpSpecs.voleMin;
+    const me = pumpSpecs.mechEff;
+    const qAtMax = qth * (veMax / 100);
+    const qAtMin = qth * (veMin / 100);
+    const capAtMax = (qAtMax * finalRpmNum) / 100;
+    const capAtMin = (qAtMin * finalRpmNum) / 100;
+    const bkwAtMax = me > 0 ? (capAtMax * headMwc) / 367 / (me / 100) : NaN;
+    const bkwAtMin = me > 0 ? (capAtMin * headMwc) / 367 / (me / 100) : NaN;
+    calc = {
+      qAtMax,
+      qAtMin,
+      capAtMax,
+      capAtMin,
+      bkwAtMax,
+      bkwAtMin,
+      motorKwAtMax: bkwAtMax * 1.2,
+      motorKwAtMin: bkwAtMin * 1.2,
+    };
+  }
+
+  const selectedMotorKw = Number(formData.driveMotorKw) || null;
+  const motorKwWarning =
+    calc && selectedMotorKw !== null
+      ? Math.max(calc.motorKwAtMax, calc.motorKwAtMin) > selectedMotorKw
+      : false;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="w-full max-w-2xl overflow-hidden rounded-lg bg-paper shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-line px-5 py-3">
+          <div>
+            <h3 className="text-base font-semibold text-fg">
+              Recheck at final selected RPM
+            </h3>
+            <p className="mt-0.5 text-xs text-fg-3">
+              Delivered capacity &amp; BKW recomputed at the drive-achieved pump RPM.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded p-1 text-fg-3 hover:bg-elev hover:text-fg"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="max-h-[70vh] overflow-y-auto p-5">
+          {loading && (
+            <p className="text-[13px] text-fg-3">Loading pump specifications…</p>
+          )}
+          {!loading && error && (
+            <p className="text-[13px] text-warn">{error}</p>
+          )}
+          {!loading && !error && !canCompute && (
+            <p className="text-[13px] text-warn">
+              Not enough data to recompute — need pump specs, head, and final pump RPM.
+            </p>
+          )}
+
+          {!loading && !error && canCompute && calc && pumpSpecs && (
+            <>
+              <div className="overflow-x-auto rounded-md border border-line">
+                <table className="w-full text-[13px]">
+                  <tbody>
+                    <RecheckRow label={finalRpmSource} value={String(finalRpmNum)} />
+                    <RecheckRow label="Pump Model" value={pumpSpecs.model} />
+                    <RecheckRow
+                      label="Head"
+                      value={`${fmtNum(headMwc, 2)} MWC`}
+                      note={
+                        formData.headUnit && formData.headUnit !== "MWC"
+                          ? `entered: ${formData.head} ${formData.headUnit}`
+                          : undefined
+                      }
+                    />
+                    <RecheckRow
+                      label="Duty Capacity (entered)"
+                      value={`${fmtNum(dutyCap, 2)} m³/hr`}
+                    />
+                    <RecheckRow label="VE min / max (%)" value={`${pumpSpecs.voleMin} / ${pumpSpecs.voleMax}`} />
+                    <RecheckRow label="ME (%)" value={String(pumpSpecs.mechEff)} note="Depends on the head" />
+                    <RecheckRow label="Q th" value={fmtNum(pumpSpecs.qth, 2)} />
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mt-4 overflow-x-auto rounded-md border border-line">
+                <table className="w-full text-[13px]">
+                  <thead className="bg-elev text-left text-[11px] uppercase tracking-wide text-fg-3">
+                    <tr>
+                      <th className="px-3 py-2">At VE</th>
+                      <th className="px-3 py-2 text-right">VE max ({pumpSpecs.voleMax}%)</th>
+                      <th className="px-3 py-2 text-right">VE min ({pumpSpecs.voleMin}%)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <RecheckCalcRow
+                      label="Q"
+                      hi={calc.qAtMax}
+                      lo={calc.qAtMin}
+                    />
+                    <RecheckCalcRow
+                      label={`Cap at ${finalRpmNum} rpm (Q × RPM/100)`}
+                      hi={calc.capAtMax}
+                      lo={calc.capAtMin}
+                      highlight
+                      unit="m³/hr"
+                    />
+                    <RecheckCalcRow
+                      label="BKW = Cap × Head / 367 / (ME/100)"
+                      hi={calc.bkwAtMax}
+                      lo={calc.bkwAtMin}
+                      unit="kW"
+                    />
+                  </tbody>
+                </table>
+              </div>
+
+              {selectedMotorKw !== null && (
+                <p
+                  className={`mt-3 text-[12px] ${
+                    motorKwWarning ? "text-warn" : "text-fg-3"
+                  }`}
+                >
+                  Selected Motor KW: <strong>{selectedMotorKw} kW</strong>
+                  {motorKwWarning
+                    ? " — recomputed Motor KW exceeds this. Consider a higher rating."
+                    : " — recomputed Motor KW fits within this."}
+                </p>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-line px-5 py-3">
+          <button className={btnGhost} onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            className={btnPrimary}
+            onClick={onProceed}
+            disabled={loading || !canCompute}
+          >
+            Get Recommendation
           </button>
         </div>
       </div>
     </div>
   );
 };
+
+const RecheckRow = ({
+  label,
+  value,
+  note,
+}: {
+  label: string;
+  value: string;
+  note?: string;
+}) => (
+  <tr className="border-t border-line first:border-t-0">
+    <td className="px-3 py-2 font-medium text-fg">{label}</td>
+    <td className="px-3 py-2 text-right font-mono text-fg">
+      {value}
+      {note && <span className="ml-2 font-sans text-[11px] text-fg-3">({note})</span>}
+    </td>
+  </tr>
+);
+
+const RecheckCalcRow = ({
+  label,
+  hi,
+  lo,
+  unit,
+  highlight,
+}: {
+  label: string;
+  hi: number;
+  lo: number;
+  unit?: string;
+  highlight?: boolean;
+}) => (
+  <tr className={`border-t border-line ${highlight ? "bg-[var(--pos-soft)]" : ""}`}>
+    <td className="px-3 py-2 text-fg">{label}</td>
+    <td className={`px-3 py-2 text-right font-mono ${highlight ? "font-semibold text-[var(--pos-strong)]" : "text-fg"}`}>
+      {fmtNum(hi)} {unit ?? ""}
+    </td>
+    <td className={`px-3 py-2 text-right font-mono ${highlight ? "font-semibold text-[var(--pos-strong)]" : "text-fg"}`}>
+      {fmtNum(lo)} {unit ?? ""}
+    </td>
+  </tr>
+);
 
 export default DriveDetailsStep;

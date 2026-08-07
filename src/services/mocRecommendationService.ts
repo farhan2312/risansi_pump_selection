@@ -56,6 +56,8 @@ export interface MocComponentSuggestions {
  * caller can just show "unavailable". */
 export const getMocAiSuggestion = async (input: {
   media: string;
+  head?: string;
+  headUnit?: string;
   ph?: string;
   temperatureC?: string;
   viscosityCp?: string;

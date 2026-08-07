@@ -12,6 +12,81 @@ import {
 } from "../../services/mocRecommendationService";
 import { downloadMocReportPdf } from "../../lib/moc-pdf-report";
 
+// Renders the AI's markdown-formatted summary/alternatives/seal-rationale
+// text (headers, "-"/"1." lists, **bold**) in the UI panel — a small,
+// purpose-built subset matching what the prompt asks the model for, not a
+// full markdown parser. Same subset the PDF export renders, so the on-screen
+// panel and the downloaded report read the same way.
+const renderInline = (text: string) =>
+  text.split(/(\*\*.+?\*\*)/g).map((part, i) =>
+    part.startsWith("**") && part.endsWith("**") ? (
+      <strong key={i}>{part.slice(2, -2)}</strong>
+    ) : (
+      <span key={i}>{part}</span>
+    )
+  );
+
+const MarkdownLite = ({ text, className = "" }: { text: string; className?: string }) => {
+  const blocks: React.ReactNode[] = [];
+  let listItems: string[] = [];
+  let listOrdered = false;
+
+  const flushList = (key: string) => {
+    if (listItems.length === 0) return;
+    const items = listItems;
+    blocks.push(
+      listOrdered ? (
+        <ol key={key} className="list-decimal space-y-0.5 pl-5">
+          {items.map((item, i) => (
+            <li key={i}>{renderInline(item)}</li>
+          ))}
+        </ol>
+      ) : (
+        <ul key={key} className="list-disc space-y-0.5 pl-5">
+          {items.map((item, i) => (
+            <li key={i}>{renderInline(item)}</li>
+          ))}
+        </ul>
+      )
+    );
+    listItems = [];
+  };
+
+  (text || "").split("\n").forEach((raw, idx) => {
+    const line = raw.trim();
+    if (!line) {
+      flushList(`list-${idx}`);
+      return;
+    }
+    const heading = /^#{1,4}\s+(.*)$/.exec(line);
+    const bullet = /^[-*]\s+(.*)$/.exec(line);
+    const numbered = /^\d+[.)]\s+(.*)$/.exec(line);
+    if (heading) {
+      flushList(`list-${idx}`);
+      blocks.push(
+        <div key={idx} className="mt-2 font-semibold first:mt-0">
+          {renderInline(heading[1])}
+        </div>
+      );
+    } else if (bullet || numbered) {
+      const ordered = !!numbered;
+      if (listItems.length > 0 && listOrdered !== ordered) flushList(`list-${idx}`);
+      listOrdered = ordered;
+      listItems.push((bullet ?? numbered)![1]);
+    } else {
+      flushList(`list-${idx}`);
+      blocks.push(
+        <p key={idx} className="mt-1 first:mt-0">
+          {renderInline(line)}
+        </p>
+      );
+    }
+  });
+  flushList("list-end");
+
+  return <div className={className}>{blocks}</div>;
+};
+
 type Props = {
   onNext: () => void;
   onPrevious: () => void;
@@ -141,6 +216,8 @@ const MocDetailsStep = ({
     setAiStatus("loading");
     getMocAiSuggestion({
       media,
+      head: formData.head || undefined,
+      headUnit: formData.headUnit || undefined,
       ph: formData.ph || undefined,
       temperatureC: formData.temperature || undefined,
       viscosityCp: formData.viscosityCp || undefined,
@@ -174,12 +251,12 @@ const MocDetailsStep = ({
         (row) => ({
           label: row.label,
           aiPick: aiSuggestion[row.aiKey],
-          manualPick: formData[row.key] ?? "",
-          remarks: formData[`${row.key}Remarks`] ?? "",
         }),
       );
       await downloadMocReportPdf({
         media,
+        head: formData.head || undefined,
+        headUnit: formData.headUnit || undefined,
         ph: formData.ph || undefined,
         temperatureC: formData.temperature || undefined,
         viscosityCp: formData.viscosityCp || undefined,
@@ -339,31 +416,14 @@ const MocDetailsStep = ({
                       </p>
                     )}
 
-                    {aiSuggestion.summary ? (
-                      <div>
-                        <span className="section-label">Summary</span>
-                        <div className="mt-1 rounded-lg border-2 border-emerald-400 bg-emerald-50 p-3">
-                          <p className="whitespace-pre-line text-sm text-emerald-900">
-                            {aiSuggestion.summary}
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-sm text-slate-500">
-                        No recommendation generated yet.
-                      </div>
-                    )}
-
-                    {aiSuggestion.alternatives && (
-                      <div>
-                        <span className="section-label">Alternatives Considered</span>
-                        <div className="mt-1 rounded-lg border border-blue-200 bg-white p-3">
-                          <p className="whitespace-pre-line text-sm text-slate-700">
-                            {aiSuggestion.alternatives}
-                          </p>
-                        </div>
-                      </div>
-                    )}
+                    {/* The detailed summary, material tables, and alternatives
+                        live in the downloadable PDF report only — not shown
+                        inline here to keep the form focused on selection. */}
+                    <p className="text-[13px] text-slate-600">
+                      A recommendation is ready. Download the PDF report for the
+                      full engineering summary, material breakdown, and
+                      alternatives.
+                    </p>
 
                     {/* Disclaimer */}
                     <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
@@ -391,9 +451,7 @@ const MocDetailsStep = ({
                     {aiSuggestion.sealRecommendation || "—"}
                   </div>
                   {aiSuggestion.sealRationale && (
-                    <p className="mt-1 text-[12px] text-emerald-900">
-                      {aiSuggestion.sealRationale}
-                    </p>
+                    <MarkdownLite text={aiSuggestion.sealRationale} className="mt-1 text-[12px] text-emerald-900" />
                   )}
                 </div>
               </>

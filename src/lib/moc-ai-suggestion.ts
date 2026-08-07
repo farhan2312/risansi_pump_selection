@@ -22,6 +22,7 @@
 export const MOC_AI_MATERIALS = [
   "Cast Iron",
   "Mild Steel",
+  "SS410",
   "SS304",
   "SS316",
   "SS316L",
@@ -29,7 +30,6 @@ export const MOC_AI_MATERIALS = [
   "DSS 2505",
   "Hastelloy",
   "Ni-Hard CI",
-  "SS410",
 ] as const;
 
 export const MOC_AI_ELASTOMERS = [
@@ -46,12 +46,14 @@ export const MOC_AI_SEAL_TYPES = ["Gland Packing", "Mechanical Seal"] as const;
 
 export interface MocAiContext {
   media: string;
+  head: string | null;
+  headUnit: string | null;
+  capacity: string | null;
+  capacityUnit: string | null;
   ph: string | null;
   temperatureC: string | null;
   viscosityCp: string | null;
   sg: string | null;
-  capacity: string | null;
-  capacityUnit: string | null;
   solidPct: string | null;
   solidSize: string | null;
   solidType: string | null;
@@ -86,10 +88,23 @@ export interface MocComponentSuggestions {
 const GEMINI_MODEL = "gemini-flash-latest";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
-const PROMPT_INSTRUCTIONS = `As pump materials engineer.Recommend the lowest-cost reliable MOC, stator elastomer, shaft seal for progressive cavity pump.\
-Prefer most economical materials.\
-Prefer materials: ${MOC_AI_MATERIALS.join(", ")}.\
-Use supplied process data. Suggest what temperature, pH, viscosity, solids concentration, particle size, and specific gravity ranges are acceptable for the recommended materials IF NOT provided.`
+// Kept short on purpose (token cost) — media/head/capacity are the 3
+// parameters that most determine the answer, so they're stated directly in
+// the instruction sentence; everything else goes in the compact "Other data"
+// block below, only when actually provided.
+function buildPrompt(context: MocAiContext, processData: string): string {
+  const head = context.head ? `${context.head} ${context.headUnit || "MWC"}` : "n/a";
+  const capacity = context.capacity
+    ? `${context.capacity} ${context.capacityUnit ?? ""}`.trim()
+    : "n/a";
+  return (
+    `PCP pump. Media: ${context.media}. Head: ${head}. Capacity: ${capacity}.\n` +
+    `Recommend lowest-cost reliable MOC (per component), stator elastomer, shaft seal. Prefer most economical: ${MOC_AI_MATERIALS.join(", ")}.\n` +
+    `summary: detailed markdown engineering note — use ## headers, **bold**, bullet lists AND | pipe tables |, e.g. a Component/Material/Why table and a Mechanical Seal vs Gland Packing comparison table. ` +
+    `alternatives: markdown with a | pipe table | of alternative materials and trade-offs.` +
+    (processData ? `\nOther data:\n${processData}` : "")
+  );
+}
 
 const RESPONSE_SCHEMA = {
   type: "object",
@@ -104,8 +119,8 @@ const RESPONSE_SCHEMA = {
     statorRubber: { type: "string" },
     sealRecommendation: { type: "string", enum: [...MOC_AI_SEAL_TYPES] },
     sealRationale: { type: "string" },
-    summary: { type: "string" },
-    alternatives: { type: "string" },
+    summary: { type: "string", description: "Detailed markdown: ## headers, **bold**, bullet lists, and | pipe tables |." },
+    alternatives: { type: "string", description: "Markdown including a | pipe table | of alternatives and trade-offs." },
   },
   required: [
     "bearingHousing", "bearingPlate", "tieRod", "nutBolt",
@@ -127,21 +142,18 @@ export async function getMocAiSuggestion(
   }
 
   const processData =
-    line("Fluid name / application", context.media) +
     line("pH", context.ph) +
     line("Temperature", context.temperatureC, " °C") +
     line("Viscosity", context.viscosityCp, " cP") +
-    line("Specific gravity", context.sg) +
-    line("Flow rate", context.capacity, ` ${context.capacityUnit ?? ""}`.trimEnd()) +
-    line("Solids concentration", context.solidPct, "%") +
+    line("SG", context.sg) +
+    line("Solids", context.solidPct, "%") +
     line(
       "Particle size",
       context.solidSize,
       context.solidType ? ` mm (${context.solidType})` : " mm",
     );
 
-  const prompt =
-    `${PROMPT_INSTRUCTIONS}\n\nProcess data:\n${processData || "(none provided yet)"}`;
+  const prompt = buildPrompt(context, processData);
 
   try {
     const res = await fetch(`${GEMINI_URL}?key=${encodeURIComponent(apiKey)}`, {
@@ -152,7 +164,7 @@ export async function getMocAiSuggestion(
         generationConfig: {
           responseMimeType: "application/json",
           responseSchema: RESPONSE_SCHEMA,
-          maxOutputTokens: 3072,
+          maxOutputTokens: 4096,
         },
       }),
     });

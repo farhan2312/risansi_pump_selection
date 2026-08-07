@@ -24,6 +24,8 @@ export async function POST(req: Request) {
 
   const suggestion = await getMocAiSuggestion({
     media,
+    head: str(body.head),
+    headUnit: str(body.headUnit),
     ph: str(body.ph),
     temperatureC: str(body.temperatureC),
     viscosityCp: str(body.viscosityCp),

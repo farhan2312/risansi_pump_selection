@@ -12,12 +12,12 @@ import type { MocComponentSuggestions } from "../services/mocRecommendationServi
 export interface MocPdfComponentRow {
   label: string;
   aiPick: string;
-  manualPick: string;
-  remarks: string;
 }
 
 export interface MocPdfInput {
   media: string;
+  head?: string;
+  headUnit?: string;
   ph?: string;
   temperatureC?: string;
   viscosityCp?: string;
@@ -55,6 +55,157 @@ async function loadImageAsDataUrl(url: string): Promise<{ dataUrl: string; width
 }
 
 const POS_GREEN: [number, number, number] = [5, 150, 105];
+
+// The AI is prompted to write summary/alternatives as markdown (headers,
+// **bold**, bullets, and pipe tables) so the PDF reads like the same
+// formatted answer you'd see prompting the model directly in a chat UI,
+// rather than one flat wrapped paragraph. This is a small, purpose-built
+// renderer (not a full markdown parser) covering just what the prompt asks
+// the model for: #/## headers, "- "/"* "/"1. " list items, **bold** inline
+// spans, and GitHub-style | pipe | tables (rendered via jspdf-autotable).
+type MdToken = { text: string; bold: boolean };
+
+function parseInlineBold(text: string): MdToken[] {
+  const tokens: MdToken[] = [];
+  const re = /\*\*(.+?)\*\*/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    if (m.index > last) tokens.push({ text: text.slice(last, m.index), bold: false });
+    tokens.push({ text: m[1], bold: true });
+    last = re.lastIndex;
+  }
+  if (last < text.length) tokens.push({ text: text.slice(last), bold: false });
+  return tokens;
+}
+
+const isTableRow = (s: string) => /^\|.*\|$/.test(s.trim());
+// A table separator row like "| --- | :--: |" — pipes/dashes/colons/spaces
+// only, and must contain at least one dash so it isn't mistaken for a body
+// row of short cells.
+const isTableSep = (s: string) =>
+  /^\|[\s:|-]+\|$/.test(s.trim()) && s.includes("-");
+
+function splitTableRow(line: string): string[] {
+  return line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    // Tables render as flat cells; strip inline bold markers so "**x**"
+    // doesn't show literal asterisks (autoTable can't do partial-bold spans).
+    .map((c) => c.trim().replace(/\*\*(.+?)\*\*/g, "$1"));
+}
+
+const GREY_HEAD: [number, number, number] = [55, 65, 81];
+
+// Self-contained: manages its own page breaks (returns the final y) so callers
+// just assign the result back — no shared ensureSpace closure to keep in sync.
+function renderMarkdown(
+  doc: jsPDF,
+  text: string,
+  margin: number,
+  contentWidth: number,
+  pageHeight: number,
+  startY: number,
+): number {
+  let y = startY;
+  const bottom = pageHeight - margin - 20;
+  const need = (h: number) => {
+    if (y + h > bottom) {
+      doc.addPage();
+      y = margin;
+    }
+  };
+
+  const lines = (text || "").split("\n");
+  let i = 0;
+  while (i < lines.length) {
+    const raw = lines[i];
+    const trimmed = raw.trim();
+
+    // --- Pipe table (header row + separator row + body rows) ---
+    if (isTableRow(trimmed) && i + 1 < lines.length && isTableSep(lines[i + 1])) {
+      const header = splitTableRow(trimmed);
+      const body: string[][] = [];
+      let j = i + 2;
+      while (j < lines.length && isTableRow(lines[j]) && !isTableSep(lines[j])) {
+        body.push(splitTableRow(lines[j]));
+        j++;
+      }
+      need(40);
+      autoTable(doc, {
+        startY: y,
+        margin: { left: margin, right: margin },
+        head: [header],
+        body,
+        styles: { fontSize: 8.5, cellPadding: 4, textColor: 40, valign: "top" },
+        headStyles: { fillColor: GREY_HEAD, textColor: 255, fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [245, 247, 250] },
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      y = (doc as any).lastAutoTable.finalY + 10;
+      i = j;
+      continue;
+    }
+
+    if (!trimmed) {
+      y += 6;
+      i++;
+      continue;
+    }
+
+    let content = trimmed;
+    let isHeading = false;
+    let prefix = "";
+    let indent = 0;
+
+    const heading = /^#{1,4}\s+(.*)$/.exec(trimmed);
+    const bullet = /^[-*]\s+(.*)$/.exec(trimmed);
+    const numbered = /^(\d+[.)])\s+(.*)$/.exec(trimmed);
+    if (heading) {
+      isHeading = true;
+      content = heading[1];
+    } else if (bullet) {
+      prefix = "• ";
+      indent = 14;
+      content = bullet[1];
+    } else if (numbered) {
+      prefix = `${numbered[1]} `;
+      indent = 14;
+      content = numbered[2];
+    }
+
+    need(14);
+    doc.setFontSize(isHeading ? 11 : 10);
+    let x = margin + indent;
+    if (prefix) {
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(50);
+      doc.text(prefix, x, y);
+      x += doc.getTextWidth(prefix);
+    }
+
+    for (const tok of parseInlineBold(content)) {
+      doc.setFont("helvetica", tok.bold || isHeading ? "bold" : "normal");
+      doc.setTextColor(isHeading ? 20 : 50);
+      for (const word of tok.text.split(/(\s+)/)) {
+        if (!word) continue;
+        const w = doc.getTextWidth(word);
+        if (word.trim() && x + w > margin + contentWidth) {
+          y += 13;
+          need(14);
+          x = margin + indent;
+        }
+        doc.text(word, x, y);
+        x += w;
+      }
+    }
+    y += isHeading ? 16 : 13;
+    i++;
+  }
+  return y + 6;
+}
 
 export async function downloadMocReportPdf(input: MocPdfInput): Promise<void> {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
@@ -100,6 +251,7 @@ export async function downloadMocReportPdf(input: MocPdfInput): Promise<void> {
   // --- Process data ---
   const allProcRows: [string, string][] = [
     ["Media / Application", input.media],
+    ["Head", input.head ? `${input.head} ${input.headUnit || "MWC"}` : ""],
     ["pH", input.ph ?? ""],
     ["Temperature", input.temperatureC ? `${input.temperatureC} °C` : ""],
     ["Viscosity", input.viscosityCp ? `${input.viscosityCp} cP` : ""],
@@ -129,55 +281,36 @@ export async function downloadMocReportPdf(input: MocPdfInput): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   y = (doc as any).lastAutoTable.finalY + 20;
 
-  // --- Summary ---
-  const section = (title: string, body: string) => {
-    ensureSpace(50);
+  // --- Summary / Sealing / Alternatives — rendered as markdown so the PDF
+  // reads like the same formatted answer the model gives in a chat UI. ---
+  const contentWidth = pageWidth - margin * 2;
+  const sectionTitle = (title: string) => {
+    ensureSpace(30);
     doc.setFontSize(12);
     doc.setTextColor(20);
     doc.setFont("helvetica", "bold");
     doc.text(title, margin, y);
     y += 15;
-    doc.setFontSize(10);
-    doc.setTextColor(50);
-    doc.setFont("helvetica", "normal");
-    const lines: string[] = doc.splitTextToSize(body || "—", pageWidth - margin * 2);
-    for (const line of lines) {
-      ensureSpace(14);
-      doc.text(line, margin, y);
-      y += 13;
-    }
-    y += 10;
   };
 
-  section("Summary", input.suggestion.summary);
+  sectionTitle("Summary");
+  y = renderMarkdown(doc, input.suggestion.summary || "—", margin, contentWidth, pageHeight, y);
+  y += 4;
 
-  ensureSpace(30);
-  doc.setFontSize(12);
-  doc.setTextColor(20);
-  doc.setFont("helvetica", "bold");
-  doc.text("Recommended Sealing", margin, y);
-  y += 15;
+  sectionTitle("Recommended Sealing");
+  ensureSpace(20);
   doc.setFontSize(10.5);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(...POS_GREEN);
   doc.text(input.suggestion.sealRecommendation || "—", margin, y);
   y += 14;
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(50);
-  const sealLines: string[] = doc.splitTextToSize(
-    input.suggestion.sealRationale || "",
-    pageWidth - margin * 2,
-  );
-  for (const line of sealLines) {
-    ensureSpace(14);
-    doc.text(line, margin, y);
-    y += 13;
-  }
-  y += 10;
+  y = renderMarkdown(doc, input.suggestion.sealRationale || "", margin, contentWidth, pageHeight, y);
+  y += 4;
 
-  section("Alternatives Considered", input.suggestion.alternatives);
+  sectionTitle("Alternatives Considered");
+  y = renderMarkdown(doc, input.suggestion.alternatives || "—", margin, contentWidth, pageHeight, y);
 
-  // --- Component table ---
+  // --- Component table (AI recommendation only — no manual/remarks) ---
   ensureSpace(60);
   doc.setFontSize(12);
   doc.setTextColor(20);
@@ -188,16 +321,12 @@ export async function downloadMocReportPdf(input: MocPdfInput): Promise<void> {
   autoTable(doc, {
     startY: y,
     margin: { left: margin, right: margin },
-    head: [["Component", "AI Recommendation", "Manual Selection", "Remarks"]],
-    body: input.components.map((c) => [
-      c.label,
-      c.aiPick || "—",
-      c.manualPick || "—",
-      c.remarks || "—",
-    ]),
+    head: [["Component", "AI Recommendation"]],
+    body: input.components.map((c) => [c.label, c.aiPick || "—"]),
     styles: { fontSize: 9, cellPadding: 5 },
     headStyles: { fillColor: POS_GREEN, textColor: 255 },
     alternateRowStyles: { fillColor: [245, 250, 248] },
+    columnStyles: { 0: { fontStyle: "bold", cellWidth: 160 } },
   });
 
   // --- Footer on every page ---
