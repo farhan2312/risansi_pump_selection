@@ -123,11 +123,24 @@ function buildPrompt(context: MocAiContext, processData: string): string {
   const capacity = context.capacity
     ? `${context.capacity} ${context.capacityUnit ?? ""}`.trim()
     : "n/a";
+  // Enumerate which of the ancillary parameters the user did NOT enter, so
+  // the model knows to fill those with typical values for the media (and
+  // label them (estimated)) in the summary's Operating Parameters section.
+  const missing: string[] = [];
+  if (!context.ph) missing.push("pH");
+  if (!context.temperatureC) missing.push("Temperature");
+  if (!context.viscosityCp) missing.push("Viscosity");
+  const missingClause =
+    missing.length > 0
+      ? `Not provided: ${missing.join(", ")}. In the summary's Operating Parameters section, include a typical value for each missing one for this media, labeled (estimated). `
+      : "";
   return (
     `PCP pump. Media: ${context.media}. Head: ${head}. Capacity: ${capacity}.\n` +
     `Recommend lowest-cost reliable MOC (per component), stator elastomer, shaft seal. Prefer most economical: ${MOC_AI_MATERIALS.join(", ")}.\n` +
-    `summary: detailed markdown engineering note — use ## headers, **bold**, bullet lists AND | pipe tables |, e.g. a Component/Material/Why table and a Mechanical Seal vs Gland Packing comparison table. ` +
-    `alternatives: markdown with a | pipe table | of alternative materials and trade-offs.` +
+    `${missingClause}` +
+    `summary: detailed markdown engineering note — start with an Operating Parameters section listing Media, Head, Capacity, pH, Temperature, Viscosity (with (estimated) for any not provided); then use ## headers, **bold**, bullet lists AND | pipe tables |, e.g. a Component/Material/Why table and a Mechanical Seal vs Gland Packing comparison table. ` +
+    `alternatives: markdown with a | pipe table | of alternative materials and trade-offs. ` +
+    `IMPORTANT: use plain ASCII only. No emoji, no unicode symbols (avoid these: check-mark, cross, warning-triangle, approx-symbol, arrow, bullet-dot). Use "OK" / "X" / "!" / "~" / "->" / "-" instead.` +
     (processData ? `\nOther data:\n${processData}` : "")
   );
 }
@@ -206,7 +219,7 @@ async function getMocAiSuggestionGemini(
             properties: SCHEMA_PROPERTIES,
             required: REQUIRED_FIELDS,
           },
-          maxOutputTokens: 4096,
+          maxOutputTokens: 2500,
         },
       }),
     });
@@ -260,7 +273,7 @@ async function getMocAiSuggestionAnthropic(
     const client = new Anthropic({ apiKey });
     const response = await client.messages.create({
       model: ANTHROPIC_MODEL,
-      max_tokens: 4096,
+      max_tokens: 2500,
       tools: [
         {
           name: MOC_TOOL_NAME,

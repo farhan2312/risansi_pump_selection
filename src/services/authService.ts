@@ -4,22 +4,29 @@ export interface AuthUser {
   id: string;
   name: string | null;
   email: string;
-  role: "user" | "admin";
+  role: "user" | "admin" | "system_admin";
 }
 
 export interface LoginResult {
   user: AuthUser;
 }
 
+// "system_admin" is deliberately not offered here — the highest privilege
+// tier is never self-requestable, only granted by an existing system admin
+// (via the Users & Access page).
+export type RequestableRole = "user" | "admin";
+
 export const requestAccess = async (
   name: string,
   email: string,
-  password: string
+  password: string,
+  role: RequestableRole
 ) => {
   const { data } = await apiClient.post("/access-requests", {
     name,
     email,
     password,
+    role,
   });
   return data;
 };

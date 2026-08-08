@@ -1,0 +1,82 @@
+/* Users & Access page — reuses the shared .pmm-* table/modal/button classes
+   from PumpModelMasterPage.css (imported by this page) for the table shell,
+   search box, and modals, so it reads as one consistent admin surface. This
+   stylesheet adds only what's specific to a user list: role/status badges
+   and the header's user-count subtitle. */
+
+.uap-header-stats {
+  font-size: 13px;
+  color: var(--fg-3);
+  margin: 4px 0 0;
+}
+.uap-header-stats strong {
+  color: var(--fg-2);
+  font-weight: 600;
+}
+
+.uap-user-name {
+  font-weight: 600;
+  color: var(--fg);
+}
+.uap-user-email {
+  display: block;
+  font-size: 12px;
+  color: var(--fg-3);
+  margin-top: 1px;
+}
+
+.uap-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: 999px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* Role badges */
+.uap-role-user {
+  background: var(--bg-elev);
+  color: var(--fg-3);
+}
+.uap-role-admin {
+  background: var(--accent-soft);
+  color: var(--brand-blue);
+}
+.uap-role-system_admin {
+  background: rgba(124, 58, 237, 0.12);
+  color: var(--purple);
+}
+
+/* Status badges */
+.uap-status-pending {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.uap-status-active {
+  background: var(--pos-soft);
+  color: var(--pos-strong);
+}
+.uap-status-rejected {
+  background: var(--neg-soft);
+  color: var(--neg-strong);
+}
+.uap-status-deactivated {
+  background: var(--bg-elev);
+  color: var(--fg-3);
+}
+
+.uap-self-tag {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--fg-3);
+  font-weight: 500;
+}
+
+.uap-field-hint {
+  font-size: 11.5px;
+  color: var(--fg-3);
+  margin-top: 4px;
+}

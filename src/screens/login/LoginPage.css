@@ -180,7 +180,8 @@
   cursor: not-allowed;
 }
 
-.login-form-container input {
+.login-form-container input,
+.login-form-container select {
   width: 100%;
   height: 48px;
   padding: 0 16px;
@@ -191,22 +192,30 @@
   font-size: 15px;
   margin-bottom: 16px;
   outline: none;
+  font-family: inherit;
   transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.login-form-container select {
+  cursor: pointer;
 }
 
 .login-form-container input::placeholder {
   color: #8f9bb0;
 }
 
-.login-form-container input:hover:not(:focus) {
+.login-form-container input:hover:not(:focus),
+.login-form-container select:hover:not(:focus) {
   border-color: #b8c3d3;
 }
 
-.login-form-container input:focus {
+.login-form-container input:focus,
+.login-form-container select:focus {
   border-color: #1a5cb8;
   background: #ffffff;
   box-shadow: 0 0 0 4px rgba(26, 92, 184, 0.14);
 }
+
 
 .login-form-container button[type="submit"] {
   width: 100%;

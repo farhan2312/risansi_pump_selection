@@ -13,6 +13,7 @@ import {
   type MocComponentSuggestions,
 } from "../../services/mocRecommendationService";
 import { downloadMocReportPdf } from "../../lib/moc-pdf-report";
+import { useCurrentUser } from "../../contexts/CurrentUserContext";
 
 // Renders the AI's markdown-formatted summary/alternatives/seal-rationale
 // text (headers, "-"/"1." lists, **bold**) in the UI panel — a small,
@@ -188,6 +189,7 @@ const MocDetailsStep = ({
   onStepClick,
 }: Props) => {
   const media = formData.media as string;
+  const { user } = useCurrentUser();
 
   // AI-assisted per-component suggestion — advisory only, opt-in via button
   // click (not fetched automatically). Reset whenever the media changes so a
@@ -259,12 +261,6 @@ const MocDetailsStep = ({
     setPdfGenerating(true);
     setPdfError(false);
     try {
-      const components = [...NON_WETTABLE_ROWS, ...WETTABLE_ROWS, ...ELASTOMER_ROWS].map(
-        (row) => ({
-          label: row.label,
-          aiPick: aiSuggestion[row.aiKey],
-        }),
-      );
       await downloadMocReportPdf({
         media,
         head: formData.head || undefined,
@@ -279,7 +275,7 @@ const MocDetailsStep = ({
         solidSize: formData.solidSize || undefined,
         solidType: formData.solidType || undefined,
         suggestion: aiSuggestion,
-        components,
+        generatedBy: user?.name || user?.email || undefined,
       });
     } catch {
       setPdfError(true);

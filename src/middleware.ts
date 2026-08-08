@@ -32,7 +32,16 @@ export async function middleware(req: NextRequest) {
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     const { payload } = await jwtVerify(token, secret, { algorithms: ["HS256"] });
 
-    if (pathname.startsWith("/admin") && payload.role !== "admin") {
+    // Users & Access (formerly "access requests") is system_admin only; the
+    // other /admin/* pages (the master-data tables) are open to admin and
+    // system_admin alike.
+    const role = payload.role;
+    const isAdminLevel = role === "admin" || role === "system_admin";
+    if (pathname.startsWith("/admin/users")) {
+      if (role !== "system_admin") {
+        return NextResponse.redirect(new URL("/dashboard", req.url));
+      }
+    } else if (pathname.startsWith("/admin") && !isAdminLevel) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
     return NextResponse.next();

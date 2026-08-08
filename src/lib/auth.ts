@@ -102,10 +102,25 @@ export function tryDecodeToken(req: Request): TokenClaims | null {
   }
 }
 
+// Three roles: "user" (main app only), "admin" (also gets the admin master
+// pages — Pump Model/Pulley/Gearbox — but NOT access requests), "system_admin"
+// (full control, including approving/rejecting access requests). Role is
+// assigned directly in the DB — there's no self-service promotion UI, same
+// as how the original single "admin" role has always been granted.
 export function requireAdmin(req: Request): TokenClaims {
   const claims = decodeToken(req);
-  if (claims.role !== "admin") {
+  if (claims.role !== "admin" && claims.role !== "system_admin") {
     throw new AuthError("Admin access required", 403);
+  }
+  return claims;
+}
+
+/** Stricter than requireAdmin — for the handful of routes that "admin"
+ * explicitly does NOT get (access-request review), per the 3-role spec. */
+export function requireSystemAdmin(req: Request): TokenClaims {
+  const claims = decodeToken(req);
+  if (claims.role !== "system_admin") {
+    throw new AuthError("System admin access required", 403);
   }
   return claims;
 }

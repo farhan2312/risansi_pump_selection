@@ -7,7 +7,10 @@ export interface CurrentUser {
   id: string;
   name: string | null;
   email: string;
-  role: "user" | "admin";
+  // "user": main app only. "admin": also gets the admin master pages, but
+  // not access requests. "system_admin": full control, including access
+  // requests. Assigned directly in the DB — no self-service promotion UI.
+  role: "user" | "admin" | "system_admin";
 }
 
 interface CurrentUserContextValue {

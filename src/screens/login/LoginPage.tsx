@@ -3,7 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import "./LoginPage.css";
-import { login, requestAccess } from "../../services/authService";
+import { login, requestAccess, type RequestableRole } from "../../services/authService";
+
+const ROLE_OPTIONS: { value: RequestableRole; label: string; hint: string }[] = [
+  { value: "user", label: "User", hint: "Pump selection & projects" },
+  { value: "admin", label: "Admin", hint: "Also manages master data" },
+];
 
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@risansi\.com$/;
 const MIN_PASSWORD_LENGTH = 6;
@@ -26,6 +31,7 @@ const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
 
   const [name, setName] = useState("");
+  const [requestedRole, setRequestedRole] = useState<RequestableRole>("user");
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const [emailError, setEmailError] = useState("");
@@ -122,7 +128,7 @@ const LoginPage = () => {
     const trimmedEmail = email.trim();
 
     try {
-      await requestAccess(trimmedName, trimmedEmail, password);
+      await requestAccess(trimmedName, trimmedEmail, password, requestedRole);
       setFormSuccess(
         "Request submitted — an admin will approve your account before you can sign in."
       );
@@ -130,6 +136,7 @@ const LoginPage = () => {
       setEmail("");
       setPassword("");
       setConfirmPassword("");
+      setRequestedRole("user");
       setMode("login");
     } catch (err) {
       setFormError(
@@ -352,6 +359,19 @@ const LoginPage = () => {
                 {confirmPasswordError}
               </span>
             )}
+
+            <label htmlFor="request-role">Role</label>
+            <select
+              id="request-role"
+              value={requestedRole}
+              onChange={(e) => setRequestedRole(e.target.value as RequestableRole)}
+            >
+              {ROLE_OPTIONS.map((r) => (
+                <option key={r.value} value={r.value}>
+                  {r.label} — {r.hint}
+                </option>
+              ))}
+            </select>
 
             <button type="submit" disabled={isSubmitting}>
               {isSubmitting ? "Submitting..." : "Request Access"}

@@ -33,6 +33,9 @@ export async function POST(req: Request) {
   if (user.status === "rejected") {
     return error("Your access request was rejected. Contact an administrator.", 403);
   }
+  if (user.status === "deactivated") {
+    return error("Your account has been deactivated. Contact an administrator.", 403);
+  }
 
   const token = createToken({ id: user.id, name: user.name, email: user.email, role: user.role });
   const response = json({

@@ -91,14 +91,23 @@ const Sidebar = () => {
         <p className="sidebar-group-label">Main</p>
         {mainLinks.map((l) => navLink(l.href, l.label, l.icon))}
 
-        {user?.role === "admin" && (
+        {(user?.role === "admin" || user?.role === "system_admin") && (
           <>
             <p className="sidebar-group-label">Admin</p>
-            
+
             {navLink("/admin/pump-model-master", "Pump Model Master", icons.database)}
             {navLink("/admin/pulley-master", "Pulley Master", icons.database)}
             {navLink("/admin/gearbox-master", "Gearbox Type", icons.database)}
-            {navLink("/admin/access-requests", "Access Requests", icons.users)}
+          </>
+        )}
+
+        {/* System admin only — plain "admin" doesn't get user management,
+            kept as its own group rather than folded into "Admin" above. */}
+        {user?.role === "system_admin" && (
+          <>
+            <p className="sidebar-group-label">System Admin</p>
+
+            {navLink("/admin/users", "Users & Access", icons.users)}
           </>
         )}
       </nav>

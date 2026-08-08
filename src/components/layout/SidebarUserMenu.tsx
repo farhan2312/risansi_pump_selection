@@ -28,7 +28,20 @@ const LogOutIcon = () => (
   </svg>
 );
 
-const roleLabel = (role: string | undefined) => (role === "admin" ? "System Admin" : "User");
+// Stale before the 3-role split, this used to label "admin" as "System
+// Admin" (there was no third role yet) — anything else, including the new
+// "system_admin" value itself, silently fell through to "User". That's why
+// a promoted system_admin account showed up as "User" in the sidebar.
+const roleLabel = (role: string | undefined) => {
+  switch (role) {
+    case "system_admin":
+      return "System Admin";
+    case "admin":
+      return "Admin";
+    default:
+      return "User";
+  }
+};
 
 /** User profile block pinned to the bottom of the sidebar — avatar, name,
  * role, and an expand chevron that opens an upward popup (theme toggle,

@@ -7,6 +7,16 @@ import { users } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
 
+// The requester picks what level of access they're asking for, but never
+// "system_admin" — that tier is only ever granted by an existing system
+// admin, never self-requested. An invalid/omitted value falls back to the
+// least-privileged "user" rather than erroring, so a tampered or missing
+// field can't accidentally request more access than intended.
+const REQUESTABLE_ROLES = new Set(["user", "admin"]);
+function requestedRole(v: unknown): "user" | "admin" {
+  return typeof v === "string" && REQUESTABLE_ROLES.has(v) ? (v as "user" | "admin") : "user";
+}
+
 export async function POST(req: Request) {
   let body: Record<string, unknown>;
   try {
@@ -21,6 +31,7 @@ export async function POST(req: Request) {
   if (!name || !email || !password) {
     return error("'name', 'email', and 'password' are required", 400);
   }
+  const role = requestedRole(body.role);
 
   const passwordHash = await bcrypt.hash(password, 12);
 
@@ -28,7 +39,7 @@ export async function POST(req: Request) {
   if (!existing) {
     const [user] = await db
       .insert(users)
-      .values({ name, email, passwordHash, role: "user", status: "pending" })
+      .values({ name, email, passwordHash, role, status: "pending" })
       .returning();
     return json(userToDict(user), 201);
   }
@@ -40,12 +51,13 @@ export async function POST(req: Request) {
     return error("An account already exists for this email. Please log in.", 409);
   }
 
-  // status == "rejected" — allow resubmission
+  // status == "rejected" or "deactivated" — allow resubmission
   const [updated] = await db
     .update(users)
     .set({
       name,
       passwordHash,
+      role,
       status: "pending",
       reviewedBy: null,
       reviewedAt: null,
