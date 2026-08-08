@@ -14,6 +14,18 @@ import {
   type PulleyMotorPatch,
   type PulleyMotorRow,
 } from "../../services/pulleyMasterService";
+import EmptyState from "../../components/ui/EmptyState";
+import { SkeletonRows } from "../../components/ui/Skeleton";
+import Spinner from "../../components/ui/Spinner";
+import Pagination, { usePagination } from "../../components/ui/Pagination";
+import {
+  PlusIcon,
+  SearchIcon,
+  DetailsIcon,
+  EditIcon,
+  TrashIcon,
+  AlertIcon,
+} from "../../components/ui/adminIcons";
 
 type FieldDef = { key: keyof PulleyMotorRow; label: string; numeric: boolean; required?: boolean };
 
@@ -140,6 +152,14 @@ const PulleyMasterPage = () => {
     );
   }, [rows, search]);
 
+  // 50 rows/page. Resets to page 1 whenever the search changes.
+  const { page, setPage, from, to, pageSize } = usePagination(
+    filtered.length,
+    search,
+    50
+  );
+  const paged = useMemo(() => filtered.slice(from, to), [filtered, from, to]);
+
   const handleCreated = (created: PulleyMotorRow) => {
     setRows((prev) =>
       [...prev, created].sort((a, b) =>
@@ -171,28 +191,50 @@ const PulleyMasterPage = () => {
             or delete a row, or view its full details including the belt options.
           </p>
         </div>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <input
-            type="search"
-            className="pmm-search"
-            placeholder="Search by model, rpm, groove…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        <div className="pmm-header-actions">
+          <div className="pmm-search-wrap">
+            <span className="pmm-search-icon"><SearchIcon /></span>
+            <input
+              type="search"
+              className="pmm-search"
+              placeholder="Search by model, rpm, groove…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
           <button className="btn-primary" onClick={() => setCreating(true)}>
-            + Add Model Data
+            <PlusIcon /> Add Model Data
           </button>
         </div>
       </div>
 
-      {isLoading && <p>Loading…</p>}
-      {error && <p className="error-message">{error}</p>}
+      {isLoading && (
+        <div className="pmm-panel">
+          <div style={{ padding: 16 }}>
+            <SkeletonRows rows={8} cols={5} />
+          </div>
+        </div>
+      )}
 
-      {!isLoading && !error && (
-        <>
-          <p className="pmm-count">
-            {filtered.length} of {rows.length} rows
-          </p>
+      {!isLoading && error && (
+        <div className="pmm-form-error"><AlertIcon /><span>{error}</span></div>
+      )}
+
+      {!isLoading && !error && rows.length === 0 && (
+        <EmptyState
+          icon="table"
+          title="No pulley rows yet"
+          description="The pulley master is empty. Add the first row to seed it — belt options can be added inline as children."
+          action={
+            <button className="btn-primary" onClick={() => setCreating(true)}>
+              <PlusIcon /> Add first row
+            </button>
+          }
+        />
+      )}
+
+      {!isLoading && !error && rows.length > 0 && (
+        <div className="pmm-panel">
           <div className="pmm-table-wrap">
             <table className="pmm-table">
               <thead>
@@ -207,7 +249,7 @@ const PulleyMasterPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((r) => (
+                {paged.map((r) => (
                   <tr key={r.id}>
                     <td className="pmm-model">{r.model}</td>
                     <td className="mono">{val(r.motorRpm)}</td>
@@ -218,16 +260,16 @@ const PulleyMasterPage = () => {
                     <td>
                       <div className="pmm-row-actions">
                         <button className="pmm-btn" onClick={() => setDetailsRow(r)}>
-                          Details
+                          <DetailsIcon /> Details
                         </button>
                         <button className="pmm-btn" onClick={() => setEditRow(r)}>
-                          Edit
+                          <EditIcon /> Edit
                         </button>
                         <button
                           className="pmm-btn pmm-btn-danger"
                           onClick={() => setDeleteRow(r)}
                         >
-                          Delete
+                          <TrashIcon /> Delete
                         </button>
                       </div>
                     </td>
@@ -235,17 +277,26 @@ const PulleyMasterPage = () => {
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="pmm-empty">
-                      {rows.length === 0
-                        ? "No pulley rows yet — click + Add Model Data to create one."
-                        : `No rows match “${search}”.`}
+                    <td colSpan={7} className="pmm-empty-cell">
+                      <EmptyState
+                        compact
+                        icon="search"
+                        title={`No rows match “${search}”`}
+                        description="Try a different keyword — model, motor RPM, or groove."
+                      />
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
-        </>
+          <Pagination
+            page={page}
+            totalItems={filtered.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+          />
+        </div>
       )}
 
       {detailsRow && (
@@ -485,7 +536,11 @@ const RowForm = ({
           </button>
         </div>
         <form onSubmit={handleSubmit}>
-          {formError && <div className="pmm-form-error">{formError}</div>}
+          {formError && (
+        <div className="pmm-form-error">
+          <AlertIcon /><span>{formError}</span>
+        </div>
+      )}
           <div className="pmm-form-grid">
             {FIELDS.map((f) => (
               <div key={f.key} className="pmm-field">
@@ -596,6 +651,7 @@ const RowForm = ({
               Cancel
             </button>
             <button type="submit" className="btn-primary" disabled={saving}>
+              {saving && <Spinner size="sm" inline />}
               {saving ? "Saving…" : submitLabel}
             </button>
           </div>
@@ -735,12 +791,17 @@ const DeleteModal = ({
           This also removes all its belt options (cascade). Affects the V-belt drive
           recommendation and can&apos;t be undone.
         </p>
-        {formError && <div className="pmm-form-error">{formError}</div>}
+        {formError && (
+        <div className="pmm-form-error">
+          <AlertIcon /><span>{formError}</span>
+        </div>
+      )}
         <div className="pmm-modal-actions">
           <button className="btn-secondary" onClick={onClose} disabled={deleting}>
             Cancel
           </button>
           <button className="btn-danger" onClick={handleDelete} disabled={deleting}>
+            {deleting && <Spinner size="sm" inline />}
             {deleting ? "Deleting…" : "Delete row"}
           </button>
         </div>

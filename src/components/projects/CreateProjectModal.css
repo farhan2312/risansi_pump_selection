@@ -1,81 +1,173 @@
-.modal-overlay{
-    position:fixed;
-    inset:0;
-    background:rgba(0,0,0,.45);
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    z-index:1000;
+/* Create / Edit Project modals share this stylesheet (EditProjectModal.tsx
+   imports "./CreateProjectModal.css"). Matches the app's flat, hairline
+   design tokens with a filled gradient header banner for a cleaner look. */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 22, 40, 0.5);
+  backdrop-filter: blur(2px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  z-index: 1000;
+  animation: modal-fade-in 120ms ease-out;
 }
 
-.modal{
-    width:600px;
-    background:var(--surface);
-    color:var(--text);
-    border-radius:12px;
-    padding:30px;
+.modal {
+  width: 100%;
+  max-width: 560px;
+  background: var(--bg-paper);
+  color: var(--fg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: modal-pop-in 140ms ease-out;
 }
 
-.modal h2{
-    margin-bottom:25px;
-    color:var(--text-h);
+/* Filled gradient header banner — same treatment as the wizard step forms. */
+.modal h2 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 16px 24px;
+  background: linear-gradient(135deg, #0a3d8f 0%, #1a5cb8 55%, #2c8dbf 100%);
+  color: white;
+  font-size: 16.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+.modal h2::before {
+  content: "";
+  display: inline-block;
+  width: 3px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 2px;
+  flex-shrink: 0;
 }
 
-.modal-form{
-    display:grid;
-    gap:18px;
+.modal-form {
+  display: grid;
+  gap: 16px;
+  padding: 20px 24px 4px;
 }
 
-.modal-form .form-group{
-    display:flex;
-    flex-direction:column;
+.modal-form .form-group {
+  display: flex;
+  flex-direction: column;
 }
 
-.modal-form label{
-    color:var(--text);
-    margin-bottom:8px;
-    font-weight:600;
+.modal-form label {
+  color: var(--fg-3);
+  margin-bottom: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
 }
 
 .modal-form input,
 .modal-form textarea,
-.modal-form select{
-    width:100%;
-    padding:12px;
-    border:1px solid var(--border);
-    border-radius:8px;
-    font-size:15px;
-    background:var(--bg-app);
-    color:var(--text-h);
+.modal-form select {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  font-size: 14.5px;
+  color: var(--fg);
+  background: var(--bg-sunk);
+  font-family: inherit;
+  transition: border-color 120ms, box-shadow 120ms, background-color 120ms;
+}
+
+.modal-form input:hover,
+.modal-form textarea:hover,
+.modal-form select:hover {
+  border-color: var(--fg-3);
+}
+
+.modal-form input:focus,
+.modal-form textarea:focus,
+.modal-form select:focus {
+  outline: none;
+  border-color: var(--brand-blue);
+  background: var(--bg-paper);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 24px 20px;
+  margin-top: 8px;
+  border-top: 1px solid var(--line);
+  background: var(--bg-elev);
+}
+
+/* Modal buttons — mirror the shared .btn-primary / .btn-secondary from
+   PumpModelMasterPage.css so both surfaces read the same way. */
+.cancel-btn,
+.create-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background-color 120ms, border-color 120ms, box-shadow 120ms, transform 60ms;
+}
+.cancel-btn:not(:disabled):active,
+.create-btn:not(:disabled):active {
+  transform: translateY(1px);
+}
+
+.cancel-btn {
+  background: var(--bg-paper);
+  border-color: var(--line-strong);
+  color: var(--fg-2);
+}
+.cancel-btn:hover:not(:disabled) {
+  background: var(--bg-elev);
+  border-color: var(--fg-3);
+}
+
+.create-btn {
+  background: var(--brand-blue);
+  color: white;
+  box-shadow: 0 1px 2px rgba(10, 61, 143, 0.15);
+}
+.create-btn:hover:not(:disabled) {
+  background: var(--accent-hover, #164d99);
+  box-shadow: 0 4px 12px rgba(26, 92, 184, 0.25);
 }
 
 .create-btn:disabled,
-.cancel-btn:disabled{
-    opacity:.6;
-    cursor:not-allowed;
+.cancel-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
-.modal-actions{
-    margin-top:25px;
-    display:flex;
-    justify-content:flex-end;
-    gap:15px;
+@keyframes modal-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes modal-pop-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-.cancel-btn{
-    background:var(--surface-hover);
-    color:var(--text-h);
-    border:none;
-    padding:10px 20px;
-    border-radius:8px;
-    cursor:pointer;
+@media (prefers-reduced-motion: reduce) {
+  .modal-overlay, .modal { animation: none; }
 }
 
-.create-btn{
-    background:var(--accent);
-    color:white;
-    border:none;
-    padding:10px 20px;
-    border-radius:8px;
-    cursor:pointer;
+@media (max-width: 560px) {
+  .modal { max-width: 100%; }
 }

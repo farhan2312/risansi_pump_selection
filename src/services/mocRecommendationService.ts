@@ -30,6 +30,16 @@ export const MOC_AI_ELASTOMERS = [
   "Others"
 ] as const;
 
+// Mirrors src/lib/moc-ai-suggestion.ts's MOC_AI_PROVIDERS — kept as an
+// independent client-side literal for the same reason MOC_AI_MATERIALS is
+// (that file has server-only concerns and can't be imported into a client
+// component).
+export const MOC_AI_PROVIDERS = [
+  { value: "gemini", label: "Gemini" },
+  { value: "anthropic", label: "Claude Haiku 4.5" },
+] as const;
+export type MocAiProvider = (typeof MOC_AI_PROVIDERS)[number]["value"];
+
 export interface MocComponentSuggestions {
   bearingHousing: string;
   bearingPlate: string;
@@ -67,6 +77,8 @@ export const getMocAiSuggestion = async (input: {
   solidPct?: string;
   solidSize?: string;
   solidType?: string;
+  /** Which LLM to use — defaults server-side to "gemini" if omitted. */
+  provider?: MocAiProvider;
 }): Promise<MocComponentSuggestions | null> => {
   const { data, status } = await apiClient.post<MocComponentSuggestions | null>(
     "/moc-recommendation/ai-suggest",

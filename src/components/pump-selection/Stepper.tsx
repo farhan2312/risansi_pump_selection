@@ -1,4 +1,5 @@
 import "./Stepper.css";
+
 type StepperProps = {
   currentStep: number;
   onStepClick?: (step: number) => void;
@@ -16,21 +17,43 @@ const steps = [
 ];
 
 const Stepper = ({ currentStep, onStepClick }: StepperProps) => {
+  // Fill the connecting progress line proportionally to how far we are:
+  // 0% before step 1, 100% at the last step. `--step-progress` is consumed
+  // by .stepper::after in Stepper.css to size the filled overlay.
+  const progressPct =
+    steps.length <= 1
+      ? 0
+      : ((Math.max(1, Math.min(currentStep, steps.length)) - 1) /
+          (steps.length - 1)) *
+        100;
+
   return (
-    <div className="stepper">
+    <div
+      className="stepper"
+      style={
+        {
+          ["--step-progress" as string]: `${progressPct}%`,
+        } as React.CSSProperties
+      }
+    >
       {steps.map((step, index) => {
         const stepNumber = index + 1;
+        const isCompleted = stepNumber < currentStep;
+        const isActive = stepNumber === currentStep;
         return (
           <button
             type="button"
             key={step}
-            className={`step ${currentStep === stepNumber ? "active" : ""} ${
-              onStepClick ? "clickable" : ""
-            }`}
+            className={`step ${isActive ? "active" : ""} ${
+              isCompleted ? "completed" : ""
+            } ${onStepClick ? "clickable" : ""}`}
             onClick={() => onStepClick?.(stepNumber)}
             disabled={!onStepClick}
+            aria-current={isActive ? "step" : undefined}
           >
-            <div className="step-circle">{stepNumber}</div>
+            <div className="step-circle" aria-hidden="true">
+              {isCompleted ? <CheckIcon /> : stepNumber}
+            </div>
             <span>{step}</span>
           </button>
         );
@@ -38,5 +61,17 @@ const Stepper = ({ currentStep, onStepClick }: StepperProps) => {
     </div>
   );
 };
+
+const CheckIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path
+      d="m5 12 5 5 9-11"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
 
 export default Stepper;

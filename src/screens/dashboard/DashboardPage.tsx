@@ -3,10 +3,27 @@
 import { useEffect, useMemo, useState } from "react";
 import WelcomeCard from "../../components/dashboard/WelcomeCard";
 import StatsCard from "../../components/dashboard/StatsCard";
+import EmptyState from "../../components/ui/EmptyState";
+import { SkeletonRows } from "../../components/ui/Skeleton";
 import { listProjects, type ProjectRecord } from "../../services/projectService";
 import "./DashboardPage.css";
 
 const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
+
+// Status → soft-tint pill class (see DashboardPage.css). Anything unmapped
+// falls back to a neutral pill so we don't 500 on an unknown value.
+const statusPillClass = (status: string | null | undefined): string => {
+  switch (norm(status)) {
+    case "in progress":
+      return "status-pill status-in-progress";
+    case "completed":
+      return "status-pill status-completed";
+    case "pending":
+      return "status-pill status-pending";
+    default:
+      return "status-pill status-neutral";
+  }
+};
 
 const DashboardPage = () => {
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
@@ -65,14 +82,25 @@ const DashboardPage = () => {
       <div className="dashboard-card">
         <h3>Recent Projects</h3>
 
-        {isLoading && <p style={{ padding: "12px 16px" }}>Loading…</p>}
+        {isLoading && (
+          <div style={{ padding: "16px" }}>
+            <SkeletonRows rows={4} cols={3} />
+          </div>
+        )}
         {error && (
-          <p style={{ padding: "12px 16px" }} className="error-message">
+          <div className="dashboard-error" role="alert">
             {error}
-          </p>
+          </div>
         )}
         {!isLoading && !error && recent.length === 0 && (
-          <p style={{ padding: "12px 16px" }}>No projects yet.</p>
+          <div style={{ padding: "16px" }}>
+            <EmptyState
+              compact
+              icon="folder"
+              title="No projects yet"
+              description="Create your first project from the Projects page to see it appear here."
+            />
+          </div>
         )}
 
         {!isLoading && !error && recent.length > 0 && (
@@ -90,7 +118,11 @@ const DashboardPage = () => {
                 <tr key={p.id}>
                   <td>{p.name || p.project_code}</td>
                   <td>{p.client_code || "—"}</td>
-                  <td>{p.status || "—"}</td>
+                  <td>
+                    <span className={statusPillClass(p.status)}>
+                      {p.status || "—"}
+                    </span>
+                  </td>
                 </tr>
               ))}
             </tbody>

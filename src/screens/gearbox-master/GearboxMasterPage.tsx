@@ -12,6 +12,18 @@ import {
   type GearboxMasterRow,
   type GearboxTableKey,
 } from "../../services/gearboxMasterService";
+import EmptyState from "../../components/ui/EmptyState";
+import { SkeletonRows } from "../../components/ui/Skeleton";
+import Spinner from "../../components/ui/Spinner";
+import Pagination, { usePagination } from "../../components/ui/Pagination";
+import {
+  PlusIcon,
+  SearchIcon,
+  DetailsIcon,
+  EditIcon,
+  TrashIcon,
+  AlertIcon,
+} from "../../components/ui/adminIcons";
 
 type FieldDef = { key: keyof GearboxMasterRow; label: string; numeric: boolean; required?: boolean };
 
@@ -74,6 +86,14 @@ const GearboxMasterPage = () => {
     );
   }, [rows, search]);
 
+  // 50 rows/page. Resets to page 1 whenever the search or table tab changes.
+  const { page, setPage, from, to, pageSize } = usePagination(
+    filtered.length,
+    `${table}:${search}`,
+    50
+  );
+  const paged = useMemo(() => filtered.slice(from, to), [filtered, from, to]);
+
   const resort = (list: GearboxMasterRow[]) =>
     [...list].sort((a, b) =>
       a.model === b.model
@@ -106,49 +126,64 @@ const GearboxMasterPage = () => {
             a row, or view its full details. Power Rating (raw label) is not shown here.
           </p>
         </div>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <input
-            type="search"
-            className="pmm-search"
-            placeholder="Search by model, RPM, GB type…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        <div className="pmm-header-actions">
+          <div className="pmm-search-wrap">
+            <span className="pmm-search-icon"><SearchIcon /></span>
+            <input
+              type="search"
+              className="pmm-search"
+              placeholder="Search by model, RPM, GB type…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
           <button className="btn-primary" onClick={() => setCreating(true)}>
-            + Add row
+            <PlusIcon /> Add row
           </button>
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+      <div className="pmm-tab-row" role="tablist">
         {TABLE_TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => setTable(t.key)}
-            className="pmm-btn"
-            style={
-              table === t.key
-                ? {
-                    background: "var(--title)",
-                    color: "#fff",
-                    borderColor: "var(--title)",
-                  }
-                : undefined
-            }
+            className={`pmm-tab ${table === t.key ? "pmm-tab-active" : ""}`}
+            role="tab"
+            aria-selected={table === t.key}
           >
             {t.label}
           </button>
         ))}
       </div>
 
-      {isLoading && <p>Loading…</p>}
-      {error && <p className="error-message">{error}</p>}
+      {isLoading && (
+        <div className="pmm-panel">
+          <div style={{ padding: 16 }}>
+            <SkeletonRows rows={6} cols={5} />
+          </div>
+        </div>
+      )}
 
-      {!isLoading && !error && (
-        <>
-          <p className="pmm-count">
-            {filtered.length} of {rows.length} rows
-          </p>
+      {!isLoading && error && (
+        <div className="pmm-form-error"><AlertIcon /><span>{error}</span></div>
+      )}
+
+      {!isLoading && !error && rows.length === 0 && (
+        <EmptyState
+          icon="table"
+          title="No rows yet"
+          description={`The ${TABLE_TABS.find((t) => t.key === table)?.label} gearbox table is empty. Add the first row to seed it.`}
+          action={
+            <button className="btn-primary" onClick={() => setCreating(true)}>
+              <PlusIcon /> Add first row
+            </button>
+          }
+        />
+      )}
+
+      {!isLoading && !error && rows.length > 0 && (
+        <div className="pmm-panel">
           <div className="pmm-table-wrap">
             <table className="pmm-table">
               <thead>
@@ -163,7 +198,7 @@ const GearboxMasterPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((r) => (
+                {paged.map((r) => (
                   <tr key={r.id}>
                     <td className="pmm-model">{r.model}</td>
                     <td className="mono">{val(r.outputRpm)}</td>
@@ -174,16 +209,16 @@ const GearboxMasterPage = () => {
                     <td>
                       <div className="pmm-row-actions">
                         <button className="pmm-btn" onClick={() => setDetailsRow(r)}>
-                          Details
+                          <DetailsIcon /> Details
                         </button>
                         <button className="pmm-btn" onClick={() => setEditRow(r)}>
-                          Edit
+                          <EditIcon /> Edit
                         </button>
                         <button
                           className="pmm-btn pmm-btn-danger"
                           onClick={() => setDeleteRow(r)}
                         >
-                          Delete
+                          <TrashIcon /> Delete
                         </button>
                       </div>
                     </td>
@@ -191,17 +226,26 @@ const GearboxMasterPage = () => {
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="pmm-empty">
-                      {rows.length === 0
-                        ? "No rows yet — click + Add row to create one."
-                        : `No rows match “${search}”.`}
+                    <td colSpan={7} className="pmm-empty-cell">
+                      <EmptyState
+                        compact
+                        icon="search"
+                        title={`No rows match “${search}”`}
+                        description="Try a different keyword — model, RPM, or gearbox type."
+                      />
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
-        </>
+          <Pagination
+            page={page}
+            totalItems={filtered.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+          />
+        </div>
       )}
 
       {detailsRow && (
@@ -319,7 +363,11 @@ const CreateModal = ({
           </button>
         </div>
         <form onSubmit={handleCreate}>
-          {formError && <div className="pmm-form-error">{formError}</div>}
+          {formError && (
+            <div className="pmm-form-error">
+              <AlertIcon /><span>{formError}</span>
+            </div>
+          )}
           <div className="pmm-form-grid">
             {FIELDS.map((f) => (
               <div key={f.key} className="pmm-field">
@@ -341,6 +389,7 @@ const CreateModal = ({
               Cancel
             </button>
             <button type="submit" className="btn-primary" disabled={saving}>
+              {saving && <Spinner size="sm" inline />}
               {saving ? "Adding…" : "Add row"}
             </button>
           </div>
@@ -410,7 +459,11 @@ const EditModal = ({
           </button>
         </div>
         <form onSubmit={handleSave}>
-          {formError && <div className="pmm-form-error">{formError}</div>}
+          {formError && (
+            <div className="pmm-form-error">
+              <AlertIcon /><span>{formError}</span>
+            </div>
+          )}
           <div className="pmm-form-grid">
             {FIELDS.map((f) => (
               <div key={f.key} className="pmm-field">
@@ -429,6 +482,7 @@ const EditModal = ({
               Cancel
             </button>
             <button type="submit" className="btn-primary" disabled={saving}>
+              {saving && <Spinner size="sm" inline />}
               {saving ? "Saving…" : "Save changes"}
             </button>
           </div>
@@ -486,6 +540,7 @@ const DeleteModal = ({
             Cancel
           </button>
           <button className="btn-danger" onClick={handleDelete} disabled={deleting}>
+            {deleting && <Spinner size="sm" inline />}
             {deleting ? "Deleting…" : "Delete row"}
           </button>
         </div>

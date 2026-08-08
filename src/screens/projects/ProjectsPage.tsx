@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import "./ProjectsPage.css";
 import CreateProjectModal from "../../components/projects/CreateProjectModal";
 import EditProjectModal from "../../components/projects/EditProjectModal";
+import EmptyState from "../../components/ui/EmptyState";
+import ConfirmModal from "../../components/ui/ConfirmModal";
+import { SkeletonRows } from "../../components/ui/Skeleton";
 import {
   createProject,
   deleteProject,
@@ -25,6 +28,7 @@ const ProjectsPage = () => {
 
   const [editing, setEditing] = useState<ProjectRecord | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState<ProjectRecord | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
@@ -97,20 +101,15 @@ const ProjectsPage = () => {
     }
   };
 
-  const handleDelete = async (project: ProjectRecord) => {
-    const label = project.name || project.project_code;
-    if (
-      !window.confirm(
-        `Delete project "${label}"? This also removes its saved pump-selection inputs and can't be undone.`
-      )
-    ) {
-      return;
-    }
-    setDeletingId(project.id);
+  const handleDelete = async () => {
+    if (!confirmingDelete) return;
+    const target = confirmingDelete;
+    setDeletingId(target.id);
     setError(null);
     try {
-      await deleteProject(project.id);
-      setProjects((prev) => prev.filter((p) => p.id !== project.id));
+      await deleteProject(target.id);
+      setProjects((prev) => prev.filter((p) => p.id !== target.id));
+      setConfirmingDelete(null);
     } catch {
       setError("Couldn't delete the project. Please try again.");
     } finally {
@@ -121,64 +120,96 @@ const ProjectsPage = () => {
   return (
     <div className="projects-page">
       <div className="projects-header">
-        <h1>Projects</h1>
-
-        <button onClick={() => setIsModalOpen(true)}>+ New Project</button>
+        <div className="projects-header-text">
+          <h1>Projects</h1>
+          <p>Create, open, and manage your PCP pump-selection projects.</p>
+        </div>
+        <button className="projects-new-btn" onClick={() => setIsModalOpen(true)}>
+          <PlusIcon /> New Project
+        </button>
       </div>
 
-      {isLoading && <p>Loading projects...</p>}
-      {error && <p className="error-message">{error}</p>}
+      {error && (
+        <div className="projects-error" role="alert">
+          <AlertIcon />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {isLoading && (
+        <div className="projects-panel">
+          <div className="projects-loading">
+            <SkeletonRows rows={5} cols={5} />
+          </div>
+        </div>
+      )}
 
       {!isLoading && !error && projects.length === 0 && (
-        <p className="empty-state">No projects yet.</p>
+        <EmptyState
+          icon="folder"
+          title="No projects yet"
+          description="Create your first project to start scoping a PCP pump selection — capacity, head, media, and drive details all get saved per project."
+          action={
+            <button className="projects-new-btn" onClick={() => setIsModalOpen(true)}>
+              <PlusIcon /> Create your first project
+            </button>
+          }
+        />
       )}
 
       {!isLoading && !error && projects.length > 0 && (
-        <table className="projects-table">
-          <thead>
-            <tr>
-              <th>Project ID</th>
-              <th>Client Name</th>
-              <th>Client Code</th>
-              <th>Created By</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {projects.map((project) => (
-              <tr key={project.id}>
-                <td>{project.project_code}</td>
-                <td>{project.name || "—"}</td>
-                <td>{project.client_code || "—"}</td>
-                <td>{project.created_by_name || "—"}</td>
-
-                <td>
-                  <div className="action-buttons">
-                    <button className="open-btn" onClick={() => openProject(project)}>
-                      Open
-                    </button>
-
-                    <button
-                      className="edit-btn"
-                      onClick={() => setEditing(project)}
-                    >
-                      Edit
-                    </button>
-
-                    <button
-                      className="delete-btn"
-                      disabled={deletingId === project.id}
-                      onClick={() => handleDelete(project)}
-                    >
-                      {deletingId === project.id ? "Deleting…" : "Delete"}
-                    </button>
-                  </div>
-                </td>
+        <div className="projects-panel">
+          <table className="projects-table">
+            <thead>
+              <tr>
+                <th>Project ID</th>
+                <th>Client Name</th>
+                <th>Client Code</th>
+                <th>Created By</th>
+                <th className="projects-actions-col">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+
+            <tbody>
+              {projects.map((project) => (
+                <tr key={project.id}>
+                  <td className="project-code">{project.project_code}</td>
+                  <td className="project-name">{project.name || "—"}</td>
+                  <td>{project.client_code || "—"}</td>
+                  <td>{project.created_by_name || "—"}</td>
+
+                  <td className="projects-actions-col">
+                    <div className="projects-actions">
+                      <button
+                        className="project-btn project-btn-primary"
+                        onClick={() => openProject(project)}
+                      >
+                        <OpenIcon /> Open
+                      </button>
+
+                      <button
+                        className="project-btn"
+                        onClick={() => setEditing(project)}
+                        aria-label={`Edit project ${project.project_code}`}
+                      >
+                        <EditIcon /> Edit
+                      </button>
+
+                      <button
+                        className="project-btn project-btn-danger"
+                        disabled={deletingId === project.id}
+                        onClick={() => setConfirmingDelete(project)}
+                        aria-label={`Delete project ${project.project_code}`}
+                      >
+                        <TrashIcon /> Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       <CreateProjectModal
@@ -194,8 +225,81 @@ const ProjectsPage = () => {
         onClose={() => !isSaving && setEditing(null)}
         onSave={handleEditSave}
       />
+
+      <ConfirmModal
+        open={confirmingDelete !== null}
+        title="Delete this project?"
+        description={
+          confirmingDelete ? (
+            <>
+              <strong>
+                {confirmingDelete.name || confirmingDelete.project_code}
+              </strong>{" "}
+              and its saved pump-selection inputs will be permanently removed. This
+              can&apos;t be undone.
+            </>
+          ) : null
+        }
+        confirmLabel={deletingId ? "Deleting…" : "Delete project"}
+        cancelLabel="Cancel"
+        tone="danger"
+        busy={deletingId !== null}
+        onConfirm={handleDelete}
+        onClose={() => !deletingId && setConfirmingDelete(null)}
+      />
     </div>
   );
 };
+
+// --- Inline icons (self-contained, no external asset dependency) -----------
+const PlusIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none">
+    <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+  </svg>
+);
+
+const OpenIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none">
+    <path
+      d="M9 6h10v10M19 6 6 19"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const EditIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none">
+    <path
+      d="M4 20h4L20 8l-4-4L4 16v4Z"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinejoin="round"
+    />
+    <path d="m14 6 4 4" stroke="currentColor" strokeWidth="1.8" />
+  </svg>
+);
+
+const TrashIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none">
+    <path
+      d="M4 7h16M9 7V4h6v3M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const AlertIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
+    <path d="M12 8v4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    <circle cx="12" cy="16" r="1" fill="currentColor" />
+  </svg>
+);
 
 export default ProjectsPage;

@@ -1,12 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./AdminAccessRequestsPage.css";
 import {
   listPendingUsers,
   reviewUser,
   type PendingUser,
 } from "../../services/adminService";
+import EmptyState from "../../components/ui/EmptyState";
+import { SkeletonRows } from "../../components/ui/Skeleton";
+import Spinner from "../../components/ui/Spinner";
+import Pagination, { usePagination } from "../../components/ui/Pagination";
+import { AlertIcon, CheckIcon, XIcon } from "../../components/ui/adminIcons";
 
 const AdminAccessRequestsPage = () => {
   const [requests, setRequests] = useState<PendingUser[]>([]);
@@ -39,6 +44,14 @@ const AdminAccessRequestsPage = () => {
     }
   };
 
+  // 50 rows/page. There's no search here, so a stable resetKey suffices.
+  const { page, setPage, from, to, pageSize } = usePagination(
+    requests.length,
+    "requests",
+    50,
+  );
+  const paged = useMemo(() => requests.slice(from, to), [requests, from, to]);
+
   return (
     <div className="admin-requests-page">
       <div className="admin-requests-header">
@@ -46,51 +59,83 @@ const AdminAccessRequestsPage = () => {
         <p>Review and approve new users requesting access to the portal.</p>
       </div>
 
-      {isLoading && <p>Loading requests...</p>}
-      {error && <p className="error-message">{error}</p>}
+      {error && (
+        <div className="admin-requests-error" role="alert">
+          <AlertIcon />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {isLoading && (
+        <div className="admin-requests-panel">
+          <div style={{ padding: 16 }}>
+            <SkeletonRows rows={4} cols={4} />
+          </div>
+        </div>
+      )}
 
       {!isLoading && !error && requests.length === 0 && (
-        <p className="empty-state">No pending requests.</p>
+        <EmptyState
+          icon="check"
+          title="No pending requests"
+          description="Every access request has been reviewed. New sign-ups will appear here for approval."
+        />
       )}
 
       {!isLoading && !error && requests.length > 0 && (
-        <table className="admin-requests-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Requested</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {requests.map((request) => (
-              <tr key={request.id}>
-                <td>{request.name}</td>
-                <td>{request.email}</td>
-                <td>{new Date(request.created_at).toLocaleString()}</td>
-                <td>
-                  <div className="action-buttons">
-                    <button
-                      className="approve-btn"
-                      disabled={actioningId === request.id}
-                      onClick={() => handleReview(request.id, "active")}
-                    >
-                      Approve
-                    </button>
-                    <button
-                      className="reject-btn"
-                      disabled={actioningId === request.id}
-                      onClick={() => handleReview(request.id, "rejected")}
-                    >
-                      Reject
-                    </button>
-                  </div>
-                </td>
+        <div className="admin-requests-panel">
+          <table className="admin-requests-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Requested</th>
+                <th className="admin-actions-col">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {paged.map((request) => {
+                const busy = actioningId === request.id;
+                return (
+                  <tr key={request.id}>
+                    <td className="request-name">{request.name}</td>
+                    <td className="request-email">{request.email}</td>
+                    <td className="request-time">
+                      {new Date(request.created_at).toLocaleString()}
+                    </td>
+                    <td className="admin-actions-col">
+                      <div className="admin-actions">
+                        <button
+                          className="admin-btn admin-btn-approve"
+                          disabled={busy}
+                          onClick={() => handleReview(request.id, "active")}
+                        >
+                          {busy ? <Spinner size="sm" inline /> : <CheckIcon />}
+                          Approve
+                        </button>
+                        <button
+                          className="admin-btn admin-btn-reject"
+                          disabled={busy}
+                          onClick={() => handleReview(request.id, "rejected")}
+                        >
+                          <XIcon />
+                          Reject
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <Pagination
+            page={page}
+            totalItems={requests.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            itemLabel="requests"
+          />
+        </div>
       )}
     </div>
   );

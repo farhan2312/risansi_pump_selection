@@ -1,3 +1,8 @@
+/* Shared admin-master page styling — used by Pump Model, Gearbox Type, and
+   Pulley masters. Flat, hairline design that lines up with the rest of the
+   app's tokens (theme.css). Keep the `.pmm-*` prefix — all three pages
+   import this stylesheet by name. */
+
 .pmm-page {
   padding: 24px;
   max-width: 1280px;
@@ -10,43 +15,107 @@
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .pmm-header h1 {
   font-size: 22px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--title);
+  margin: 0;
+  letter-spacing: -0.01em;
 }
 
 .pmm-header p {
   font-size: 13px;
   color: var(--fg-3);
-  margin-top: 4px;
-  max-width: 560px;
+  margin: 4px 0 0;
+  max-width: 620px;
+  line-height: 1.55;
+}
+
+.pmm-header-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 .pmm-search {
-  min-width: 240px;
-  padding: 8px 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius, 6px);
+  min-width: 260px;
+  padding: 8px 12px 8px 34px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
   background: var(--bg-paper);
   color: var(--fg);
   font-size: 13px;
+  transition: border-color 120ms, box-shadow 120ms;
+}
+.pmm-search:focus {
+  outline: none;
+  border-color: var(--brand-blue);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.pmm-search-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.pmm-search-icon {
+  position: absolute;
+  left: 10px;
+  color: var(--fg-3);
+  pointer-events: none;
+  width: 14px;
+  height: 14px;
+}
+
+.pmm-tab-row {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+.pmm-tab {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--fg-2);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 100ms, color 100ms;
+}
+.pmm-tab:hover:not(.pmm-tab-active) {
+  background: var(--bg-paper);
+  color: var(--fg);
+}
+.pmm-tab-active {
+  background: var(--brand-blue);
+  color: white;
+  font-weight: 600;
 }
 
 .pmm-count {
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--fg-3);
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+}
+
+.pmm-panel {
+  background: var(--bg-paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
 }
 
 .pmm-table-wrap {
   overflow-x: auto;
-  border: 1px solid var(--line);
-  border-radius: var(--radius, 6px);
-  max-height: 70vh;
+  max-height: 68vh;
   overflow-y: auto;
 }
 
@@ -59,7 +128,7 @@
 
 .pmm-table th,
 .pmm-table td {
-  padding: 8px 12px;
+  padding: 10px 14px;
   text-align: left;
   border-bottom: 1px solid var(--line);
   white-space: nowrap;
@@ -69,16 +138,22 @@
   position: sticky;
   top: 0;
   background: var(--bg-elev);
-  color: var(--fg-2);
+  color: var(--fg-3);
   font-weight: 600;
-  font-size: 11px;
+  font-size: 10.5px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
   z-index: 1;
 }
 
+.pmm-table tbody tr {
+  transition: background-color 100ms;
+}
 .pmm-table tbody tr:hover {
   background: var(--bg-elev);
+}
+.pmm-table tbody tr:last-child td {
+  border-bottom: none;
 }
 
 .pmm-model {
@@ -111,193 +186,302 @@
 }
 
 .pmm-btn {
-  padding: 4px 10px;
-  border: 1px solid var(--line-strong, var(--line));
-  border-radius: var(--radius, 6px);
-  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--bg-paper);
   color: var(--fg-2);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 12.5px;
+  font-weight: 500;
   line-height: 1.4;
   white-space: nowrap;
   cursor: pointer;
+  transition: background-color 100ms, border-color 100ms, color 100ms;
 }
-
-.pmm-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+.pmm-btn:hover:not(:disabled) {
+  background: var(--bg-elev);
+  border-color: var(--fg-3);
+  color: var(--fg);
 }
-
-.pmm-btn-danger:hover {
+.pmm-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.pmm-btn svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+.pmm-btn-primary {
+  background: var(--brand-blue);
+  border-color: var(--brand-blue);
+  color: white;
+}
+.pmm-btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover, #164d99);
+  border-color: var(--accent-hover, #164d99);
+  color: white;
+}
+.pmm-btn-danger:hover:not(:disabled) {
+  background: var(--neg-soft);
   border-color: var(--neg);
-  color: var(--neg);
+  color: var(--neg-strong);
 }
 
-.pmm-empty {
-  text-align: center;
-  color: var(--fg-3);
-  padding: 24px;
+.pmm-empty-cell {
+  padding: 0 !important;
+  background: var(--bg-paper);
 }
 
 /* --- Modals --- */
 .pmm-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(10, 22, 40, 0.5);
+  backdrop-filter: blur(2px);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 20px;
   z-index: 50;
+  animation: pmm-fade 120ms ease-out;
 }
 
 .pmm-modal {
   background: var(--bg-paper);
   border: 1px solid var(--line);
-  border-radius: var(--radius, 8px);
+  border-radius: var(--radius-lg);
   width: 100%;
   max-width: 640px;
   max-height: 88vh;
   overflow-y: auto;
-  padding: 20px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  padding: 22px 24px 18px;
+  box-shadow: var(--shadow-lg);
+  animation: pmm-pop 140ms ease-out;
 }
 
 .pmm-modal-sm {
   max-width: 440px;
 }
 
+/* Filled gradient banner, bled to the modal's edges via negative margins
+   sized to .pmm-modal's own padding (22px 24px 18px) — same pattern as the
+   wizard step-card headers and the project/password modals. */
 .pmm-modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  gap: 12px;
+  margin: -22px -24px 18px;
+  padding: 15px 16px 15px 24px;
+  background: linear-gradient(135deg, #0a3d8f 0%, #1a5cb8 55%, #2c8dbf 100%);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .pmm-modal-header h3 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   font-size: 16px;
-  font-weight: 700;
-  color: var(--title);
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0;
+  letter-spacing: -0.005em;
+}
+.pmm-modal-header h3::before {
+  content: "";
+  display: inline-block;
+  width: 3px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 2px;
+  flex-shrink: 0;
 }
 
 .pmm-modal-close {
   border: none;
-  background: transparent;
-  color: var(--fg-3);
-  font-size: 16px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-size: 15px;
   cursor: pointer;
   line-height: 1;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background-color 100ms;
 }
-
 .pmm-modal-close:hover {
-  color: var(--fg);
+  background: rgba(255, 255, 255, 0.22);
 }
 
 .pmm-details-grid,
 .pmm-form-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+  gap: 14px;
 }
 
 .pmm-details-grid > div {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
+  padding: 10px 12px;
+  background: var(--bg-elev);
+  border-radius: 6px;
 }
 
 .pmm-details-grid span {
-  font-size: 11px;
+  font-size: 10.5px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
   color: var(--fg-3);
+  font-weight: 600;
 }
 
 .pmm-details-grid strong {
-  font-size: 14px;
+  font-size: 13.5px;
   color: var(--fg);
+  font-weight: 600;
 }
 
 .pmm-field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
 }
 
 .pmm-field label {
   font-size: 12px;
   color: var(--fg-3);
+  font-weight: 500;
 }
 
 .pmm-field input {
-  padding: 7px 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius, 6px);
-  background: var(--bg-elev);
+  padding: 8px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--bg-paper);
   color: var(--fg);
   font-size: 13px;
+  transition: border-color 120ms, box-shadow 120ms;
 }
 
 .pmm-field input:focus {
   outline: none;
-  border-color: var(--accent);
+  border-color: var(--brand-blue);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .pmm-form-error {
-  background: var(--neg-soft, rgba(200, 0, 0, 0.08));
-  color: var(--neg);
-  border: 1px solid var(--neg);
-  border-radius: var(--radius, 6px);
-  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--neg-soft);
+  color: var(--neg-strong);
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  border-radius: 8px;
+  padding: 10px 12px;
   font-size: 13px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .pmm-delete-text {
   font-size: 14px;
   color: var(--fg-2);
-  line-height: 1.5;
+  line-height: 1.55;
   margin-bottom: 16px;
+}
+.pmm-delete-text strong {
+  color: var(--fg);
 }
 
 .pmm-modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  margin-top: 18px;
+  margin-top: 20px;
 }
 
 .btn-primary,
 .btn-secondary,
 .btn-danger {
-  padding: 8px 16px;
-  border-radius: var(--radius, 6px);
-  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  border-radius: 8px;
+  font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
   border: 1px solid transparent;
+  transition: background-color 120ms, border-color 120ms, transform 60ms;
+}
+.btn-primary:not(:disabled):active,
+.btn-secondary:not(:disabled):active,
+.btn-danger:not(:disabled):active {
+  transform: translateY(1px);
+}
+.btn-primary svg,
+.btn-danger svg,
+.btn-secondary svg {
+  width: 15px;
+  height: 15px;
 }
 
 .btn-primary {
-  background: var(--title);
+  background: var(--brand-blue);
   color: #fff;
+  box-shadow: 0 1px 2px rgba(10, 61, 143, 0.15);
+}
+.btn-primary:not(:disabled):hover {
+  background: var(--accent-hover, #164d99);
+  box-shadow: 0 4px 12px rgba(26, 92, 184, 0.25);
 }
 
 .btn-secondary {
-  background: transparent;
-  border-color: var(--line-strong, var(--line));
+  background: var(--bg-paper);
+  border-color: var(--line-strong);
   color: var(--fg-2);
+}
+.btn-secondary:not(:disabled):hover {
+  background: var(--bg-elev);
+  border-color: var(--fg-3);
 }
 
 .btn-danger {
   background: var(--neg);
   color: #fff;
 }
+.btn-danger:not(:disabled):hover {
+  background: #b91c1c;
+}
 
 .btn-primary:disabled,
+.btn-secondary:disabled,
 .btn-danger:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+@keyframes pmm-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes pmm-pop {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pmm-modal-overlay, .pmm-modal { animation: none; }
 }
 
 @media (max-width: 560px) {

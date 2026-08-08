@@ -1,88 +1,228 @@
-/* No page-level padding/min-height here — dashboard-main (the shared shell)
-   already pads every page, and already establishes the viewport-filling
-   height. Adding either again here forces a scrollbar even on short content
-   (the exact bug fixed on the pump-selection page) — this page should only
-   scroll when its own content (e.g. a long projects table) actually overflows. */
-.projects-page{
-    background:var(--bg-app);
+/* Projects page — flat, hairline design that lines up with the app's shared
+   tokens (theme.css). Header uses a page-title / subtitle pair; the table
+   sits inside a bordered panel so it reads as one contained surface. */
+
+.projects-page {
+  background: var(--bg);
+  color: var(--fg);
 }
 
-.projects-header{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    margin-bottom:30px;
+.projects-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
 }
 
-.projects-header h1{
-    color:var(--text-h);
+.projects-header-text h1 {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--title);
+  margin: 0;
+  letter-spacing: -0.01em;
 }
 
-.projects-header button{
-    background:var(--accent);
-    color:white;
-    border:none;
-    padding:12px 18px;
-    border-radius:8px;
-    cursor:pointer;
+.projects-header-text p {
+  font-size: 13px;
+  color: var(--fg-3);
+  margin: 4px 0 0;
 }
 
-.error-message{
-    color:var(--neg);
-    margin-bottom:20px;
+/* Primary action button — flat blue, subtle hover lift, icon on the left. */
+.projects-new-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--brand-blue);
+  color: white;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 120ms, transform 60ms, box-shadow 120ms;
+  box-shadow: 0 1px 2px rgba(10, 61, 143, 0.15);
+  white-space: nowrap;
+}
+.projects-new-btn:hover:not(:disabled) {
+  background: var(--accent-hover, #164d99);
+  box-shadow: 0 4px 12px rgba(26, 92, 184, 0.28);
+}
+.projects-new-btn:active {
+  transform: translateY(1px);
+}
+.projects-new-btn svg {
+  width: 16px;
+  height: 16px;
 }
 
-.empty-state{
-    color:var(--text-muted);
-    background:var(--surface);
-    padding:30px;
-    border-radius:8px;
-    text-align:center;
+/* Inline error banner — soft red tint, small icon prefix. */
+.projects-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--neg-soft);
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  border-radius: 8px;
+  color: var(--neg-strong);
+  font-size: 13px;
+  margin-bottom: 18px;
+}
+.projects-error svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
 }
 
-.projects-table{
-    width:100%;
-    border-collapse:collapse;
-    background:var(--surface);
-    color:var(--text);
-    box-shadow:var(--shadow);
-    border-radius:8px;
-    overflow:hidden;
+/* Table shell — one panel, hairline borders, header row on the sunk tint. */
+.projects-panel {
+  background: var(--bg-paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
 }
 
-.projects-table th,
-.projects-table td{
-    padding:16px;
-    border:1px solid var(--border);
-    text-align:left;
+.projects-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--fg);
+  font-size: 13.5px;
 }
 
-.projects-table th{
-    background:var(--accent);
-    color:white;
+.projects-table thead th {
+  padding: 12px 18px;
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--fg-3);
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
 }
 
-.action-buttons{
-    display:flex;
-    gap:10px;
+.projects-table tbody td {
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--line);
+  color: var(--fg-2);
+  vertical-align: middle;
 }
 
-.action-buttons button{
-    border:none;
-    padding:8px 14px;
-    border-radius:6px;
-    cursor:pointer;
-    color:white;
+.projects-table tbody tr:last-child td {
+  border-bottom: none;
 }
 
-.open-btn{
-    background:var(--accent);
+.projects-table tbody tr {
+  transition: background-color 100ms;
 }
 
-.edit-btn{
-    background:var(--warn);
+.projects-table tbody tr:hover {
+  background: var(--bg-elev);
 }
 
-.delete-btn{
-    background:var(--neg);
+.project-code {
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--brand-blue);
+  letter-spacing: -0.005em;
+}
+
+.project-name {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+/* Action column — right-aligned, icon-first buttons for a cleaner scan. */
+.projects-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
+.projects-actions-col {
+  width: 1%;
+  text-align: right;
+}
+
+.project-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-paper);
+  color: var(--fg-2);
+  transition: background-color 100ms, border-color 100ms, color 100ms;
+  white-space: nowrap;
+}
+.project-btn:hover:not(:disabled) {
+  background: var(--bg-elev);
+  border-color: var(--fg-3);
+  color: var(--fg);
+}
+.project-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.project-btn svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+.project-btn-primary {
+  background: var(--brand-blue);
+  border-color: var(--brand-blue);
+  color: white;
+}
+.project-btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover, #164d99);
+  border-color: var(--accent-hover, #164d99);
+  color: white;
+}
+
+.project-btn-danger:hover:not(:disabled) {
+  background: var(--neg-soft);
+  border-color: var(--neg);
+  color: var(--neg-strong);
+}
+
+.projects-loading {
+  padding: 18px;
+}
+
+@media (max-width: 640px) {
+  .projects-table thead {
+    display: none;
+  }
+  .projects-table,
+  .projects-table tbody,
+  .projects-table tr {
+    display: block;
+    width: 100%;
+  }
+  .projects-table tr {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .projects-table tbody td {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: none;
+  }
+  .projects-actions {
+    justify-content: flex-start;
+    margin-top: 8px;
+  }
 }
