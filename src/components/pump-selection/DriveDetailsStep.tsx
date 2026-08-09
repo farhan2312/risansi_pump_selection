@@ -961,8 +961,6 @@ const RecheckModal = ({
     capAtMin: number;
     bkwAtMax: number;
     bkwAtMin: number;
-    motorKwAtMax: number;
-    motorKwAtMin: number;
   } | null = null;
 
   if (canCompute && pumpSpecs) {
@@ -976,23 +974,8 @@ const RecheckModal = ({
     const capAtMin = (qAtMin * finalRpmNum) / 100;
     const bkwAtMax = me > 0 ? (capAtMax * headMwc) / 367 / (me / 100) : NaN;
     const bkwAtMin = me > 0 ? (capAtMin * headMwc) / 367 / (me / 100) : NaN;
-    calc = {
-      qAtMax,
-      qAtMin,
-      capAtMax,
-      capAtMin,
-      bkwAtMax,
-      bkwAtMin,
-      motorKwAtMax: bkwAtMax * 1.2,
-      motorKwAtMin: bkwAtMin * 1.2,
-    };
+    calc = { qAtMax, qAtMin, capAtMax, capAtMin, bkwAtMax, bkwAtMin };
   }
-
-  const selectedMotorKw = Number(formData.driveMotorKw) || null;
-  const motorKwWarning =
-    calc && selectedMotorKw !== null
-      ? Math.max(calc.motorKwAtMax, calc.motorKwAtMin) > selectedMotorKw
-      : false;
 
   return (
     <div
@@ -1096,18 +1079,6 @@ const RecheckModal = ({
                 </table>
               </div>
 
-              {selectedMotorKw !== null && (
-                <p
-                  className={`mt-3 text-[12px] ${
-                    motorKwWarning ? "text-warn" : "text-fg-3"
-                  }`}
-                >
-                  Selected Motor KW: <strong>{selectedMotorKw} kW</strong>
-                  {motorKwWarning
-                    ? " — recomputed Motor KW exceeds this. Consider a higher rating."
-                    : " — recomputed Motor KW fits within this."}
-                </p>
-              )}
             </>
           )}
         </div>
@@ -1121,7 +1092,7 @@ const RecheckModal = ({
             onClick={onProceed}
             disabled={loading || !canCompute}
           >
-            Get Recommendation
+            Get Report
           </button>
         </div>
       </div>

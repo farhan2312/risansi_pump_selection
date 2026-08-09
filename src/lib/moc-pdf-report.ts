@@ -268,7 +268,14 @@ function renderMarkdown(
   return y + 6;
 }
 
-export async function downloadMocReportPdf(input: MocPdfInput): Promise<void> {
+export interface MocPdfResult {
+  filename: string;
+  /** Raw PDF bytes — lets the caller also upload the same document to the
+   * server (see moc_sealing_input.document) without regenerating it. */
+  bytes: ArrayBuffer;
+}
+
+export async function downloadMocReportPdf(input: MocPdfInput): Promise<MocPdfResult> {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -401,5 +408,8 @@ export async function downloadMocReportPdf(input: MocPdfInput): Promise<void> {
 
   const safeMedia = input.media.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "");
   const dateSlug = new Date().toISOString().slice(0, 10);
-  doc.save(`MOC-Report-${safeMedia || "media"}-${dateSlug}.pdf`);
+  const filename = `MOC-Report-${safeMedia || "media"}-${dateSlug}.pdf`;
+  doc.save(filename);
+
+  return { filename, bytes: doc.output("arraybuffer") };
 }

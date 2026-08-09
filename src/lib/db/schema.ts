@@ -13,6 +13,7 @@
  */
 import {
   boolean,
+  customType,
   date,
   integer,
   numeric,
@@ -22,6 +23,17 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
+
+// Raw binary column (Postgres bytea) — `pg`/Drizzle hand these back as a
+// Node Buffer on read and accept one on write directly, no base64 needed at
+// the DB layer (only over the JSON wire to/from the browser, which has no
+// native binary type). Used for the MOC PDF report saved alongside its
+// project (see moc_sealing_input.document below).
+const bytea = customType<{ data: Buffer }>({
+  dataType() {
+    return "bytea";
+  },
+});
 
 // This project uses `users_pump`, a fork of the shared `users` table (seeded
 // once from it). `users` stays owned by the testing portal — we never touch it.
@@ -52,23 +64,30 @@ export const projects = pgTable("projects", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
 
-// Autosaved wizard state for the pump-selection form, one row per project
-// (unique projectId — a project has a single in-progress selection). Covers
-// steps 1-4 only (General Info / Fluid Properties / Operating Conditions /
-// Sealing) so the form can restore itself after a refresh; later steps
-// (MOC/Motor Rating/Drive/Recommendation) are re-derived live from the media
-// and duty point, not persisted here. Columns mirror PumpSelectionFormData's
-// field names/types exactly (values are the raw strings the wizard's
-// <input>/<select> elements produce) so rows can be spread directly into
-// formData with no remapping.
-export const pumpSelectionInput = pgTable("pump_selection_input", {
+// Autosaved wizard state — one table per wizard step, each with a unique
+// projectId (one row per project), cascade-deleted with the project. Split
+// out of a single pump_selection_input table (which only covered steps 1-4)
+// so every step's inputs persist, not just the first four. Two intentional
+// merges: MOC (step 4) + Sealing (step 5) share one table since they're
+// reviewed together, and Motor Rating (step 6) + the Drive step's *common*
+// fields (step 7) share one table; the Drive step's per-drive-type detail
+// fields then split further into one table per drive system (only the
+// table matching the chosen drive system ever gets a row). Column names
+// mirror PumpSelectionFormData's field names/types exactly (raw strings the
+// wizard's <input>/<select> elements produce) so rows can be spread directly
+// into formData with no remapping.
+
+// Step 1 — General Information. Also carries the pump-selected fields
+// (selectedModel/modelConfirmed) — the live-recommendation panel that sets
+// these appears on every step 1-7 page, but General Info is where picking a
+// model first becomes possible, so it's the natural home for "what did we
+// land on" rather than a separate table.
+export const generalInfoInput = pgTable("general_info_input", {
   id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   projectId: uuid("project_id")
     .notNull()
     .unique()
     .references(() => projects.id, { onDelete: "cascade" }),
-
-  // Step 1 — General Information
   capacity: varchar("capacity", { length: 50 }),
   capacityUnit: varchar("capacity_unit", { length: 20 }),
   head: varchar("head", { length: 50 }),
@@ -82,8 +101,17 @@ export const pumpSelectionInput = pgTable("pump_selection_input", {
   rpmRange: varchar("rpm_range", { length: 20 }),
   selectedModel: varchar("selected_model", { length: 100 }),
   modelConfirmed: boolean("model_confirmed").default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
+});
 
-  // Step 2 — Fluid Properties
+// Step 2 — Fluid Properties
+export const fluidPropertiesInput = pgTable("fluid_properties_input", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  projectId: uuid("project_id")
+    .notNull()
+    .unique()
+    .references(() => projects.id, { onDelete: "cascade" }),
   viscosity: varchar("viscosity", { length: 50 }),
   viscosityUnit: varchar("viscosity_unit", { length: 20 }),
   viscosityRange: varchar("viscosity_range", { length: 20 }),
@@ -91,18 +119,166 @@ export const pumpSelectionInput = pgTable("pump_selection_input", {
   solidPercentage: varchar("solid_percentage", { length: 50 }),
   solidSize: varchar("solid_size", { length: 50 }),
   solidType: varchar("solid_type", { length: 20 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
+});
 
-  // Step 3 — Operating Conditions
+// Step 3 — Operating Conditions
+export const operatingConditionsInput = pgTable("operating_conditions_input", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  projectId: uuid("project_id")
+    .notNull()
+    .unique()
+    .references(() => projects.id, { onDelete: "cascade" }),
   pumpType: varchar("pump_type", { length: 50 }),
   agBk: varchar("ag_bk", { length: 20 }),
   bearingHousing: varchar("bearing_housing", { length: 50 }),
   suctionHousing: varchar("suction_housing", { length: 50 }),
   jointType: varchar("joint_type", { length: 50 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
+});
 
-  // Step 4 — Sealing Details
+// Steps 4+5 — MOC & Elastomer + Sealing Details, merged. Deliberately narrow
+// on the AI side, per explicit user request: only the AI's 8 per-component
+// suggested materials (+ which provider/when) are kept — NOT summary,
+// alternatives, or the AI's seal recommendation/rationale, which stay
+// session-only in MocDetailsStep's local state and are never written here.
+// Also stores the generated MOC PDF report itself as a binary blob
+// (document), so a copy is saved alongside the project, not just downloaded
+// to the browser.
+export const mocSealingInput = pgTable("moc_sealing_input", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  projectId: uuid("project_id")
+    .notNull()
+    .unique()
+    .references(() => projects.id, { onDelete: "cascade" }),
   sealingType: varchar("sealing_type", { length: 30 }),
   sealingSubType: varchar("sealing_sub_type", { length: 10 }),
+  // Manual per-component MOC picks + open remarks (optionally eyeballed
+  // against the AI suggestion below, entered independently — never
+  // auto-filled from it, per the app's firm "advisory only" convention).
+  mocAiBearingHousing: varchar("moc_ai_bearing_housing", { length: 50 }),
+  mocAiBearingHousingRemarks: text("moc_ai_bearing_housing_remarks"),
+  mocAiBearingPlate: varchar("moc_ai_bearing_plate", { length: 50 }),
+  mocAiBearingPlateRemarks: text("moc_ai_bearing_plate_remarks"),
+  mocAiTieRod: varchar("moc_ai_tie_rod", { length: 50 }),
+  mocAiTieRodRemarks: text("moc_ai_tie_rod_remarks"),
+  mocAiNutBolt: varchar("moc_ai_nut_bolt", { length: 50 }),
+  mocAiNutBoltRemarks: text("moc_ai_nut_bolt_remarks"),
+  mocAiPumpHousing: varchar("moc_ai_pump_housing", { length: 50 }),
+  mocAiPumpHousingRemarks: text("moc_ai_pump_housing_remarks"),
+  mocAiRotor: varchar("moc_ai_rotor", { length: 50 }),
+  mocAiRotorRemarks: text("moc_ai_rotor_remarks"),
+  mocAiShaft: varchar("moc_ai_shaft", { length: 50 }),
+  mocAiShaftRemarks: text("moc_ai_shaft_remarks"),
+  mocAiStatorRubber: varchar("moc_ai_stator_rubber", { length: 50 }),
+  mocAiStatorRubberRemarks: text("moc_ai_stator_rubber_remarks"),
+  // The AI's own per-component recommendation, as generated — "Suggested"
+  // distinguishes these from the mocAi<Component> manual picks above.
+  mocAiProvider: varchar("ai_provider", { length: 20 }), // "gemini" | "anthropic"
+  mocAiSuggestedBearingHousing: text("ai_bearing_housing"),
+  mocAiSuggestedBearingPlate: text("ai_bearing_plate"),
+  mocAiSuggestedTieRod: text("ai_tie_rod"),
+  mocAiSuggestedNutBolt: text("ai_nut_bolt"),
+  mocAiSuggestedPumpHousing: text("ai_pump_housing"),
+  mocAiSuggestedRotor: text("ai_rotor"),
+  mocAiSuggestedShaft: text("ai_shaft"),
+  mocAiSuggestedStatorRubber: text("ai_stator_rubber"),
+  mocAiGeneratedAt: timestamp("ai_generated_at", { withTimezone: true }),
+  // The generated MOC PDF report, saved as raw bytes when downloaded.
+  document: bytea("document"),
+  documentFilename: varchar("document_filename", { length: 255 }),
+  documentGeneratedAt: timestamp("document_generated_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
+});
 
+// Step 6 (Motor Rating) + Step 7's drive-system-agnostic fields (Drive
+// System Type itself, Motor RPM). The type-specific detail fields live in
+// the three drive*Input tables below — only the one matching driveSystem
+// ever gets a row.
+export const motorDriveInput = pgTable("motor_drive_input", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  projectId: uuid("project_id")
+    .notNull()
+    .unique()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  driveMotorKw: varchar("drive_motor_kw", { length: 50 }),
+  driveSystem: varchar("drive_system", { length: 50 }),
+  // JS field name matches formData.motorRPM exactly (capital RPM) — not the
+  // more conventional motorRpm — so autosave field lists don't need a
+  // mapping layer.
+  motorRPM: varchar("motor_rpm", { length: 10 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
+});
+
+// Direct Drive specifics — no extra fields today beyond what's already in
+// motor_drive_input, but kept as its own table (per spec: "different drive
+// should have different table") so a future direct-drive-only field doesn't
+// need another migration.
+export const driveDirectInput = pgTable("drive_direct_input", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  projectId: uuid("project_id")
+    .notNull()
+    .unique()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
+});
+
+// V-Belt Drive specifics — the selected belt option (groove/pulleys/rpm/
+// center distance/belt number, written when a candidate card is clicked)
+// plus the Drive System Inputs block (motor speed/make/mounting/rating
+// plate details/starter/power supply).
+export const driveVbeltInput = pgTable("drive_vbelt_input", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  projectId: uuid("project_id")
+    .notNull()
+    .unique()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  driveVbeltGroove: varchar("drive_vbelt_groove", { length: 20 }),
+  drivePumpPulley: varchar("drive_pump_pulley", { length: 20 }),
+  driveMotorPulley: varchar("drive_motor_pulley", { length: 20 }),
+  driveVbeltRpm: varchar("drive_vbelt_rpm", { length: 20 }),
+  driveCenterDistance: varchar("drive_center_distance", { length: 20 }),
+  driveVbeltNo: varchar("drive_vbelt_no", { length: 20 }),
+  driveMotorSpeed: varchar("drive_motor_speed", { length: 20 }),
+  driveMotorMake: varchar("drive_motor_make", { length: 50 }),
+  driveMotorMounting: varchar("drive_motor_mounting", { length: 50 }),
+  driveMotorEfficiency: varchar("drive_motor_efficiency", { length: 20 }),
+  driveMotorProtection: varchar("drive_motor_protection", { length: 20 }),
+  driveMotorFrequency: varchar("drive_motor_frequency", { length: 20 }),
+  driveMotorVoltage: varchar("drive_motor_voltage", { length: 20 }),
+  driveStarterType: varchar("drive_starter_type", { length: 20 }),
+  drivePowerSupply: varchar("drive_power_supply", { length: 20 }),
+  driveStdNonStd: varchar("drive_std_non_std", { length: 20 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
+});
+
+// Geared Motor Drive/Gear Box + Motor specifics — the selected gearbox
+// option (source table/model/output RPM/service factor/rate, written when
+// a candidate card is clicked) plus the Configuration/Mounting/Coupling/
+// ASF Range/GB Type inputs.
+export const driveGearedInput = pgTable("drive_geared_input", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  projectId: uuid("project_id")
+    .notNull()
+    .unique()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  gearBoxType: varchar("gear_box_type", { length: 20 }), // HISO / SISO
+  gearedConfigType: varchar("geared_config_type", { length: 30 }),
+  gbConstructionType: varchar("gb_construction_type", { length: 30 }), // IN LINE HELICAL / PLANTERY
+  gearBoxMounting: varchar("gear_box_mounting", { length: 50 }),
+  driveCoupling: varchar("drive_coupling", { length: 50 }),
+  asfRange: varchar("asf_range", { length: 20 }),
+  gearboxSource: varchar("gearbox_source", { length: 20 }), // PBL / PTL / Top Gear
+  gearboxModel: varchar("gearbox_model", { length: 100 }),
+  gearboxOutputRpm: varchar("gearbox_output_rpm", { length: 20 }),
+  gearboxServiceFactor: varchar("gearbox_service_factor", { length: 20 }),
+  gearboxRatePerNos: varchar("gearbox_rate_per_nos", { length: 20 }),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });

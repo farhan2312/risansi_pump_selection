@@ -120,6 +120,21 @@ export interface PumpSelectionFormData {
   // Elastomer
   mocAiStatorRubber?: string;
   mocAiStatorRubberRemarks?: string;
+  // The AI's own per-component recommendation (persisted so it survives a
+  // page reload) — distinct from the manual mocAi<Component> picks above,
+  // which are never auto-filled from these. Deliberately narrow: summary/
+  // alternatives/seal-recommendation/rationale are NOT persisted here, only
+  // shown live each session in MocDetailsStep's local state.
+  mocAiProvider?: string; // "gemini" | "anthropic"
+  mocAiSuggestedBearingHousing?: string;
+  mocAiSuggestedBearingPlate?: string;
+  mocAiSuggestedTieRod?: string;
+  mocAiSuggestedNutBolt?: string;
+  mocAiSuggestedPumpHousing?: string;
+  mocAiSuggestedRotor?: string;
+  mocAiSuggestedShaft?: string;
+  mocAiSuggestedStatorRubber?: string;
+  mocAiGeneratedAt?: string;
   driveMotorKw?: string; // final drive motor rating (KW) chosen on the Motor Rating step
   // V-Belt drive recommendation (Drive step, only when Drive System = V-Belt Drive)
   driveVbeltGroove?: string;

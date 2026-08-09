@@ -27,6 +27,64 @@ const withRemarks = (value?: string, remarks?: string): string | undefined => {
   return remarks ? `${value} (${remarks})` : value;
 };
 
+const RPM_RANGE_LABELS: Record<string, string> = {
+  low: "Low (< 200)",
+  medium: "Medium (200–320)",
+  high: "High (320–400)",
+  vhigh: "Very High (> 400)",
+};
+
+type FieldItem = [string, string | undefined];
+
+// One labeled value pair, filtered to only the ones with a real value —
+// used inside every report section box below.
+const FieldGrid = ({ items, tone = "default" }: { items: FieldItem[]; tone?: "default" | "pos" }) => {
+  const filled = items.filter(([, v]) => v && String(v).trim() !== "");
+  if (filled.length === 0) return null;
+  const labelClass = tone === "pos" ? "text-[var(--pos-strong)]/75" : "text-fg-3";
+  const valueClass = tone === "pos" ? "text-[var(--pos-strong)]" : "text-fg";
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      {filled.map(([label, value]) => (
+        <div key={label} className="flex flex-col">
+          <span className={`text-[11px] uppercase tracking-wide ${labelClass}`}>{label}</span>
+          <strong className={`text-[13.5px] font-semibold ${valueClass}`}>{value}</strong>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// Only used to decide whether to render a Section at all (Section itself
+// re-filters via FieldGrid) — avoids an empty bordered box for a step the
+// user hasn't touched.
+const hasAny = (items: FieldItem[]) => items.some(([, v]) => v && String(v).trim() !== "");
+
+// One step's box: label header + its field grid. Renders nothing if every
+// field in `items` is empty, so untouched steps don't leave a hollow box.
+const Section = ({
+  title,
+  items,
+  children,
+}: {
+  title: string;
+  items?: FieldItem[];
+  children?: React.ReactNode;
+}) => {
+  if (items && !hasAny(items) && !children) return null;
+  return (
+    <div className="mt-4 overflow-hidden rounded-lg border border-line bg-paper">
+      <div className="border-b border-line bg-elev px-4 py-2.5">
+        <span className="section-label">{title}</span>
+      </div>
+      <div className="p-4">
+        {items && <FieldGrid items={items} />}
+        {children}
+      </div>
+    </div>
+  );
+};
+
 // Read-only summary step: the pump model was already picked + confirmed after
 // the Fluid step, so this just reviews the confirmed model and every spec
 // configured along the way. No re-picking here.
@@ -69,20 +127,38 @@ const RecommendationStep = ({ onPrevious, formData, onStepClick }: Props) => {
   const confirmedPump =
     recommendations.find((p) => p.model === formData.selectedModel) || null;
 
-  // Specs configured across the earlier steps (only the ones with a value).
-  const configItems: [string, string | undefined][] = [
+  // --- Field groups, one per wizard step, in wizard order ------------------
+
+  const generalInfoItems: FieldItem[] = [
     ["Media / Application", formData.media],
-    [
-      "Viscosity",
-      formData.viscosity
-        ? `${formData.viscosity} ${formData.viscosityUnit || ""}`.trim()
-        : "",
-    ],
+    ["Capacity", formData.capacity ? `${formData.capacity} ${formData.capacityUnit || ""}`.trim() : ""],
+    ["Head", formData.head ? `${formData.head} ${formData.headUnit || ""}`.trim() : ""],
     ["Temperature", formData.temperature ? `${formData.temperature} °C` : ""],
     ["pH", formData.ph],
+    ["Specific Gravity", formData.sg],
+    ["RPM Range", formData.rpmRange ? RPM_RANGE_LABELS[formData.rpmRange] ?? formData.rpmRange : ""],
+  ];
+
+  const fluidPropertiesItems: FieldItem[] = [
+    ["Viscosity", formData.viscosity ? `${formData.viscosity} ${formData.viscosityUnit || ""}`.trim() : ""],
+    ["Solids", formData.solidPercentage ? `${formData.solidPercentage}%` : ""],
+    [
+      "Particle Size",
+      formData.solidSize
+        ? `${formData.solidSize} mm${formData.solidType ? ` (${formData.solidType})` : ""}`
+        : "",
+    ],
+  ];
+
+  const operatingConditionsItems: FieldItem[] = [
+    ["Pump Type", formData.pumpType],
+    ["AG / BK", formData.agBk],
     ["Bearing Housing", formData.bearingHousing],
     ["Suction Housing", formData.suctionHousing],
     ["Joint Type", formData.jointType],
+  ];
+
+  const mocItems: FieldItem[] = [
     ["Bearing Housing MOC", withRemarks(formData.mocAiBearingHousing, formData.mocAiBearingHousingRemarks)],
     ["Bearing Plate MOC", withRemarks(formData.mocAiBearingPlate, formData.mocAiBearingPlateRemarks)],
     ["Tie Rod MOC", withRemarks(formData.mocAiTieRod, formData.mocAiTieRodRemarks)],
@@ -91,26 +167,38 @@ const RecommendationStep = ({ onPrevious, formData, onStepClick }: Props) => {
     ["Rotor MOC", withRemarks(formData.mocAiRotor, formData.mocAiRotorRemarks)],
     ["Shaft MOC", withRemarks(formData.mocAiShaft, formData.mocAiShaftRemarks)],
     ["Stator Rubber", withRemarks(formData.mocAiStatorRubber, formData.mocAiStatorRubberRemarks)],
+  ];
+
+  const sealingItems: FieldItem[] = [
+    ["Sealing Type", formData.sealingType],
+    ["Mechanical Seal Type", formData.sealingSubType],
+  ];
+
+  const motorRatingItems: FieldItem[] = [
     ["Drive Motor Rating", formData.driveMotorKw ? `${formData.driveMotorKw} kW` : ""],
+  ];
+
+  const driveCommonItems: FieldItem[] = [
     ["Drive System", formData.driveSystem],
-    ["Configuration", formData.gearedConfigType],
-    ["Gear Box Shaft Type", formData.gearBoxType],
-    ["GB Type", formData.gbConstructionType],
-    ["Gear Box Mounting", formData.gearBoxMounting],
-    ["Coupling", formData.driveCoupling],
-    ["ASF Range", formData.asfRange],
-    ["Gearbox Source", formData.gearboxSource],
-    ["Gearbox Model", formData.gearboxModel],
-    ["Gearbox Output RPM", formData.gearboxOutputRpm],
-    ["Gearbox Service Factor", formData.gearboxServiceFactor],
-    ["Gearbox Rate", formData.gearboxRatePerNos],
+    ["Motor RPM", formData.motorRPM],
+  ];
+
+  const isVBelt = formData.driveSystem === "V-Belt Drive";
+  const isGeared = formData.driveSystem === "Geared Motor Drive/Gear Box + Motor";
+
+  // The specific option actually picked on the Drive step — highlighted in
+  // the report's positive/confirmed green, same convention as the MOC AI
+  // recommendation cells, so the one real selection stands out from the
+  // surrounding read-only spec fields.
+  const vbeltSelectedItems: FieldItem[] = [
     ["V-Belt Groove", formData.driveVbeltGroove],
     ["Pump Pulley", formData.drivePumpPulley],
     ["Motor Pulley", formData.driveMotorPulley],
-    ["V-Belt Pump RPM", formData.driveVbeltRpm],
+    ["Achieved Pump RPM", formData.driveVbeltRpm],
     ["Centre Distance", formData.driveCenterDistance],
     ["V-Belt No.", formData.driveVbeltNo],
-    ["Motor RPM", formData.motorRPM],
+  ];
+  const vbeltInputItems: FieldItem[] = [
     ["Drive Motor Speed", formData.driveMotorSpeed ? `${formData.driveMotorSpeed} RPM` : ""],
     ["Drive Motor Make", formData.driveMotorMake],
     ["Motor Mounting", formData.driveMotorMounting],
@@ -122,7 +210,27 @@ const RecommendationStep = ({ onPrevious, formData, onStepClick }: Props) => {
     ["Power Supply", formData.drivePowerSupply],
     ["Std / Non-Std", formData.driveStdNonStd],
   ];
-  const configured = configItems.filter(([, v]) => v && String(v).trim() !== "");
+
+  const gearedSelectedItems: FieldItem[] = [
+    ["Gearbox Source", formData.gearboxSource],
+    ["Gearbox Model", formData.gearboxModel],
+    ["Gearbox Output RPM", formData.gearboxOutputRpm],
+    ["Gearbox Service Factor", formData.gearboxServiceFactor],
+    ["Gearbox Rate", formData.gearboxRatePerNos],
+  ];
+  const gearedInputItems: FieldItem[] = [
+    ["Configuration", formData.gearedConfigType],
+    ["Gear Box Shaft Type", formData.gearBoxType],
+    ["GB Type", formData.gbConstructionType],
+    ["Gear Box Mounting", formData.gearBoxMounting],
+    ["Coupling", formData.driveCoupling],
+    ["ASF Range", formData.asfRange],
+  ];
+
+  const driveSelectedItems = isVBelt ? vbeltSelectedItems : isGeared ? gearedSelectedItems : [];
+  const driveInputItems = isVBelt ? vbeltInputItems : isGeared ? gearedInputItems : [];
+  const driveHasAnything =
+    hasAny(driveCommonItems) || hasAny(driveSelectedItems) || hasAny(driveInputItems);
 
   return (
     <div className="step-container">
@@ -156,6 +264,7 @@ const RecommendationStep = ({ onPrevious, formData, onStepClick }: Props) => {
 
         {!isLoading && !error && confirmedPump && (
           <>
+            {/* Pump selection at the very top — the anchor of the report. */}
             {(() => {
               // Prefer the confirmed model's own per-viscosity size; fall back
               // to the flat SIZE_BY_RANGE hint when the model isn't covered by
@@ -176,18 +285,35 @@ const RecommendationStep = ({ onPrevious, formData, onStepClick }: Props) => {
               );
             })()}
 
-            {configured.length > 0 && (
-              <div className="mt-4 rounded-md border border-line bg-elev p-4">
-                <span className="section-label">Configuration</span>
-                <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {configured.map(([label, value]) => (
-                    <div key={label} className="flex flex-col">
-                      <span className="text-[11px] uppercase tracking-wide text-fg-3">
-                        {label}
-                      </span>
-                      <strong className="text-fg">{value}</strong>
+            <Section title="General Information" items={generalInfoItems} />
+            <Section title="Fluid Properties" items={fluidPropertiesItems} />
+            <Section title="Operating Conditions" items={operatingConditionsItems} />
+            <Section title="MOC & Elastomer" items={mocItems} />
+            <Section title="Sealing Details" items={sealingItems} />
+            <Section title="Motor Rating" items={motorRatingItems} />
+
+            {driveHasAnything && (
+              <div className="mt-4 overflow-hidden rounded-lg border border-line bg-paper">
+                <div className="border-b border-line bg-elev px-4 py-2.5">
+                  <span className="section-label">Drive Details</span>
+                </div>
+                <div className="p-4">
+                  <FieldGrid items={driveCommonItems} />
+
+                  {hasAny(driveInputItems) && (
+                    <div className={hasAny(driveCommonItems) ? "mt-4" : ""}>
+                      <FieldGrid items={driveInputItems} />
                     </div>
-                  ))}
+                  )}
+
+                  {hasAny(driveSelectedItems) && (
+                    <div className="mt-4 rounded-md border-2 border-pos bg-[var(--pos-soft)] p-3">
+                      <span className="mb-2 block text-[11px] font-bold uppercase tracking-wide text-[var(--pos-strong)]">
+                        Selected {isVBelt ? "V-Belt" : "Gearbox"} Option
+                      </span>
+                      <FieldGrid items={driveSelectedItems} tone="pos" />
+                    </div>
+                  )}
                 </div>
               </div>
             )}

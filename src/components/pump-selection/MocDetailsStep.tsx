@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Stepper from "./Stepper";
 import "./GeneralInformationStep.css";
 import { actions, btnGhost, btnPrimary, control } from "./formStyles";
@@ -14,6 +14,7 @@ import {
 } from "../../services/mocRecommendationService";
 import { downloadMocReportPdf } from "../../lib/moc-pdf-report";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
+import { uploadMocDocument } from "../../services/wizardInputService";
 
 // Renders the AI's markdown-formatted summary/alternatives/seal-rationale
 // text (headers, "-"/"1." lists, **bold**) in the UI panel — a small,
@@ -98,6 +99,9 @@ type Props = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setFormData: any;
   onStepClick?: (step: number) => void;
+  /** Open project's id — needed to upload the generated PDF report so a
+   * saved copy lives alongside the project (see handleDownloadPdf). */
+  projectId?: string;
 };
 
 type AiStatus = "idle" | "loading" | "ready" | "unavailable" | "error";
@@ -187,6 +191,7 @@ const MocDetailsStep = ({
   formData,
   setFormData,
   onStepClick,
+  projectId,
 }: Props) => {
   const media = formData.media as string;
   const { user } = useCurrentUser();
@@ -204,9 +209,36 @@ const MocDetailsStep = ({
   // separate from aiProvider so flipping the dropdown before regenerating
   // doesn't retroactively relabel an already-fetched result.
   const [resultProvider, setResultProvider] = useState<MocAiProvider>("gemini");
+  // Tracks the previous media so a genuine change (not the initial "" -> X
+  // transition when a restored draft's media is first learned) can clear
+  // the *persisted* per-component AI record too — otherwise a stale
+  // recommendation for the old media would linger in the DB. The full
+  // AI panel (summary/alternatives/seal recommendation) is intentionally
+  // NOT persisted (only the 8 per-component picks are, see schema.ts) and
+  // so is never restored on reload either — it's session-only, same as
+  // before this table existed; regenerate is one click if needed again.
+  const prevMediaRef = useRef<string | undefined>(undefined);
   useEffect(() => {
+    const prevMedia = prevMediaRef.current;
+    prevMediaRef.current = media;
     setAiStatus("idle");
     setAiSuggestion(null);
+    if (prevMedia && prevMedia !== media) {
+      setFormData((f: typeof formData) => ({
+        ...f,
+        mocAiProvider: "",
+        mocAiSuggestedBearingHousing: "",
+        mocAiSuggestedBearingPlate: "",
+        mocAiSuggestedTieRod: "",
+        mocAiSuggestedNutBolt: "",
+        mocAiSuggestedPumpHousing: "",
+        mocAiSuggestedRotor: "",
+        mocAiSuggestedShaft: "",
+        mocAiSuggestedStatorRubber: "",
+        mocAiGeneratedAt: "",
+      }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [media]);
 
   // Cycles AI_LOADING_MESSAGES while a request is in flight.
@@ -246,6 +278,23 @@ const MocDetailsStep = ({
           setAiSuggestion(suggestion);
           setResultProvider(providerAtRequest);
           setAiStatus("ready");
+          // Persist only the 8 per-component picks + provider/timestamp
+          // (see PumpSelectionPage's TABLE_FIELDS["moc-sealing"] and
+          // schema.ts) — summary/alternatives/seal recommendation stay
+          // local to `aiSuggestion` above, not written to the DB.
+          setFormData((f: typeof formData) => ({
+            ...f,
+            mocAiProvider: providerAtRequest,
+            mocAiSuggestedBearingHousing: suggestion.bearingHousing,
+            mocAiSuggestedBearingPlate: suggestion.bearingPlate,
+            mocAiSuggestedTieRod: suggestion.tieRod,
+            mocAiSuggestedNutBolt: suggestion.nutBolt,
+            mocAiSuggestedPumpHousing: suggestion.pumpHousing,
+            mocAiSuggestedRotor: suggestion.rotor,
+            mocAiSuggestedShaft: suggestion.shaft,
+            mocAiSuggestedStatorRubber: suggestion.statorRubber,
+            mocAiGeneratedAt: new Date().toISOString(),
+          }));
         } else {
           setAiStatus("unavailable");
         }
@@ -261,7 +310,7 @@ const MocDetailsStep = ({
     setPdfGenerating(true);
     setPdfError(false);
     try {
-      await downloadMocReportPdf({
+      const { filename, bytes } = await downloadMocReportPdf({
         media,
         head: formData.head || undefined,
         headUnit: formData.headUnit || undefined,
@@ -277,6 +326,11 @@ const MocDetailsStep = ({
         suggestion: aiSuggestion,
         generatedBy: user?.name || user?.email || undefined,
       });
+      // Best-effort — the browser download above already succeeded either
+      // way, so a failed upload here shouldn't surface as a PDF error.
+      if (projectId) {
+        uploadMocDocument(projectId, filename, bytes).catch(() => {});
+      }
     } catch {
       setPdfError(true);
     } finally {

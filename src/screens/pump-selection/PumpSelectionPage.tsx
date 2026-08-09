@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import GeneralInformationStep from "../../components/pump-selection/GeneralInformationStep";
@@ -16,9 +16,10 @@ import LivePumpRecommendation from "../../components/pump-selection/LivePumpReco
 import { SELECTED_PROJECT_KEY } from "../projects/ProjectsPage";
 import { getProject } from "../../services/projectService";
 import {
-  getPumpSelectionInput,
-  savePumpSelectionInput,
-} from "../../services/pumpSelectionInputService";
+  getWizardInput,
+  saveWizardInput,
+  type WizardInputTable,
+} from "../../services/wizardInputService";
 
 type SelectedProject = {
   id: string;
@@ -28,25 +29,77 @@ type SelectedProject = {
   status?: string;
 };
 
-// General/Fluid/Operating Conditions/Sealing fields autosaved to
-// pump_selection_input, keyed by project (MOC and everything after it is
-// re-derived live, not persisted here) — field-based, not step-number-based,
-// so this list doesn't need to change if the step order does. Kept in sync
-// with the FIELDS whitelist in api/pump-selection-input/route.ts.
-const AUTOSAVE_FIELDS = [
-  "capacity", "capacityUnit", "head", "headUnit", "media",
-  "temperature", "temperatureRaw", "temperatureUnit", "sg", "ph",
-  "rpmRange", "selectedModel", "modelConfirmed",
-  "viscosity", "viscosityUnit", "viscosityRange", "viscosityCp",
-  "solidPercentage", "solidSize", "solidType",
-  "pumpType", "agBk", "bearingHousing", "suctionHousing", "jointType",
-  "sealingType", "sealingSubType",
-] as const;
+// Every wizard field autosaved to the DB, one table per step (two merges:
+// MOC+Sealing share a table, Motor Rating + Drive-common fields share a
+// table) plus one table per drive system for the Drive step's type-specific
+// fields. Field-based, not step-number-based, so this doesn't need to change
+// if the step order does. Kept in sync with the FIELDS whitelist in
+// api/wizard-input/[table]/route.ts.
+const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
+  "general-info": [
+    "capacity", "capacityUnit", "head", "headUnit", "media",
+    "temperature", "temperatureRaw", "temperatureUnit", "sg", "ph",
+    "rpmRange", "selectedModel", "modelConfirmed",
+  ],
+  "fluid-properties": [
+    "viscosity", "viscosityUnit", "viscosityRange", "viscosityCp",
+    "solidPercentage", "solidSize", "solidType",
+  ],
+  "operating-conditions": [
+    "pumpType", "agBk", "bearingHousing", "suctionHousing", "jointType",
+  ],
+  "moc-sealing": [
+    "sealingType", "sealingSubType",
+    "mocAiBearingHousing", "mocAiBearingHousingRemarks",
+    "mocAiBearingPlate", "mocAiBearingPlateRemarks",
+    "mocAiTieRod", "mocAiTieRodRemarks",
+    "mocAiNutBolt", "mocAiNutBoltRemarks",
+    "mocAiPumpHousing", "mocAiPumpHousingRemarks",
+    "mocAiRotor", "mocAiRotorRemarks",
+    "mocAiShaft", "mocAiShaftRemarks",
+    "mocAiStatorRubber", "mocAiStatorRubberRemarks",
+    "mocAiProvider",
+    "mocAiSuggestedBearingHousing", "mocAiSuggestedBearingPlate",
+    "mocAiSuggestedTieRod", "mocAiSuggestedNutBolt", "mocAiSuggestedPumpHousing",
+    "mocAiSuggestedRotor", "mocAiSuggestedShaft", "mocAiSuggestedStatorRubber",
+    "mocAiGeneratedAt",
+  ],
+  "motor-drive": ["driveMotorKw", "driveSystem", "motorRPM"],
+  "drive-direct": [],
+  "drive-vbelt": [
+    "driveVbeltGroove", "drivePumpPulley", "driveMotorPulley", "driveVbeltRpm",
+    "driveCenterDistance", "driveVbeltNo", "driveMotorSpeed", "driveMotorMake",
+    "driveMotorMounting", "driveMotorEfficiency", "driveMotorProtection",
+    "driveMotorFrequency", "driveMotorVoltage", "driveStarterType",
+    "drivePowerSupply", "driveStdNonStd",
+  ],
+  "drive-geared": [
+    "gearBoxType", "gearedConfigType", "gbConstructionType", "gearBoxMounting",
+    "driveCoupling", "asfRange", "gearboxSource", "gearboxModel",
+    "gearboxOutputRpm", "gearboxServiceFactor", "gearboxRatePerNos",
+  ],
+};
+
+// Which table(s) each wizard step writes when the user leaves it — so a Next
+// (or stepper jump, or Previous) saves ONLY the step being left, not every
+// table. Steps 4+5 both write moc-sealing (MOC and Sealing share one table);
+// step 7's drive-system-specific table is appended conditionally at save time
+// (see stepTablesToSave). Step 8 (read-only Recommendation) writes nothing.
+const STEP_TABLES: Record<number, WizardInputTable[]> = {
+  1: ["general-info"],
+  2: ["fluid-properties"],
+  3: ["operating-conditions"],
+  4: ["moc-sealing"],
+  5: ["moc-sealing"],
+  6: ["motor-drive"],
+  7: ["motor-drive"],
+  8: [],
+};
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const pickAutosaveFields = (data: any): Record<string, unknown> => {
+const pickTableFields = (table: WizardInputTable, data: any): Record<string, unknown> => {
   const out: Record<string, unknown> = {};
-  for (const key of AUTOSAVE_FIELDS) out[key] = data[key];
+  for (const key of TABLE_FIELDS[table]) out[key] = data[key];
   return out;
 };
 
@@ -179,6 +232,21 @@ const PumpSelectionPage = () => {
     mocAiStatorRubber: "",
     mocAiStatorRubberRemarks: "",
 
+    // The AI's own per-component recommendation (persisted to
+    // moc_sealing_input so it survives a reload) — distinct from the manual
+    // picks above. No summary/alternatives/seal-recommendation/rationale
+    // here by design — those stay session-only (see MocDetailsStep).
+    mocAiProvider: "",
+    mocAiSuggestedBearingHousing: "",
+    mocAiSuggestedBearingPlate: "",
+    mocAiSuggestedTieRod: "",
+    mocAiSuggestedNutBolt: "",
+    mocAiSuggestedPumpHousing: "",
+    mocAiSuggestedRotor: "",
+    mocAiSuggestedShaft: "",
+    mocAiSuggestedStatorRubber: "",
+    mocAiGeneratedAt: "",
+
     // Step 6 — Motor Rating (KW) — final drive motor rating (manual pick from
     // the pulley-table KW list, defaulted to the recommendation)
     driveMotorKw: "",
@@ -209,21 +277,27 @@ const PumpSelectionPage = () => {
   // pre-load default formData and stomp a real saved draft with blanks.
   const [restored, setRestored] = useState(false);
 
+  // Every table with fields to restore (drive-direct has none, so it's
+  // skipped — nothing to fetch).
+  const RESTORABLE_TABLES = (Object.keys(TABLE_FIELDS) as WizardInputTable[]).filter(
+    (t) => TABLE_FIELDS[t].length > 0,
+  );
+
   useEffect(() => {
     if (!project?.id) return;
     let cancelled = false;
-    getPumpSelectionInput(project.id)
-      .then((row) => {
-        if (cancelled || !row) return;
-        setFormData((f: typeof formData) => ({
-          ...f,
-          ...Object.fromEntries(
-            AUTOSAVE_FIELDS.map((key) => [
-              key,
-              row[key as keyof typeof row] ?? (key === "modelConfirmed" ? false : ""),
-            ])
-          ),
-        }));
+    Promise.all(RESTORABLE_TABLES.map((table) => getWizardInput(table, project.id)))
+      .then((rows) => {
+        if (cancelled) return;
+        const merged: Record<string, unknown> = {};
+        rows.forEach((row, i) => {
+          if (!row) return;
+          const tableKey = RESTORABLE_TABLES[i];
+          for (const key of TABLE_FIELDS[tableKey]) {
+            merged[key] = row[key] ?? (key === "modelConfirmed" ? false : "");
+          }
+        });
+        setFormData((f: typeof formData) => ({ ...f, ...merged }));
       })
       .finally(() => {
         if (!cancelled) setRestored(true);
@@ -234,31 +308,39 @@ const PumpSelectionPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id]);
 
-  // Debounced autosave: whenever the persisted (step 1-4) fields change, push
-  // them to pump_selection_input so a refresh restores the form.
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
+  // Tables to save when leaving `fromStep` — STEP_TABLES plus, for the Drive
+  // step, the one drive-system-specific table matching the current choice
+  // (so switching drive types never leaves stale data in the other).
+  const stepTablesToSave = (fromStep: number): WizardInputTable[] => {
+    const tables = [...(STEP_TABLES[fromStep] ?? [])];
+    if (fromStep === 7) {
+      if (formData.driveSystem === "V-Belt Drive") tables.push("drive-vbelt");
+      if (formData.driveSystem === "Geared Motor Drive/Gear Box + Motor") tables.push("drive-geared");
+    }
+    return tables;
+  };
+
+  // Persists ONLY the step being left — one PUT per its table(s), not all of
+  // them. Called on every navigation (Next / Previous / stepper jump).
+  const saveStep = (fromStep: number) => {
     if (!project?.id || !restored) return;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      savePumpSelectionInput(project.id, pickAutosaveFields(formData)).catch(() => {
+    for (const table of stepTablesToSave(fromStep)) {
+      saveWizardInput(table, project.id, pickTableFields(table, formData)).catch(() => {
         // Best-effort — the wizard still works from in-memory state if a save fails.
       });
-    }, 800);
-    return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project?.id, restored, ...AUTOSAVE_FIELDS.map((key) => (formData as Record<string, unknown>)[key])]);
+    }
+  };
 
   const [selectedPump, setSelectedPump] = useState<number | null>(null);
 
   // Flow gate: a pump model must be picked AND confirmed (in the live panel,
   // after the General + Fluid forms) before advancing past the Fluid step.
   // Applies to Next buttons and to jumping via the stepper — backward nav and
-  // staying within steps 1–2 are always allowed.
+  // staying within steps 1–2 are always allowed. Saves the step being left
+  // before navigating, so its inputs land in that step's own table.
   const goToStep = (target: number) => {
     if (target > 2 && !formData.modelConfirmed) return;
+    saveStep(step);
     setStep(target);
   };
 
@@ -304,6 +386,7 @@ const PumpSelectionPage = () => {
             formData={formData}
             setFormData={setFormData}
             onStepClick={goToStep}
+            projectId={project?.id}
           />
         );
 

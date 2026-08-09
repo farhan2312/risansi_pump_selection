@@ -90,7 +90,15 @@ const PumpDetailsCard = ({
 
         <div>
           <span>Testing Status</span>
-          <strong>{pump.isTested ? "Tested" : "Not Tested"}</strong>
+          <strong>
+            <span
+              className={`pump-status-pill ${
+                pump.isTested ? "pump-status-tested" : "pump-status-not-tested"
+              }`}
+            >
+              {pump.isTested ? "Tested" : "Not Tested"}
+            </span>
+          </strong>
         </div>
 
         {pump.testingRemarks && (
