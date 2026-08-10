@@ -3,10 +3,16 @@
 import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
 import PumpDetailsCard from "../../components/recommendation/PumpDetailsCard";
-import TestReportModal from "../../components/recommendation/TestReportModal";
 import { useEffect, useState } from "react";
 import { getRecommendations } from "../../services/recommendationService";
 import { SIZE_COLUMN_BY_RANGE, sizeForViscosityRange } from "../../lib/suction-discharge-size";
+import { sealingShort } from "../../lib/sealing";
+import {
+  downloadSelectionSummaryPdf,
+  type SelectionSummaryPdfSection,
+} from "../../lib/selection-summary-pdf";
+import { saveReportSummary, uploadFinalReport } from "../../services/reportsService";
+import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import type {
   PumpRecommendation,
   PumpSelectionFormData,
@@ -18,6 +24,12 @@ type Props = {
   selectedPump: number | null;
   setSelectedPump: React.Dispatch<React.SetStateAction<number | null>>;
   onStepClick?: (step: number) => void;
+  /** Open project's id + display info — needed to upload the generated
+   * report so it's saved on the project (see handleConfirmSelection). */
+  projectId?: string;
+  projectCode?: string;
+  projectName?: string;
+  customerName?: string;
 };
 
 // Combines a manual material selection with its open-remarks note into one
@@ -88,8 +100,16 @@ const Section = ({
 // Read-only summary step: the pump model was already picked + confirmed after
 // the Fluid step, so this just reviews the confirmed model and every spec
 // configured along the way. No re-picking here.
-const RecommendationStep = ({ onPrevious, formData, onStepClick }: Props) => {
-  const [showReport, setShowReport] = useState(false);
+const RecommendationStep = ({
+  onPrevious,
+  formData,
+  onStepClick,
+  projectId,
+  projectCode,
+  projectName,
+  customerName,
+}: Props) => {
+  const { user } = useCurrentUser();
   const [recommendations, setRecommendations] = useState<PumpRecommendation[]>([]);
   const [inputEcho, setInputEcho] = useState<{ capacity: string; head: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -126,6 +146,18 @@ const RecommendationStep = ({ onPrevious, formData, onStepClick }: Props) => {
 
   const confirmedPump =
     recommendations.find((p) => p.model === formData.selectedModel) || null;
+
+  // Prefer the confirmed model's own per-viscosity size; fall back to the
+  // flat SIZE_BY_RANGE hint when the model isn't covered by the per-model
+  // sheet (mostly L-variants). Lifted out of the card's render so the PDF
+  // export below can reuse the exact same value.
+  const cardSize = confirmedPump
+    ? (() => {
+        const col = SIZE_COLUMN_BY_RANGE[formData.viscosityRange as string];
+        const perModel = col ? confirmedPump[col] : null;
+        return perModel ?? sizeForViscosityRange(formData.viscosityRange);
+      })()
+    : null;
 
   // --- Field groups, one per wizard step, in wizard order ------------------
 
@@ -232,6 +264,73 @@ const RecommendationStep = ({ onPrevious, formData, onStepClick }: Props) => {
   const driveHasAnything =
     hasAny(driveCommonItems) || hasAny(driveSelectedItems) || hasAny(driveInputItems);
 
+  // Mirrors PumpDetailsCard's own displayed rows — kept as a flat field list
+  // here too so the PDF export (which can't render that component directly)
+  // shows exactly the same "Pump Selection" facts.
+  const pumpFields: FieldItem[] = confirmedPump
+    ? [
+        ["Pump Model", confirmedPump.model],
+        ["Stage", confirmedPump.stage != null ? String(confirmedPump.stage) : ""],
+        ["Pump Type", formData.pumpType],
+        ["AG / BK", formData.agBk],
+        ["Pump RPM (VOLE max–min)", confirmedPump.rpmRange],
+        ["Nearest Charted Head", `${confirmedPump.headMwc} MWC`],
+        ["VOLE Min–Max", `${confirmedPump.voleMin}–${confirmedPump.voleMax}%`],
+        ["Mechanical Efficiency", `${confirmedPump.mechEff}%`],
+        ["Suction & Discharge Size", cardSize !== null ? String(cardSize) : ""],
+        ["Sealing Type", sealingShort(formData.sealingType) || ""],
+        ["Testing Status", confirmedPump.isTested ? "Tested" : "Not Tested"],
+        ["Testing Remarks", confirmedPump.testingRemarks || ""],
+      ]
+    : [];
+
+  // Same section list the on-screen boxes render — single source of truth
+  // for what "Confirm Pump Selection" bakes into the saved PDF.
+  const pdfSections: SelectionSummaryPdfSection[] = [
+    { title: "General Information", items: generalInfoItems },
+    { title: "Fluid Properties", items: fluidPropertiesItems },
+    { title: "Operating Conditions", items: operatingConditionsItems },
+    { title: "MOC & Elastomer", items: mocItems },
+    { title: "Sealing Details", items: sealingItems },
+    { title: "Motor Rating", items: motorRatingItems },
+    { title: "Drive Details", items: [...driveCommonItems, ...driveInputItems] },
+    {
+      title: `Selected ${isVBelt ? "V-Belt" : "Gearbox"} Option`,
+      items: driveSelectedItems,
+      highlight: true,
+    },
+  ];
+
+  const [confirming, setConfirming] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
+
+  const handleConfirmSelection = async () => {
+    if (!confirmedPump || !projectId) return;
+    setConfirming(true);
+    setConfirmError(null);
+    try {
+      const { filename, bytes } = await downloadSelectionSummaryPdf({
+        projectCode: projectCode || "",
+        projectName,
+        customerName,
+        pumpFields,
+        sections: pdfSections,
+        generatedBy: user?.name || user?.email || undefined,
+      });
+      await uploadFinalReport(projectId, filename, bytes);
+      // Structured mirror of the same data, for the Reports list's
+      // click-to-view summary — best-effort, doesn't block on the PDF
+      // upload above having already succeeded.
+      await saveReportSummary(projectId, { pumpFields, sections: pdfSections }).catch(() => {});
+      setConfirmed(true);
+    } catch {
+      setConfirmError("Couldn't generate/save the report. Please try again.");
+    } finally {
+      setConfirming(false);
+    }
+  };
+
   return (
     <div className="step-container">
       <Stepper currentStep={8} onStepClick={onStepClick} />
@@ -265,25 +364,14 @@ const RecommendationStep = ({ onPrevious, formData, onStepClick }: Props) => {
         {!isLoading && !error && confirmedPump && (
           <>
             {/* Pump selection at the very top — the anchor of the report. */}
-            {(() => {
-              // Prefer the confirmed model's own per-viscosity size; fall back
-              // to the flat SIZE_BY_RANGE hint when the model isn't covered by
-              // the per-model sheet (mostly L-variants).
-              const col = SIZE_COLUMN_BY_RANGE[formData.viscosityRange as string];
-              const perModel = col ? confirmedPump[col] : null;
-              const cardSize =
-                perModel ?? sizeForViscosityRange(formData.viscosityRange);
-              return (
-                <PumpDetailsCard
-                  pump={confirmedPump}
-                  size={cardSize}
-                  pumpType={formData.pumpType}
-                  agBk={formData.agBk}
-                  sealingType={formData.sealingType}
-                  stage={confirmedPump.stage}
-                />
-              );
-            })()}
+            <PumpDetailsCard
+              pump={confirmedPump}
+              size={cardSize}
+              pumpType={formData.pumpType}
+              agBk={formData.agBk}
+              sealingType={formData.sealingType}
+              stage={confirmedPump.stage}
+            />
 
             <Section title="General Information" items={generalInfoItems} />
             <Section title="Fluid Properties" items={fluidPropertiesItems} />
@@ -320,26 +408,28 @@ const RecommendationStep = ({ onPrevious, formData, onStepClick }: Props) => {
           </>
         )}
 
+        {confirmError && <p className="error-message">{confirmError}</p>}
+        {confirmed && (
+          <p className="mt-2 text-[13px] text-pos">
+            Report generated and saved — see it on the Reports page.
+          </p>
+        )}
+
         <div className="step-actions">
           <button onClick={onPrevious}>Previous</button>
 
-          <button disabled={!confirmedPump} onClick={() => setShowReport(true)}>
-            View Test Report
-          </button>
-
           <button
-            disabled
-            title="Not available yet — pump_selections/pump_recommendations aren't built in the database, so a selection can't be persisted or carried to the Selection Summary page."
+            disabled={!confirmedPump || !projectId || confirming}
+            onClick={handleConfirmSelection}
+            title={!projectId ? "No project open" : undefined}
           >
-            Confirm Pump Selection
+            {confirming
+              ? "Generating report…"
+              : confirmed
+                ? "Regenerate Report"
+                : "Confirm Pump Selection"}
           </button>
         </div>
-
-        <TestReportModal
-          isOpen={showReport}
-          onClose={() => setShowReport(false)}
-          pump={confirmedPump}
-        />
       </div>
     </div>
   );

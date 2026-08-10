@@ -431,6 +431,10 @@ const PumpSelectionPage = () => {
             selectedPump={selectedPump}
             setSelectedPump={setSelectedPump}
             onStepClick={goToStep}
+            projectId={project?.id}
+            projectCode={project?.code}
+            projectName={project?.name}
+            customerName={project?.customer}
           />
         );
 

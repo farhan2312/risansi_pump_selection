@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
 import { db } from "@/lib/db";
@@ -11,6 +11,7 @@ import {
   driveDirectInput,
   driveVbeltInput,
   driveGearedInput,
+  projects,
 } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
@@ -161,6 +162,16 @@ export async function PUT(
     .returning();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [row] = result as any[];
+
+  // Project lifecycle: the first time General Information is saved with any
+  // real content, flip a still-"Pending" project to "In Progress". Never
+  // downgrades a project that's already further along (e.g. "Completed").
+  if (tableKey === "general-info" && Object.values(values).some((v) => v !== "" && v != null)) {
+    await db
+      .update(projects)
+      .set({ status: "In Progress", updatedAt: new Date() })
+      .where(and(eq(projects.id, projectId), eq(projects.status, "Pending")));
+  }
 
   return json(row);
 }

@@ -1,162 +1,296 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import "./SelectionSummaryPage.css";
 import {
-  getSelectionReport,
-  type ReportField,
-  type SelectionReport,
-} from "../../services/recommendationService";
+  getReportSummary,
+  listReports,
+  reportDownloadUrl,
+  type ReportRecord,
+  type ReportSummary,
+  type ReportSummaryField,
+} from "../../services/reportsService";
+import EmptyState from "../../components/ui/EmptyState";
+import { SkeletonRows } from "../../components/ui/Skeleton";
+import Spinner from "../../components/ui/Spinner";
 
-type FinalSelections = Record<string, string>;
+// Reuses the exact status-pill classes/colors from DashboardPage.css (loaded
+// globally, see app/layout.tsx) so status reads the same everywhere.
+const statusPillClass = (status: string | null | undefined): string => {
+  switch ((status ?? "").trim().toLowerCase()) {
+    case "in progress":
+      return "status-pill status-in-progress";
+    case "completed":
+      return "status-pill status-completed";
+    case "pending":
+      return "status-pill status-pending";
+    default:
+      return "status-pill status-neutral";
+  }
+};
 
-const fieldKey = (sectionIndex: number, fieldIndex: number) =>
-  `${sectionIndex}-${fieldIndex}`;
+const fmtDate = (iso: string | null) =>
+  iso
+    ? new Date(iso).toLocaleString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "—";
 
+// One generated final Selection Summary report per project (projects.id is
+// unique, so there's never more than one per project) — this page lists
+// every project that has one, newest first, with a direct download and a
+// click-through summary.
 const SelectionSummaryPage = () => {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const recommendationId = searchParams?.get("recommendationId") ?? undefined;
-
-  const [report, setReport] = useState<SelectionReport | null>(null);
+  const [reports, setReports] = useState<ReportRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [finalSelections, setFinalSelections] = useState<FinalSelections>({});
+  const [search, setSearch] = useState("");
+  const [viewing, setViewing] = useState<ReportRecord | null>(null);
 
   useEffect(() => {
-    if (!recommendationId) {
-      setError("No pump selection was passed to this page.");
-      setIsLoading(false);
-      return;
-    }
-
     let cancelled = false;
-    setIsLoading(true);
-
-    getSelectionReport(recommendationId)
-      .then((data) => {
-        if (cancelled) return;
-        setReport(data);
-        const initial: FinalSelections = {};
-        data.sections.forEach((section, si) => {
-          section.fields.forEach((f, fi) => {
-            if (f.available && f.value !== null) {
-              initial[fieldKey(si, fi)] = String(f.value);
-            }
-          });
-        });
-        setFinalSelections(initial);
+    listReports()
+      .then((rows) => {
+        if (!cancelled) setReports(rows);
       })
       .catch(() => {
-        if (!cancelled) setError("Couldn't load the selection report.");
+        if (!cancelled) setError("Couldn't load reports.");
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
       });
-
     return () => {
       cancelled = true;
     };
-  }, [recommendationId]);
+  }, []);
 
-  const renderField = (field: ReportField, si: number, fi: number) => {
-    const key = fieldKey(si, fi);
-    return (
-      <tr key={key}>
-        <td className="report-label">{field.label}</td>
-        <td className="report-rec">
-          {field.available ? (
-            <>
-              {field.value}
-              {field.note && <div className="field-note">{field.note}</div>}
-            </>
-          ) : (
-            <>
-              <span className="not-available">
-                Not available
-                {field.note ? ` — ${field.note}` : " — pending master data"}
-              </span>
-              {field.aiSuggestion && (
-                <div className="ai-suggestion">
-                  <span className="ai-suggestion-badge">AI Suggestion</span>
-                  {field.aiSuggestion}
-                </div>
-              )}
-            </>
-          )}
-        </td>
-        <td className="report-final">
-          <input
-            type="text"
-            value={finalSelections[key] ?? ""}
-            disabled={!field.available && !field.aiSuggestion}
-            placeholder={
-              field.available
-                ? ""
-                : field.aiSuggestion
-                ? "Accept AI suggestion or type your own"
-                : "—"
-            }
-            onChange={(e) =>
-              setFinalSelections((prev) => ({
-                ...prev,
-                [key]: e.target.value,
-              }))
-            }
-          />
-        </td>
-      </tr>
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return reports;
+    return reports.filter(
+      (r) =>
+        r.project_code.toLowerCase().includes(q) ||
+        (r.project_name ?? "").toLowerCase().includes(q) ||
+        (r.client_code ?? "").toLowerCase().includes(q)
     );
-  };
+  }, [reports, search]);
 
   return (
     <div className="summary-page">
-      <div className="summary-card">
-        <h1>Pump Selection Report</h1>
-        <p>
-          Review the system recommendation for each parameter and record your
-          final selection before completing the project.
-        </p>
+      <div className="summary-header">
+        <div>
+          <h1>Reports</h1>
+          <p>Every generated Selection Summary report, one per project.</p>
+        </div>
+        <input
+          type="search"
+          className="summary-search"
+          placeholder="Search project, name, client…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
 
-        {isLoading && <p>Loading report...</p>}
-        {error && <p className="error-message">{error}</p>}
+      {error && <p className="error-message">{error}</p>}
 
-        {report && (
-          <>
-            <div className="report-header">
-              <span>Pump Model</span>
-              <strong>{report.model}</strong>
-            </div>
+      {isLoading && (
+        <div className="summary-panel">
+          <div style={{ padding: 16 }}>
+            <SkeletonRows rows={5} cols={5} />
+          </div>
+        </div>
+      )}
 
-            {report.sections.map((section, si) => (
-              <div className="report-section" key={section.title}>
-                <h2>{section.title}</h2>
-                <table className="report-table">
-                  <thead>
-                    <tr>
-                      <th>Parameter</th>
-                      <th>System Recommendation</th>
-                      <th>Final Selection (editable)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {section.fields.map((field, fi) =>
-                      renderField(field, si, fi)
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            ))}
-          </>
-        )}
+      {!isLoading && !error && reports.length === 0 && (
+        <EmptyState
+          icon="table"
+          title="No reports generated yet"
+          description="Click Confirm Pump Selection on the last wizard step of a project to generate and save its report here."
+        />
+      )}
 
-        <div className="summary-buttons">
-          <button className="secondary-btn" onClick={() => router.back()}>
-            Back
+      {!isLoading && !error && reports.length > 0 && (
+        <div className="summary-panel">
+          <table className="summary-table">
+            <thead>
+              <tr>
+                <th>Project</th>
+                <th>Client</th>
+                <th>Status</th>
+                <th>Generated</th>
+                <th>Generated By</th>
+                <th className="summary-actions-col">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((r) => (
+                <tr
+                  key={r.project_id}
+                  className="summary-row-clickable"
+                  onClick={() => setViewing(r)}
+                >
+                  <td>
+                    <span className="summary-project-code">{r.project_code}</span>
+                    <span className="summary-project-name">{r.project_name || "—"}</span>
+                  </td>
+                  <td>{r.client_code || "—"}</td>
+                  <td>
+                    <span className={statusPillClass(r.status)}>{r.status || "—"}</span>
+                  </td>
+                  <td className="mono">{fmtDate(r.document_generated_at)}</td>
+                  <td>{r.created_by_name || "—"}</td>
+                  <td className="summary-actions-col">
+                    <a
+                      className="summary-download-btn"
+                      href={reportDownloadUrl(r.project_id)}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Download
+                    </a>
+                  </td>
+                </tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="summary-empty-cell">
+                    <EmptyState
+                      compact
+                      icon="search"
+                      title={`No reports match “${search}”`}
+                      description="Try a different project, name, or client."
+                    />
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {viewing && (
+        <ReportSummaryModal report={viewing} onClose={() => setViewing(null)} />
+      )}
+    </div>
+  );
+};
+
+// --- Summary modal -----------------------------------------------------
+
+const SummaryFieldGrid = ({ items, pos }: { items: ReportSummaryField[]; pos?: boolean }) => {
+  const filled = items.filter(([, v]) => v && String(v).trim() !== "");
+  if (filled.length === 0) return null;
+  return (
+    <div className={`summary-modal-grid ${pos ? "summary-modal-grid-pos" : ""}`}>
+      {filled.map(([label, value]) => (
+        <div key={label}>
+          <span>{label}</span>
+          <strong>{value}</strong>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const ReportSummaryModal = ({
+  report,
+  onClose,
+}: {
+  report: ReportRecord;
+  onClose: () => void;
+}) => {
+  const [summary, setSummary] = useState<ReportSummary | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getReportSummary(report.project_id)
+      .then((data) => {
+        if (!cancelled) setSummary(data);
+      })
+      .catch(() => {
+        if (!cancelled) setError("Couldn't load the report summary.");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [report.project_id]);
+
+  return (
+    <div className="summary-modal-overlay" onClick={onClose}>
+      <div
+        className="summary-modal"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <div className="summary-modal-header">
+          <div>
+            <h3>{report.project_code}</h3>
+            <p>{report.project_name || "—"}</p>
+          </div>
+          <button className="summary-modal-close" onClick={onClose} aria-label="Close">
+            ✕
           </button>
-          <button className="primary-btn" disabled={!report}>
-            Finish Project
+        </div>
+
+        <div className="summary-modal-body">
+          {isLoading && (
+            <div style={{ padding: "24px 0", textAlign: "center" }}>
+              <Spinner caption="Loading summary…" />
+            </div>
+          )}
+          {!isLoading && error && <p className="error-message">{error}</p>}
+          {!isLoading && !error && !summary && (
+            <EmptyState
+              compact
+              icon="alert"
+              title="No summary saved for this report"
+              description="Older reports generated before this feature was added won't have one — the PDF download still works."
+            />
+          )}
+
+          {!isLoading && !error && summary && (
+            <>
+              {summary.pumpFields.length > 0 && (
+                <div className="summary-modal-section">
+                  <span className="summary-modal-section-title">Pump Selection</span>
+                  <SummaryFieldGrid items={summary.pumpFields} />
+                </div>
+              )}
+              {summary.sections.map((section) => {
+                const hasValue = section.items.some(([, v]) => v && String(v).trim() !== "");
+                if (!hasValue) return null;
+                return (
+                  <div className="summary-modal-section" key={section.title}>
+                    <span
+                      className={`summary-modal-section-title ${
+                        section.highlight ? "summary-modal-section-title-pos" : ""
+                      }`}
+                    >
+                      {section.title}
+                    </span>
+                    <SummaryFieldGrid items={section.items} pos={section.highlight} />
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </div>
+
+        <div className="summary-modal-footer">
+          <a className="summary-download-btn" href={reportDownloadUrl(report.project_id)}>
+            Download PDF
+          </a>
+          <button className="summary-modal-close-btn" onClick={onClose}>
+            Close
           </button>
         </div>
       </div>

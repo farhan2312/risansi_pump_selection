@@ -16,8 +16,8 @@
   gap: 12px;
   margin: 0;
   padding: 14px 22px;
-  background: linear-gradient(135deg, #0a3d8f 0%, #1a5cb8 55%, #2c8dbf 100%);
-  color: #ffffff;
+  background: var(--line);
+  color: rgb(34, 33, 33);
   font-size: 15px;
   font-weight: 600;
   letter-spacing: -0.005em;
@@ -27,7 +27,7 @@
   display: inline-block;
   width: 3px;
   height: 18px;
-  background: rgba(255, 255, 255, 0.75);
+  background: rgba(240, 159, 159, 0.75);
   border-radius: 2px;
   flex-shrink: 0;
 }

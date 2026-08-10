@@ -55,7 +55,9 @@ export async function POST(req: Request) {
       industry: (body.industry as string) ?? null,
       remarks: (body.remarks as string) ?? null,
       clientCode: (body.clientCode as string) ?? "Pending",
-      status: (body.status as string) ?? "In Progress",
+      // New projects start "Pending" — flips to "In Progress" once General
+      // Information is saved, "Completed" once the final report is generated.
+      status: (body.status as string) ?? "Pending",
       createdBy,
     })
     .returning();

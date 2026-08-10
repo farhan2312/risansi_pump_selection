@@ -16,6 +16,7 @@ import {
   customType,
   date,
   integer,
+  jsonb,
   numeric,
   pgTable,
   text,
@@ -58,10 +59,27 @@ export const projects = pgTable("projects", {
   clientCode: varchar("client_code", { length: 100 }),
   industry: varchar("industry", { length: 255 }),
   remarks: text("remarks"),
-  status: varchar("status", { length: 50 }).default("In Progress"),
+  // Lifecycle, driven automatically (not just manually edited): "Pending" on
+  // creation, flips to "In Progress" the first time General Information is
+  // saved with real content, flips to "Completed" when the final report is
+  // generated (see the wizard-input and project-report routes).
+  status: varchar("status", { length: 50 }).default("Pending"),
   createdBy: uuid("created_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
+  // The final, comprehensive Selection Summary PDF (Pump Selection + every
+  // configured step, one box each) — generated and saved when the user
+  // clicks "Confirm Pump Selection" on the last wizard step. One per
+  // project (this table's own row, not a child table), which is what the
+  // Reports page lists. Distinct from moc_sealing_input.document, which is
+  // the narrower MOC-step-only report and isn't shown in that list.
+  reportDocument: bytea("report_document"),
+  reportFilename: varchar("report_filename", { length: 255 }),
+  reportGeneratedAt: timestamp("report_generated_at", { withTimezone: true }),
+  // Structured snapshot of the same report data (pumpFields + sections) —
+  // lets the Reports list show a summary on click without re-parsing the
+  // PDF or re-deriving live (possibly since-edited) wizard state.
+  reportSummary: jsonb("report_summary"),
 });
 
 // Autosaved wizard state — one table per wizard step, each with a unique

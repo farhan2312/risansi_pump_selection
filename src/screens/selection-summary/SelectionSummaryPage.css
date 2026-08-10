@@ -1,193 +1,321 @@
-/* No page-level padding/min-height — dashboard-main already pads every page
-   and establishes the viewport-filling height. This page's own report table
-   can genuinely be long (many sections/fields), so it's fine for THAT
-   content to cause a scroll — the bug was the page forcing an extra empty
-   viewport of height regardless of content. */
-.summary-page{
-    background:var(--bg-app);
+/* Reports list — one generated MOC & Sealing PDF per project. Mirrors the
+   Projects page's flat, hairline design (see ProjectsPage.css) so the two
+   list-style pages read as one consistent system. No page-level padding/
+   min-height here — dashboard-main already pads every page. */
+
+.summary-page {
+  background: var(--bg);
+  color: var(--fg);
 }
 
-.summary-card{
-    max-width:1100px;
-    margin:auto;
-    background:var(--surface);
-    padding:35px;
-    border-radius:12px;
-    box-shadow:var(--shadow);
-    color:var(--text);
+.summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
 }
 
-.summary-card h1{
-    margin-bottom:10px;
-    color:var(--text-h);
+.summary-header h1 {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--title);
+  margin: 0;
+  letter-spacing: -0.01em;
 }
 
-.summary-card p{
-    color:var(--text-muted);
-    margin-bottom:30px;
+.summary-header p {
+  font-size: 13px;
+  color: var(--fg-3);
+  margin: 4px 0 0;
 }
 
-.summary-grid{
-    display:grid;
-    grid-template-columns:repeat(2,1fr);
-    gap:20px;
+.summary-search {
+  min-width: 260px;
+  padding: 8px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--bg-paper);
+  color: var(--fg);
+  font-size: 13px;
+  transition: border-color 120ms, box-shadow 120ms;
+}
+.summary-search:focus {
+  outline: none;
+  border-color: var(--brand-blue);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
-.summary-grid div{
-    background:var(--surface-hover);
-    padding:15px;
-    border-radius:8px;
+.summary-panel {
+  background: var(--bg-paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
 }
 
-.summary-grid span{
-    display:block;
-    color:var(--text-muted);
-    font-size:14px;
-    margin-bottom:5px;
+.summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--fg);
+  font-size: 13.5px;
 }
 
-.summary-grid strong{
-    font-size:16px;
-    color:var(--text-h);
+.summary-table thead th {
+  padding: 12px 18px;
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--fg-3);
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
 }
 
-.report-header{
-    display:flex;
-    align-items:center;
-    gap:10px;
-    background:var(--surface-hover);
-    padding:14px 18px;
-    border-radius:8px;
-    margin-bottom:24px;
+.summary-table tbody td {
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--line);
+  color: var(--fg-2);
+  vertical-align: middle;
+}
+.summary-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.summary-table tbody tr {
+  transition: background-color 100ms;
+}
+.summary-table tbody tr:hover {
+  background: var(--bg-elev);
 }
 
-.report-header span{
-    color:var(--text-muted);
-    font-size:14px;
+.summary-project-code {
+  display: block;
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--brand-blue);
+  letter-spacing: -0.005em;
+}
+.summary-project-name {
+  display: block;
+  font-size: 12px;
+  color: var(--fg-3);
+  margin-top: 1px;
 }
 
-.report-header strong{
-    font-size:18px;
-    color:var(--text-h);
+.summary-row-clickable {
+  cursor: pointer;
 }
 
-.report-section{
-    margin-bottom:28px;
+.summary-actions-col {
+  width: 1%;
+  text-align: right;
+  white-space: nowrap;
 }
 
-.report-section h2{
-    font-size:14px;
-    letter-spacing:.5px;
-    text-transform:uppercase;
-    color:var(--accent);
-    margin-bottom:10px;
+.summary-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--brand-blue);
+  background: var(--brand-blue);
+  color: white;
+  text-decoration: none;
+  transition: background-color 100ms, border-color 100ms;
+}
+.summary-download-btn:hover {
+  background: var(--accent-hover, #164d99);
+  border-color: var(--accent-hover, #164d99);
 }
 
-.report-table{
-    width:100%;
-    border-collapse:collapse;
-    background:var(--surface);
+.summary-empty-cell {
+  padding: 0 !important;
+  background: var(--bg-paper);
 }
 
-.report-table th{
-    text-align:left;
-    font-size:12px;
-    text-transform:uppercase;
-    letter-spacing:.3px;
-    color:var(--text-muted);
-    background:var(--surface-hover);
-    padding:10px 14px;
-    border:1px solid var(--border);
+.error-message {
+  color: var(--neg);
+  margin-bottom: 16px;
 }
 
-.report-table td{
-    padding:10px 14px;
-    border:1px solid var(--border);
-    vertical-align:middle;
+@media (max-width: 640px) {
+  .summary-table thead {
+    display: none;
+  }
+  .summary-table,
+  .summary-table tbody,
+  .summary-table tr {
+    display: block;
+    width: 100%;
+  }
+  .summary-table tr {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .summary-table tbody td {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: none;
+  }
+  .summary-actions-col {
+    justify-content: flex-start;
+    margin-top: 8px;
+  }
 }
 
-.report-label{
-    font-weight:600;
-    color:var(--text-h);
-    width:30%;
+/* --- Summary modal (click a report row) --------------------------------- */
+
+.summary-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 22, 40, 0.5);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 60;
 }
 
-.report-rec{
-    color:var(--text);
+.summary-modal {
+  background: var(--bg-paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 720px;
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
-.report-final input{
-    width:100%;
-    padding:6px 10px;
-    border-radius:6px;
-    border:1px solid var(--border);
-    background:var(--surface);
-    color:var(--text);
+.summary-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 22px;
+  background: linear-gradient(135deg, #0a3d8f 0%, #1a5cb8 55%, #2c8dbf 100%);
+  color: #ffffff;
+}
+.summary-modal-header h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: var(--mono);
+}
+.summary-modal-header p {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.8);
+}
+.summary-modal-close {
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 100ms;
+}
+.summary-modal-close:hover {
+  background: rgba(255, 255, 255, 0.22);
 }
 
-.report-final input:disabled{
-    background:var(--surface-hover);
-    cursor:not-allowed;
+.summary-modal-body {
+  padding: 18px 22px;
+  overflow-y: auto;
 }
 
-.not-available{
-    color:var(--text-muted);
-    font-style:italic;
-    font-size:13px;
+.summary-modal-section {
+  margin-bottom: 16px;
+}
+.summary-modal-section:last-child {
+  margin-bottom: 0;
 }
 
-.field-note{
-    margin-top:3px;
-    font-size:11.5px;
-    font-style:italic;
-    color:var(--text-muted);
+.summary-modal-section-title {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--fg-3);
+  margin-bottom: 8px;
+}
+.summary-modal-section-title-pos {
+  color: var(--pos-strong);
 }
 
-.ai-suggestion{
-    margin-top:6px;
-    font-size:13px;
-    color:var(--text);
-    display:flex;
-    align-items:center;
-    gap:8px;
-    flex-wrap:wrap;
+.summary-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px 16px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--bg-elev);
+}
+.summary-modal-grid-pos {
+  background: var(--pos-soft);
+  border: 1px solid var(--pos);
 }
 
-.ai-suggestion-badge{
-    display:inline-flex;
-    align-items:center;
-    font-size:10.5px;
-    font-weight:600;
-    letter-spacing:.3px;
-    text-transform:uppercase;
-    color:var(--accent);
-    background:var(--accent-soft);
-    border:1px solid var(--accent-line);
-    border-radius:999px;
-    padding:2px 8px;
+.summary-modal-grid span {
+  display: block;
+  font-size: 10.5px;
+  color: var(--fg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 2px;
+}
+.summary-modal-grid strong {
+  font-size: 13px;
+  color: var(--fg);
+  font-weight: 600;
+}
+.summary-modal-grid-pos span {
+  color: var(--pos-strong);
+  opacity: 0.75;
+}
+.summary-modal-grid-pos strong {
+  color: var(--pos-strong);
 }
 
-.summary-buttons{
-    margin-top:35px;
-    display:flex;
-    justify-content:flex-end;
-    gap:15px;
+.summary-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 22px;
+  border-top: 1px solid var(--line);
+  background: var(--bg-elev);
 }
 
-.primary-btn{
-    background:var(--accent);
-    color:white;
-    border:none;
-    padding:12px 25px;
-    border-radius:8px;
-    cursor:pointer;
+.summary-modal-close-btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-paper);
+  color: var(--fg-2);
+}
+.summary-modal-close-btn:hover {
+  background: var(--bg-elev);
 }
 
-.secondary-btn{
-    background:var(--surface);
-    color:var(--accent);
-    border:1px solid var(--accent);
-    padding:12px 25px;
-    border-radius:8px;
-    cursor:pointer;
+@media (max-width: 640px) {
+  .summary-modal-grid {
+    grid-template-columns: 1fr;
+  }
 }
