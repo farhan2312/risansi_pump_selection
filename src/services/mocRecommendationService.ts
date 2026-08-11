@@ -42,7 +42,7 @@ export type MocAiProvider = (typeof MOC_AI_PROVIDERS)[number]["value"];
 
 export interface MocComponentSuggestions {
   bearingHousing: string;
-  bearingPlate: string;
+  basePlate: string;
   tieRod: string;
   nutBolt: string;
   pumpHousing: string;

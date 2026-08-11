@@ -98,7 +98,7 @@ assuming a table exists; this list can drift.
 |---|---|
 | `users_pump` (exported as `users`) | Forked from a shared `users` table (owned by a separate testing-portal project — **never touch the original `users` table**). Seeded once; no ongoing sync. |
 | `projects` | One row per sales project. `project_code` auto-numbered `PRJ-NNN`. Full CRUD: `GET/POST /api/projects`, `PATCH/DELETE /api/projects/[id]` (any authenticated user, no ownership check — small internal tool). |
-| `pump_selection_input` | Autosaved wizard state for **steps 1-4 only** (General/Fluid/Operating/Sealing), one row per project (`project_id` UNIQUE, cascade-delete on project delete). Restores the form after a page refresh. Steps 5-8 (MOC/Motor Rating/Drive/Recommendation) are re-derived live, not persisted. |
+| `general_info_input`, `fluid_properties_input`, `operating_conditions_input`, `moc_sealing_input`, `motor_drive_input`, `drive_direct_input`, `drive_vbelt_input`, `drive_geared_input` | Autosaved wizard state, **one table per wizard step** (not a single `pump_selection_input` table — that was an earlier design, superseded), each with a unique `project_id` (one row per project, cascade-delete on project delete). Restores the form after a page refresh via `getWizardInput`/`saveWizardInput` (`src/services/wizardInputService.ts`) hitting `/api/wizard-input/[table]`. General Info holds only capacity/capacity-unit/head/head-unit/SG/RPM-range/media (+ selected-model/model-confirmed) — temperature and pH are entered on the Fluid step and persist in `fluid_properties_input` instead. MOC (step 4) + Sealing (step 5) share `moc_sealing_input`; Motor Rating (step 6) + the Drive step's common fields (step 7) share `motor_drive_input`; the Drive step's per-drive-type fields split further into one table per drive system. See schema.ts's block comment above `generalInfoInput` for the full split rationale. |
 | `pump_model_master` | The core catalog: one row per **(model, head)** point (540+ rows / ~55 models incl. 2H\*/4H\*/L-variants/Barrel\*). Columns include `stage` (1/2/4/8, derived from model name), `hard_solid_mm`/`soft_solid_mm`, `size_visc_*_in` (5 columns, per-viscosity-band suction/discharge pipe size — 2H\*/4H\* auto-inherit their bare-H\* base's values, L-variants deliberately left NULL, per an explicit user rule). |
 | `moc_recommendation` | Curated media→MOC/elastomer/seal-type reference (200 rows: 190 Non-Sugar + 10 Sugar). Also the source of the General Info step's Media dropdown. Has a derived `seal_type` (MS/GD) column — NOT sourced from any PDF, it's a rule applied over corrosive/hazard/temp columns (see schema.ts comment for the exact rule + citations). |
 | `moc_nomenclature` | Decomposes a 4-letter MOC code (e.g. `"AAAN"`, `"BBBE"`) into per-component material (Pump Housing, Shaft, Rotor, ... 11 parts) + stator rubber. 30 rows = 6 metal-prefixes × 5 rubber-suffixes. **Currently unused by the wizard UI** (the MOC step's manual-code selector and nomenclature-breakdown panel were removed — see wizard step 5 below) — the table and its API/service (`moc-nomenclature` route, `mocNomenclatureService.ts`) still exist, just nothing calls them right now. |
@@ -155,32 +155,38 @@ data: yes, inherit; viscosity-size L-variants: explicitly no, per user rule).
 8 steps, all sharing one `formData` object (typed as `PumpSelectionFormData`
 in `src/data/Recommendations.ts`):
 
-1. **General Information** — capacity, head, media (dropdown from
-   `moc_recommendation`), temperature (+ unit, canonical °C stored
-   separately), SG, pH, RPM range filter.
+1. **General Information** — capacity, capacity unit, head, head unit, media
+   (dropdown from `moc_recommendation`), SG, RPM range filter. Persists to
+   `general_info_input`. (Temperature and pH live on the Fluid step, not
+   here — see step 2.)
 2. **Fluid Properties** — viscosity (+ unit, canonical cP stored separately),
    viscosity range (5 buckets: `0-1000`/`1000-3000`/`3000-5000`/
    `5000-10000`/`>10000` cP — mirrors `Model_vs_Viscosity_vs_Size.xlsx`,
    upper-inclusive boundaries), solid % + solid size (manual number entry,
    filtered `>=` against the model's `hard_solid_mm`/`soft_solid_mm` — NOT a
-   dropdown; that was tried and explicitly reverted) + solid type.
+   dropdown; that was tried and explicitly reverted) + solid type, **pH,
+   temperature (+ unit, canonical °C stored separately)**. All persist to
+   `fluid_properties_input`.
 3. **Operating Conditions** — Pump Type, which cascades the valid AG/BK and
    Suction Housing options (Horizontal Standard → no AG/BK, standard housing
    only; Vertical → AG only, vertical housing only; Horizontal Bucket with
    Auger → AG&BK, all housings; Horizontal Auger Only → AG only, standard
    housing).
-4. **Sealing Details** — Mechanical Seal / Gland Packing (+ MSA/SCG/DCG/MSK
-   subtype for Mechanical Seal). Shows a **recommendation hint** (not
-   auto-forced) looked up from `moc_recommendation.seal_type` for the chosen
-   media, and defaults the select from it once if unset.
-5. **MOC & Elastomer** — the curated `moc_recommendation` lookup still runs
-   in the background (gates "not-found" vs "ready", silently seeds
+4. **MOC & Elastomer** (`MocDetailsStep.tsx`, wizard step 4, rendered before
+   Sealing) — the curated `moc_recommendation` lookup still runs in the
+   background (gates "not-found" vs "ready", silently seeds
    `mocCode`/`mocRubberCode`/`mocFinalCode` once) but **its result is no
    longer displayed** — the old "Recommended MOC / Min. Acceptable / Elastomer
    / reference pH-temp" panel, the manual MOC-prefix + rubber-suffix code
    selector, and the `moc_nomenclature` breakdown panel were all removed at
    the user's request. What's shown instead is the **AI Recommendation**
-   panel (Gemini-backed, see below) — this is now the step's primary UI.
+   panel (Gemini-backed, see below) — this is now the step's primary UI. Both
+   steps 4 and 5 write to `moc_sealing_input`.
+5. **Sealing Details** (`SealingDetailsStep.tsx`, wizard step 5) — Mechanical
+   Seal / Gland Packing (+ MSA/SCG/DCG/MSK subtype for Mechanical Seal). Shows
+   a **recommendation hint** (not auto-forced) looked up from
+   `moc_recommendation.seal_type` for the chosen media, and defaults the
+   select from it once if unset.
 6. **Motor Rating (KW)** — `computeMotorRating()`: BKW = Capacity×Head/367/
    (ME/100), Motor KW = BKW×1.2. The KW dropdown (`kwOptions`) is sourced from
    the **`motor_rating`** table (not model-specific pulley data anymore),
@@ -234,11 +240,17 @@ before the wizard allows navigating past step 2 (`formData.modelConfirmed`).
 live panel's pinned card shows Stage, RPM, VOLE, Mech Eff, per-model Size, and
 a spec-chain line (`Pump Type · AG/BK · Seal · MOC`).
 
-**Autosave**: steps 1-4's fields debounce-save (800ms) to
-`pump_selection_input` keyed by the open project's id, and are restored on
-page load — this is why that table only covers steps 1-4, not the whole wizard.
+**Autosave**: every step's fields save to its own `*_input` table
+(`general_info_input`/`fluid_properties_input`/`operating_conditions_input`/
+`moc_sealing_input`/`motor_drive_input`/`drive_*_input`) on navigating away
+from that step (Next/Previous/stepper jump — `saveStep()` in
+`PumpSelectionPage.tsx`, not a debounce timer), keyed by the open project's
+id, and all are restored on page load (`RESTORABLE_TABLES` fetch in a single
+effect, gated by a `restored` flag so the pre-load default formData can't
+stomp a real saved draft — `PumpSelectionPage` shows a loading state while
+this fetch is in flight rather than flashing the empty form).
 
-### MOC AI Recommendation panel (step 5) — the current primary MOC UI
+### MOC AI Recommendation panel (step 4) — the current primary MOC UI
 
 `src/lib/moc-ai-suggestion.ts` + `POST /api/moc-recommendation/ai-suggest` +
 `getMocAiSuggestion()` in `mocRecommendationService.ts`. Advisory only, never
@@ -254,10 +266,14 @@ rather than silently omitting them.
 UI layout (top to bottom), per explicit user design direction:
 1. Button — while loading, cycles through `AI_LOADING_MESSAGES` (rotating
    status text) every 1.4s rather than a static "Loading…".
-2. **Summary** box (the AI's `rationale`) — always at the top once fetched.
-3. **Recommended Sealing** box — kept separate from Summary.
+2. An "AI Material Recommendation" card once fetched — header + a "Download
+   PDF Report" button (the detailed summary/material tables/alternatives are
+   rendered in the downloadable PDF only, not inline, to keep the form
+   focused) + an engineering-review disclaimer.
+3. **Recommended Sealing** box (green) — `sealRecommendation` +
+   `sealRationale`, kept separate from the card above.
 4. Three **always-visible** tables (Non-Wettable Components: Bearing
-   Housing/Bearing Plate/Tie Rod/Nut & Bolt; Wettable Casting Components:
+   Housing/**Base Plate**/Tie Rod/Nut & Bolt; Wettable Casting Components:
    Pump Housing/Rotor/Shaft; Elastomer: Stator Rubber Parts) — each row has
    Component | AI Recommendation (green-boxed via `--pos`/`--pos-soft`/
    `--pos-strong` tokens once fetched, `—` before that) | Manual dropdown
@@ -269,6 +285,20 @@ UI layout (top to bottom), per explicit user design direction:
    response. Manual dropdown + remarks are independent `formData` fields per
    row (`mocAi<Component>` / `mocAi<Component>Remarks`), never auto-filled
    from the AI suggestion.
+
+**Persistence (as of the "AI-generation persists across reload" change)**:
+the full AI result — all 8 per-component picks, provider, summary,
+alternatives, seal recommendation + rationale, and a generated-at timestamp —
+is written to `moc_sealing_input` **immediately when Generate returns**, not
+only when the user clicks Next. On mount, `MocDetailsStep` reconstructs
+`aiSuggestion` from `formData` (`reconstructAiSuggestion()`) and sets
+`aiStatus` to `"ready"` whenever `mocAiGeneratedAt` is set, so the entire
+post-generation panel — not just the green per-component cells — reappears
+after a reload once AI has been generated once for a project. A genuine media
+change (not the initial restore-on-mount) clears and re-persists all of it,
+since a suggestion for the old media is stale. The manual `mocAi<Component>`
+picks + remarks are unaffected by any of this — still independent, still
+never auto-filled from the AI result.
 
 ## The recommendation engine (`src/lib/recommendation-engine.ts`)
 

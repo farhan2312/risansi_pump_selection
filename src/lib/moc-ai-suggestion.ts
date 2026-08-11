@@ -16,7 +16,7 @@
  *     the tool_use block's `input`, no manual JSON.parse needed).
  *
  * Component breakdown is per the user's spec sheet: non-wettable components
- * (Bearing Housing, Bearing Plate, Tie Rod, Nut & Bolt) and wettable-casting
+ * (Bearing Housing, Base Plate, Tie Rod, Nut & Bolt) and wettable-casting
  * components (Pump Housing, Rotor, Shaft), plus the stator rubber elastomer.
  * MOC_AI_MATERIALS / MOC_AI_ELASTOMERS below are the options offered in the
  * UI's *manual* dropdowns — they are NOT a hard constraint on the AI's own
@@ -73,7 +73,7 @@ export interface MocAiContext {
 export interface MocComponentSuggestions {
   // Non-wettable components
   bearingHousing: string;
-  bearingPlate: string;
+  basePlate: string;
   tieRod: string;
   nutBolt: string;
   // Wettable casting components
@@ -91,7 +91,7 @@ export interface MocComponentSuggestions {
 }
 
 const REQUIRED_FIELDS: (keyof MocComponentSuggestions)[] = [
-  "bearingHousing", "bearingPlate", "tieRod", "nutBolt",
+  "bearingHousing", "basePlate", "tieRod", "nutBolt",
   "pumpHousing", "rotor", "shaft", "statorRubber",
   "sealRecommendation", "sealRationale", "summary", "alternatives",
 ];
@@ -101,7 +101,7 @@ const REQUIRED_FIELDS: (keyof MocComponentSuggestions)[] = [
 // both providers' structured output.
 const SCHEMA_PROPERTIES = {
   bearingHousing: { type: "string" },
-  bearingPlate: { type: "string" },
+  basePlate: { type: "string" },
   tieRod: { type: "string" },
   nutBolt: { type: "string" },
   pumpHousing: { type: "string" },
@@ -171,7 +171,7 @@ function coerceSuggestions(parsed: Partial<Record<string, unknown>>): MocCompone
   const get = (k: keyof MocComponentSuggestions) => (parsed[k] as string).trim();
   return {
     bearingHousing: get("bearingHousing"),
-    bearingPlate: get("bearingPlate"),
+    basePlate: get("basePlate"),
     tieRod: get("tieRod"),
     nutBolt: get("nutBolt"),
     pumpHousing: get("pumpHousing"),
@@ -219,7 +219,7 @@ async function getMocAiSuggestionGemini(
             properties: SCHEMA_PROPERTIES,
             required: REQUIRED_FIELDS,
           },
-          maxOutputTokens: 2500,
+          maxOutputTokens: 4500,
         },
       }),
     });

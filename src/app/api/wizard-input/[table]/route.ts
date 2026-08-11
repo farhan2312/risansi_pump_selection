@@ -38,12 +38,13 @@ type TableKey = keyof typeof TABLES;
 const FIELDS: Record<TableKey, readonly string[]> = {
   "general-info": [
     "capacity", "capacityUnit", "head", "headUnit", "media",
-    "temperature", "temperatureRaw", "temperatureUnit", "sg", "ph",
-    "rpmRange", "selectedModel", "modelConfirmed",
+    "sg", "rpmRange", "selectedModel", "modelConfirmed",
   ],
   "fluid-properties": [
     "viscosity", "viscosityUnit", "viscosityRange", "viscosityCp",
     "solidPercentage", "solidSize", "solidType",
+    // Temperature + pH are entered on the Fluid step, so they persist here.
+    "ph", "temperature", "temperatureRaw", "temperatureUnit",
   ],
   "operating-conditions": [
     "pumpType", "agBk", "bearingHousing", "suctionHousing", "jointType",
@@ -51,7 +52,7 @@ const FIELDS: Record<TableKey, readonly string[]> = {
   "moc-sealing": [
     "sealingType", "sealingSubType",
     "mocAiBearingHousing", "mocAiBearingHousingRemarks",
-    "mocAiBearingPlate", "mocAiBearingPlateRemarks",
+    "mocAiBasePlate", "mocAiBasePlateRemarks",
     "mocAiTieRod", "mocAiTieRodRemarks",
     "mocAiNutBolt", "mocAiNutBoltRemarks",
     "mocAiPumpHousing", "mocAiPumpHousingRemarks",
@@ -59,9 +60,11 @@ const FIELDS: Record<TableKey, readonly string[]> = {
     "mocAiShaft", "mocAiShaftRemarks",
     "mocAiStatorRubber", "mocAiStatorRubberRemarks",
     "mocAiProvider",
-    "mocAiSuggestedBearingHousing", "mocAiSuggestedBearingPlate",
+    "mocAiSuggestedBearingHousing", "mocAiSuggestedBasePlate",
     "mocAiSuggestedTieRod", "mocAiSuggestedNutBolt", "mocAiSuggestedPumpHousing",
     "mocAiSuggestedRotor", "mocAiSuggestedShaft", "mocAiSuggestedStatorRubber",
+    "mocAiSuggestedSummary", "mocAiSuggestedAlternatives",
+    "mocAiSuggestedSealRecommendation", "mocAiSuggestedSealRationale",
     "mocAiGeneratedAt",
   ],
   "motor-drive": ["driveMotorKw", "driveSystem", "motorRPM"],
@@ -82,6 +85,22 @@ const FIELDS: Record<TableKey, readonly string[]> = {
   ],
 };
 
+// Columns backed by a Drizzle `timestamp` — these need a JS Date on
+// insert/update (Drizzle calls .toISOString() on the value), but arrive here
+// as JSON strings (an ISO string, or "" for "not set"). Coerce string -> Date
+// (and ""/invalid -> null) so the write doesn't 500 with
+// "value.toISOString is not a function".
+const TIMESTAMP_FIELDS = new Set<string>(["mocAiGeneratedAt"]);
+
+function coerceTimestamp(v: unknown): Date | null {
+  if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v;
+  if (typeof v === "string" && v.trim() !== "") {
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+}
+
 function resolveTableKey(key: string): TableKey | null {
   return Object.prototype.hasOwnProperty.call(TABLES, key) ? (key as TableKey) : null;
 }
@@ -89,7 +108,9 @@ function resolveTableKey(key: string): TableKey | null {
 function pickFields(tableKey: TableKey, body: Record<string, unknown>) {
   const out: Record<string, unknown> = {};
   for (const key of FIELDS[tableKey]) {
-    if (key in body) out[key] = body[key];
+    if (key in body) {
+      out[key] = TIMESTAMP_FIELDS.has(key) ? coerceTimestamp(body[key]) : body[key];
+    }
   }
   return out;
 }
@@ -122,6 +143,13 @@ export async function GET(
 
   if (!row) {
     return error("No saved input found for this project", 404);
+  }
+  // Never ship the stored PDF blob (moc_sealing_input.document) through this
+  // restore endpoint — it can be hundreds of KB and the wizard doesn't use it
+  // here (the blob has its own /document route). Stripping it keeps every
+  // page-load restore small.
+  if ("document" in (row as Record<string, unknown>)) {
+    delete (row as Record<string, unknown>).document;
   }
   return json(row);
 }

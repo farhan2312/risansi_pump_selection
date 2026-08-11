@@ -104,8 +104,8 @@ export interface PumpSelectionFormData {
   // recommendation panel) — non-wettable components
   mocAiBearingHousing?: string;
   mocAiBearingHousingRemarks?: string;
-  mocAiBearingPlate?: string;
-  mocAiBearingPlateRemarks?: string;
+  mocAiBasePlate?: string;
+  mocAiBasePlateRemarks?: string;
   mocAiTieRod?: string;
   mocAiTieRodRemarks?: string;
   mocAiNutBolt?: string;
@@ -120,20 +120,22 @@ export interface PumpSelectionFormData {
   // Elastomer
   mocAiStatorRubber?: string;
   mocAiStatorRubberRemarks?: string;
-  // The AI's own per-component recommendation (persisted so it survives a
-  // page reload) — distinct from the manual mocAi<Component> picks above,
-  // which are never auto-filled from these. Deliberately narrow: summary/
-  // alternatives/seal-recommendation/rationale are NOT persisted here, only
-  // shown live each session in MocDetailsStep's local state.
+  // The AI's own recommendation, persisted in full so the whole post-
+  // generation panel rebuilds on reload — distinct from the manual
+  // mocAi<Component> picks above, which are never auto-filled from these.
   mocAiProvider?: string; // "gemini" | "anthropic"
   mocAiSuggestedBearingHousing?: string;
-  mocAiSuggestedBearingPlate?: string;
+  mocAiSuggestedBasePlate?: string;
   mocAiSuggestedTieRod?: string;
   mocAiSuggestedNutBolt?: string;
   mocAiSuggestedPumpHousing?: string;
   mocAiSuggestedRotor?: string;
   mocAiSuggestedShaft?: string;
   mocAiSuggestedStatorRubber?: string;
+  mocAiSuggestedSummary?: string;
+  mocAiSuggestedAlternatives?: string;
+  mocAiSuggestedSealRecommendation?: string;
+  mocAiSuggestedSealRationale?: string;
   mocAiGeneratedAt?: string;
   driveMotorKw?: string; // final drive motor rating (KW) chosen on the Motor Rating step
   // V-Belt drive recommendation (Drive step, only when Drive System = V-Belt Drive)

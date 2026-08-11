@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import "./LivePumpRecommendation.css";
 import { previewRecommendations } from "../../services/recommendationService";
+import { saveWizardInput } from "../../services/wizardInputService";
 import type { PumpRecommendation } from "../../data/Recommendations";
 import { SIZE_COLUMN_BY_RANGE, sizeForViscosityRange } from "../../lib/suction-discharge-size";
 import { sealingShort } from "../../lib/sealing";
@@ -12,6 +13,9 @@ type Props = {
   formData: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setFormData: any;
+  /** Open project's id — lets a model confirmation persist to general_info
+   * immediately, from whichever step the panel is shown on. */
+  projectId?: string;
 };
 
 type Status = "idle" | "loading" | "ready" | "empty" | "error";
@@ -32,7 +36,7 @@ const engineKey = (f: any) =>
     solidType: f.solidType,
   });
 
-const LivePumpRecommendation = ({ formData, setFormData }: Props) => {
+const LivePumpRecommendation = ({ formData, setFormData, projectId }: Props) => {
   const [recs, setRecs] = useState<PumpRecommendation[]>([]);
   const [status, setStatus] = useState<Status>("idle");
   // Local "re-pick" mode: after a model is confirmed, "Change model" re-opens
@@ -100,6 +104,17 @@ const LivePumpRecommendation = ({ formData, setFormData }: Props) => {
   const confirmModel = () => {
     setFormData({ ...formData, modelConfirmed: true });
     setEditing(false);
+    // Persist the pick to general_info right away — the panel can be confirmed
+    // from any step, so we can't rely on leaving step 1 to save it.
+    if (projectId) {
+      saveWizardInput("general-info", projectId, {
+        selectedModel: formData.selectedModel,
+        modelConfirmed: true,
+      }).catch(() => {
+        // Best-effort — the in-memory formData still gates navigation; the
+        // step-1 save will pick it up as a fallback.
+      });
+    }
   };
 
   const changeModel = () => setEditing(true);

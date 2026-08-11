@@ -14,7 +14,7 @@ import {
 } from "../../services/mocRecommendationService";
 import { downloadMocReportPdf } from "../../lib/moc-pdf-report";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
-import { uploadMocDocument } from "../../services/wizardInputService";
+import { saveWizardInput, uploadMocDocument } from "../../services/wizardInputService";
 
 // Renders the AI's markdown-formatted summary/alternatives/seal-rationale
 // text (headers, "-"/"1." lists, **bold**) in the UI panel — a small,
@@ -136,9 +136,9 @@ const NON_WETTABLE_ROWS: ComponentRow[] = [
     options: MOC_AI_MATERIALS,
   },
   {
-    key: "mocAiBearingPlate",
-    label: "Bearing Plate",
-    aiKey: "bearingPlate",
+    key: "mocAiBasePlate",
+    label: "Base Plate",
+    aiKey: "basePlate",
     options: MOC_AI_MATERIALS,
   },
   {
@@ -185,6 +185,49 @@ const ELASTOMER_ROWS: ComponentRow[] = [
   },
 ];
 
+// Rebuilds the AI suggestion object from the persisted formData fields so the
+// full post-generation panel (summary, seal recommendation, green per-
+// component cells) can be shown again after a reload. Returns null when AI has
+// never been generated for this project (no saved timestamp).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const reconstructAiSuggestion = (f: any): MocComponentSuggestions | null => {
+  if (!f?.mocAiGeneratedAt) return null;
+  return {
+    bearingHousing: f.mocAiSuggestedBearingHousing || "",
+    basePlate: f.mocAiSuggestedBasePlate || "",
+    tieRod: f.mocAiSuggestedTieRod || "",
+    nutBolt: f.mocAiSuggestedNutBolt || "",
+    pumpHousing: f.mocAiSuggestedPumpHousing || "",
+    rotor: f.mocAiSuggestedRotor || "",
+    shaft: f.mocAiSuggestedShaft || "",
+    statorRubber: f.mocAiSuggestedStatorRubber || "",
+    sealRecommendation: f.mocAiSuggestedSealRecommendation || "",
+    sealRationale: f.mocAiSuggestedSealRationale || "",
+    summary: f.mocAiSuggestedSummary || "",
+    alternatives: f.mocAiSuggestedAlternatives || "",
+  };
+};
+
+// The persisted AI fields, blanked — used both on a genuine media change (a
+// prior suggestion for the old media is now stale) and to build the save
+// payload that clears them in the DB.
+const CLEARED_AI_FIELDS = {
+  mocAiProvider: "",
+  mocAiSuggestedBearingHousing: "",
+  mocAiSuggestedBasePlate: "",
+  mocAiSuggestedTieRod: "",
+  mocAiSuggestedNutBolt: "",
+  mocAiSuggestedPumpHousing: "",
+  mocAiSuggestedRotor: "",
+  mocAiSuggestedShaft: "",
+  mocAiSuggestedStatorRubber: "",
+  mocAiSuggestedSummary: "",
+  mocAiSuggestedAlternatives: "",
+  mocAiSuggestedSealRecommendation: "",
+  mocAiSuggestedSealRationale: "",
+  mocAiGeneratedAt: "",
+} as const;
+
 const MocDetailsStep = ({
   onNext,
   onPrevious,
@@ -199,16 +242,25 @@ const MocDetailsStep = ({
   // AI-assisted per-component suggestion — advisory only, opt-in via button
   // click (not fetched automatically). Reset whenever the media changes so a
   // stale suggestion for a previous media can't linger.
-  const [aiStatus, setAiStatus] = useState<AiStatus>("idle");
+  // Restore the AI panel from persisted formData on mount — if AI was ever
+  // generated for this project, the full post-generation UI comes straight
+  // back after a reload (per req: "if AI generated once, always show the
+  // after-generation UI").
+  const [aiStatus, setAiStatus] = useState<AiStatus>(
+    () => (formData.mocAiGeneratedAt ? "ready" : "idle"),
+  );
   const [aiSuggestion, setAiSuggestion] =
-    useState<MocComponentSuggestions | null>(null);
+    useState<MocComponentSuggestions | null>(() => reconstructAiSuggestion(formData));
   // Which LLM generates the recommendation — user-selectable per request,
   // defaults to Gemini (the provider that's been configured the longest).
   const [aiProvider, setAiProvider] = useState<MocAiProvider>("gemini");
   // Provider that actually produced the currently-shown aiSuggestion — kept
   // separate from aiProvider so flipping the dropdown before regenerating
-  // doesn't retroactively relabel an already-fetched result.
-  const [resultProvider, setResultProvider] = useState<MocAiProvider>("gemini");
+  // doesn't retroactively relabel an already-fetched result. Seeded from the
+  // persisted provider so a restored panel is labelled correctly.
+  const [resultProvider, setResultProvider] = useState<MocAiProvider>(
+    () => (formData.mocAiProvider as MocAiProvider) || "gemini",
+  );
   // Tracks the previous media so a genuine change (not the initial "" -> X
   // transition when a restored draft's media is first learned) can clear
   // the *persisted* per-component AI record too — otherwise a stale
@@ -221,22 +273,17 @@ const MocDetailsStep = ({
   useEffect(() => {
     const prevMedia = prevMediaRef.current;
     prevMediaRef.current = media;
+    // Initial mount (undefined) — keep whatever was restored from formData so
+    // the persisted panel survives a reload. Only a genuine media *change*
+    // invalidates a prior suggestion.
+    if (prevMedia === undefined || prevMedia === media) return;
     setAiStatus("idle");
     setAiSuggestion(null);
-    if (prevMedia && prevMedia !== media) {
-      setFormData((f: typeof formData) => ({
-        ...f,
-        mocAiProvider: "",
-        mocAiSuggestedBearingHousing: "",
-        mocAiSuggestedBearingPlate: "",
-        mocAiSuggestedTieRod: "",
-        mocAiSuggestedNutBolt: "",
-        mocAiSuggestedPumpHousing: "",
-        mocAiSuggestedRotor: "",
-        mocAiSuggestedShaft: "",
-        mocAiSuggestedStatorRubber: "",
-        mocAiGeneratedAt: "",
-      }));
+    setFormData((f: typeof formData) => ({ ...f, ...CLEARED_AI_FIELDS }));
+    // Persist the clear immediately so a reload can't restore a stale panel
+    // for the previous media.
+    if (projectId) {
+      saveWizardInput("moc-sealing", projectId, { ...CLEARED_AI_FIELDS }).catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [media]);
@@ -278,23 +325,31 @@ const MocDetailsStep = ({
           setAiSuggestion(suggestion);
           setResultProvider(providerAtRequest);
           setAiStatus("ready");
-          // Persist only the 8 per-component picks + provider/timestamp
-          // (see PumpSelectionPage's TABLE_FIELDS["moc-sealing"] and
-          // schema.ts) — summary/alternatives/seal recommendation stay
-          // local to `aiSuggestion` above, not written to the DB.
-          setFormData((f: typeof formData) => ({
-            ...f,
+          // Persist the FULL AI panel — the 8 per-component picks AND the
+          // summary/alternatives/seal recommendation + rationale — so the whole
+          // post-generation UI rebuilds on reload. Written to the DB
+          // immediately here (not only on Next) so a reload right after
+          // generating still shows it.
+          const aiFields = {
             mocAiProvider: providerAtRequest,
             mocAiSuggestedBearingHousing: suggestion.bearingHousing,
-            mocAiSuggestedBearingPlate: suggestion.bearingPlate,
+            mocAiSuggestedBasePlate: suggestion.basePlate,
             mocAiSuggestedTieRod: suggestion.tieRod,
             mocAiSuggestedNutBolt: suggestion.nutBolt,
             mocAiSuggestedPumpHousing: suggestion.pumpHousing,
             mocAiSuggestedRotor: suggestion.rotor,
             mocAiSuggestedShaft: suggestion.shaft,
             mocAiSuggestedStatorRubber: suggestion.statorRubber,
+            mocAiSuggestedSummary: suggestion.summary,
+            mocAiSuggestedAlternatives: suggestion.alternatives,
+            mocAiSuggestedSealRecommendation: suggestion.sealRecommendation,
+            mocAiSuggestedSealRationale: suggestion.sealRationale,
             mocAiGeneratedAt: new Date().toISOString(),
-          }));
+          };
+          setFormData((f: typeof formData) => ({ ...f, ...aiFields }));
+          if (projectId) {
+            saveWizardInput("moc-sealing", projectId, aiFields).catch(() => {});
+          }
         } else {
           setAiStatus("unavailable");
         }
@@ -485,7 +540,7 @@ const MocDetailsStep = ({
                       className="inline-flex items-center gap-2 rounded-lg border border-blue-300 bg-white px-3 py-2 text-[13px] font-semibold text-blue-700 shadow-sm transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <span>📄</span>
-                      {pdfGenerating ? "Preparing PDF…" : "Download PDF Report"}
+                      {pdfGenerating ? "Preparing PDF…" : "Download MOC AI Report"}
                     </button>
                   </div>
 

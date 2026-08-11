@@ -74,7 +74,7 @@ const FluidPropertiesStep = ({
     setFormData({ ...formData, temperatureRaw, temperatureUnit, temperature });
   };
 
-  const tempUnit = formData.temperatureUnit || "C";
+  const tempUnit = formData.temperatureUnit;
   const tempRawNum = parseFloat(formData.temperatureRaw ?? "");
   const tempCelsius = Number.isNaN(tempRawNum) ? null : toCelsius(tempRawNum, tempUnit);
 
@@ -212,6 +212,7 @@ const FluidPropertiesStep = ({
               value={tempUnit}
               onChange={(e) => applyTemperature(formData.temperatureRaw ?? "", e.target.value)}
             >
+              <option value="">Select</option>
               <option value="C">°C</option>
               <option value="F">°F</option>
               <option value="K">K</option>

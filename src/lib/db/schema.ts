@@ -95,7 +95,10 @@ export const projects = pgTable("projects", {
 // wizard's <input>/<select> elements produce) so rows can be spread directly
 // into formData with no remapping.
 
-// Step 1 — General Information. Also carries the pump-selected fields
+// Step 1 — General Information. Temperature + pH are entered on the Fluid
+// step (step 2) and live in fluid_properties_input, NOT here — General Info's
+// persisted fields are exactly: capacity, capacity unit, head, head unit, SG,
+// RPM range, media. Also carries the pump-selected fields
 // (selectedModel/modelConfirmed) — the live-recommendation panel that sets
 // these appears on every step 1-7 page, but General Info is where picking a
 // model first becomes possible, so it's the natural home for "what did we
@@ -111,11 +114,7 @@ export const generalInfoInput = pgTable("general_info_input", {
   head: varchar("head", { length: 50 }),
   headUnit: varchar("head_unit", { length: 20 }),
   media: varchar("media", { length: 255 }),
-  temperature: varchar("temperature", { length: 50 }),
-  temperatureRaw: varchar("temperature_raw", { length: 50 }),
-  temperatureUnit: varchar("temperature_unit", { length: 5 }),
   sg: varchar("sg", { length: 50 }),
-  ph: varchar("ph", { length: 50 }),
   rpmRange: varchar("rpm_range", { length: 20 }),
   selectedModel: varchar("selected_model", { length: 100 }),
   modelConfirmed: boolean("model_confirmed").default(false),
@@ -123,7 +122,10 @@ export const generalInfoInput = pgTable("general_info_input", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
 
-// Step 2 — Fluid Properties
+// Step 2 — Fluid Properties. Temperature (+ its raw/unit trio) and pH are
+// entered on this step's form and persist here (they were moved out of
+// general_info_input, where they used to be stored but never actually saved
+// on leaving the Fluid step — a latent bug the move also fixes).
 export const fluidPropertiesInput = pgTable("fluid_properties_input", {
   id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   projectId: uuid("project_id")
@@ -137,6 +139,10 @@ export const fluidPropertiesInput = pgTable("fluid_properties_input", {
   solidPercentage: varchar("solid_percentage", { length: 50 }),
   solidSize: varchar("solid_size", { length: 50 }),
   solidType: varchar("solid_type", { length: 20 }),
+  ph: varchar("ph", { length: 50 }),
+  temperature: varchar("temperature", { length: 50 }), // canonical °C
+  temperatureRaw: varchar("temperature_raw", { length: 50 }), // as-entered value
+  temperatureUnit: varchar("temperature_unit", { length: 5 }), // C / F / K
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
@@ -157,11 +163,11 @@ export const operatingConditionsInput = pgTable("operating_conditions_input", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
 
-// Steps 4+5 — MOC & Elastomer + Sealing Details, merged. Deliberately narrow
-// on the AI side, per explicit user request: only the AI's 8 per-component
-// suggested materials (+ which provider/when) are kept — NOT summary,
-// alternatives, or the AI's seal recommendation/rationale, which stay
-// session-only in MocDetailsStep's local state and are never written here.
+// Steps 4+5 — MOC & Elastomer + Sealing Details, merged. The AI panel is now
+// persisted in full (per explicit user request that the post-generation UI
+// survive a reload): the 8 per-component suggested materials, the provider +
+// timestamp, AND the summary, alternatives, and sealing recommendation +
+// rationale. On reload MocDetailsStep rebuilds the whole panel from these.
 // Also stores the generated MOC PDF report itself as a binary blob
 // (document), so a copy is saved alongside the project, not just downloaded
 // to the browser.
@@ -178,8 +184,8 @@ export const mocSealingInput = pgTable("moc_sealing_input", {
   // auto-filled from it, per the app's firm "advisory only" convention).
   mocAiBearingHousing: varchar("moc_ai_bearing_housing", { length: 50 }),
   mocAiBearingHousingRemarks: text("moc_ai_bearing_housing_remarks"),
-  mocAiBearingPlate: varchar("moc_ai_bearing_plate", { length: 50 }),
-  mocAiBearingPlateRemarks: text("moc_ai_bearing_plate_remarks"),
+  mocAiBasePlate: varchar("moc_ai_base_plate", { length: 50 }),
+  mocAiBasePlateRemarks: text("moc_ai_base_plate_remarks"),
   mocAiTieRod: varchar("moc_ai_tie_rod", { length: 50 }),
   mocAiTieRodRemarks: text("moc_ai_tie_rod_remarks"),
   mocAiNutBolt: varchar("moc_ai_nut_bolt", { length: 50 }),
@@ -196,13 +202,21 @@ export const mocSealingInput = pgTable("moc_sealing_input", {
   // distinguishes these from the mocAi<Component> manual picks above.
   mocAiProvider: varchar("ai_provider", { length: 20 }), // "gemini" | "anthropic"
   mocAiSuggestedBearingHousing: text("ai_bearing_housing"),
-  mocAiSuggestedBearingPlate: text("ai_bearing_plate"),
+  mocAiSuggestedBasePlate: text("ai_base_plate"),
   mocAiSuggestedTieRod: text("ai_tie_rod"),
   mocAiSuggestedNutBolt: text("ai_nut_bolt"),
   mocAiSuggestedPumpHousing: text("ai_pump_housing"),
   mocAiSuggestedRotor: text("ai_rotor"),
   mocAiSuggestedShaft: text("ai_shaft"),
   mocAiSuggestedStatorRubber: text("ai_stator_rubber"),
+  // The rest of the AI panel — summary, alternatives, and the sealing
+  // recommendation + its rationale. Persisted (previously session-only) so the
+  // whole post-generation panel rebuilds on reload once AI has run for a
+  // project (see MocDetailsStep's restore-from-formData path).
+  mocAiSuggestedSummary: text("ai_summary"),
+  mocAiSuggestedAlternatives: text("ai_alternatives"),
+  mocAiSuggestedSealRecommendation: text("ai_seal_recommendation"),
+  mocAiSuggestedSealRationale: text("ai_seal_rationale"),
   mocAiGeneratedAt: timestamp("ai_generated_at", { withTimezone: true }),
   // The generated MOC PDF report, saved as raw bytes when downloaded.
   document: bytea("document"),

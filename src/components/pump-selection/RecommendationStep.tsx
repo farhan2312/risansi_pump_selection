@@ -192,7 +192,7 @@ const RecommendationStep = ({
 
   const mocItems: FieldItem[] = [
     ["Bearing Housing MOC", withRemarks(formData.mocAiBearingHousing, formData.mocAiBearingHousingRemarks)],
-    ["Bearing Plate MOC", withRemarks(formData.mocAiBearingPlate, formData.mocAiBearingPlateRemarks)],
+    ["Base Plate MOC", withRemarks(formData.mocAiBasePlate, formData.mocAiBasePlateRemarks)],
     ["Tie Rod MOC", withRemarks(formData.mocAiTieRod, formData.mocAiTieRodRemarks)],
     ["Nut & Bolt MOC", withRemarks(formData.mocAiNutBolt, formData.mocAiNutBoltRemarks)],
     ["Pump Housing MOC", withRemarks(formData.mocAiPumpHousing, formData.mocAiPumpHousingRemarks)],

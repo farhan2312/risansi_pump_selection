@@ -38,12 +38,12 @@ type SelectedProject = {
 const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
   "general-info": [
     "capacity", "capacityUnit", "head", "headUnit", "media",
-    "temperature", "temperatureRaw", "temperatureUnit", "sg", "ph",
-    "rpmRange", "selectedModel", "modelConfirmed",
+    "sg", "rpmRange", "selectedModel", "modelConfirmed",
   ],
   "fluid-properties": [
     "viscosity", "viscosityUnit", "viscosityRange", "viscosityCp",
     "solidPercentage", "solidSize", "solidType",
+    "ph", "temperature", "temperatureRaw", "temperatureUnit",
   ],
   "operating-conditions": [
     "pumpType", "agBk", "bearingHousing", "suctionHousing", "jointType",
@@ -51,7 +51,7 @@ const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
   "moc-sealing": [
     "sealingType", "sealingSubType",
     "mocAiBearingHousing", "mocAiBearingHousingRemarks",
-    "mocAiBearingPlate", "mocAiBearingPlateRemarks",
+    "mocAiBasePlate", "mocAiBasePlateRemarks",
     "mocAiTieRod", "mocAiTieRodRemarks",
     "mocAiNutBolt", "mocAiNutBoltRemarks",
     "mocAiPumpHousing", "mocAiPumpHousingRemarks",
@@ -59,9 +59,11 @@ const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
     "mocAiShaft", "mocAiShaftRemarks",
     "mocAiStatorRubber", "mocAiStatorRubberRemarks",
     "mocAiProvider",
-    "mocAiSuggestedBearingHousing", "mocAiSuggestedBearingPlate",
+    "mocAiSuggestedBearingHousing", "mocAiSuggestedBasePlate",
     "mocAiSuggestedTieRod", "mocAiSuggestedNutBolt", "mocAiSuggestedPumpHousing",
     "mocAiSuggestedRotor", "mocAiSuggestedShaft", "mocAiSuggestedStatorRubber",
+    "mocAiSuggestedSummary", "mocAiSuggestedAlternatives",
+    "mocAiSuggestedSealRecommendation", "mocAiSuggestedSealRationale",
     "mocAiGeneratedAt",
   ],
   "motor-drive": ["driveMotorKw", "driveSystem", "motorRPM"],
@@ -217,8 +219,8 @@ const PumpSelectionPage = () => {
 
     mocAiBearingHousing: "",
     mocAiBearingHousingRemarks: "",
-    mocAiBearingPlate: "",
-    mocAiBearingPlateRemarks: "",
+    mocAiBasePlate: "",
+    mocAiBasePlateRemarks: "",
     mocAiTieRod: "",
     mocAiTieRodRemarks: "",
     mocAiNutBolt: "",
@@ -232,19 +234,23 @@ const PumpSelectionPage = () => {
     mocAiStatorRubber: "",
     mocAiStatorRubberRemarks: "",
 
-    // The AI's own per-component recommendation (persisted to
-    // moc_sealing_input so it survives a reload) — distinct from the manual
-    // picks above. No summary/alternatives/seal-recommendation/rationale
-    // here by design — those stay session-only (see MocDetailsStep).
+    // The AI's own recommendation, persisted in full to moc_sealing_input so
+    // the whole post-generation panel rebuilds on reload — distinct from the
+    // manual picks above. Includes the summary/alternatives/seal-recommendation
+    // /rationale (previously session-only, now saved too).
     mocAiProvider: "",
     mocAiSuggestedBearingHousing: "",
-    mocAiSuggestedBearingPlate: "",
+    mocAiSuggestedBasePlate: "",
     mocAiSuggestedTieRod: "",
     mocAiSuggestedNutBolt: "",
     mocAiSuggestedPumpHousing: "",
     mocAiSuggestedRotor: "",
     mocAiSuggestedShaft: "",
     mocAiSuggestedStatorRubber: "",
+    mocAiSuggestedSummary: "",
+    mocAiSuggestedAlternatives: "",
+    mocAiSuggestedSealRecommendation: "",
+    mocAiSuggestedSealRationale: "",
     mocAiGeneratedAt: "",
 
     // Step 6 — Motor Rating (KW) — final drive motor rating (manual pick from
@@ -476,6 +482,21 @@ const PumpSelectionPage = () => {
     );
   }
 
+  // A project is selected but its saved wizard draft is still being fetched
+  // from the database — show a loading state rather than flashing the empty
+  // default form (which would then jump as restored values arrive).
+  if (!projectChecked || (project && !restored)) {
+    return (
+      <div className="mx-auto flex max-w-lg flex-col items-center gap-4 px-6 py-24 text-center">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-line border-t-title" />
+        <h2 className="text-[16px] font-semibold text-fg">Loading pump selection…</h2>
+        <p className="text-[13px] text-fg-3">
+          Fetching this project&apos;s saved configuration from the database.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <>
       <ProjectHeader project={project} />
@@ -483,7 +504,11 @@ const PumpSelectionPage = () => {
       {/* Live recommendation that refines as the user fills each step. Sits at
           the bottom of the page; hidden on the final (read-only summary) step. */}
       {step < 8 && (
-        <LivePumpRecommendation formData={formData} setFormData={setFormData} />
+        <LivePumpRecommendation
+          formData={formData}
+          setFormData={setFormData}
+          projectId={project?.id}
+        />
       )}
     </>
   );
