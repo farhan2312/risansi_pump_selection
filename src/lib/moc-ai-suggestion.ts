@@ -207,9 +207,15 @@ async function getMocAiSuggestionGemini(
   const prompt = buildPrompt(context, buildProcessData(context));
 
   try {
-    const res = await fetch(`${GEMINI_URL}?key=${encodeURIComponent(apiKey)}`, {
+    const res = await fetch(GEMINI_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        // Auth via header, NOT a ?key= query param — keeps the API key out of
+        // the request URL so it can't leak into fetch error messages, server
+        // logs, proxies, or browser/CDN caches.
+        "x-goog-api-key": apiKey,
+      },
       body: JSON.stringify({
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         generationConfig: {
@@ -241,7 +247,9 @@ async function getMocAiSuggestionGemini(
 
     return coerceSuggestions(JSON.parse(text));
   } catch (err) {
-    console.error("Gemini MOC-suggestion request failed", err);
+    // Log only the message, never the raw error — its `cause` chain can carry
+    // request/connection details we don't want in server logs.
+    console.error("Gemini MOC-suggestion request failed:", err instanceof Error ? err.message : err);
     return null;
   }
 }
@@ -304,7 +312,7 @@ async function getMocAiSuggestionAnthropic(
 
     return coerceSuggestions(toolUse.input as Partial<Record<string, unknown>>);
   } catch (err) {
-    console.error("Anthropic MOC-suggestion request failed", err);
+    console.error("Anthropic MOC-suggestion request failed:", err instanceof Error ? err.message : err);
     return null;
   }
 }
