@@ -1,4 +1,4 @@
-# Sales Portal — Next.js
+# Sales Portal — Next.js ----
 
 The sales portal, migrated from the Vite + React SPA (`../sales-portal`) and the
 Python Azure Functions backend (`../azure-functions`) into a single **Next.js 15
