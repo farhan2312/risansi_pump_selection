@@ -281,7 +281,7 @@ async function getMocAiSuggestionAnthropic(
     const client = new Anthropic({ apiKey });
     const response = await client.messages.create({
       model: ANTHROPIC_MODEL,
-      max_tokens: 2500,
+      max_tokens: 3500,
       tools: [
         {
           name: MOC_TOOL_NAME,
@@ -318,6 +318,18 @@ async function getMocAiSuggestionAnthropic(
 }
 
 // --- Dispatch ------------------------------------------------------------
+
+/** Whether the given provider has a usable API key configured. Lets the API
+ * route report "not configured" (missing/placeholder key) distinctly from
+ * "request failed" (key present but the upstream call errored, was blocked, or
+ * — like a Gemini 503 — was overloaded), instead of collapsing both into one
+ * misleading "not configured" message. */
+export function isMocAiProviderConfigured(provider: MocAiProvider): boolean {
+  const key = (
+    (provider === "anthropic" ? process.env.ANTHROPIC_API_KEY : process.env.GEMINI_API_KEY) ?? ""
+  ).trim();
+  return key !== "" && !key.startsWith("REPLACE_");
+}
 
 export async function getMocAiSuggestion(
   context: MocAiContext,

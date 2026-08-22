@@ -320,8 +320,14 @@ const MocDetailsStep = ({
       solidType: formData.solidType || undefined,
       provider: aiProvider,
     })
-      .then((suggestion) => {
-        if (suggestion) {
+      .then((res) => {
+        if ("unavailable" in res) {
+          // "not_configured" = no key → "unavailable" (config message);
+          // "failed" = key present but the call errored/was overloaded (e.g.
+          // Gemini 503) → "error" (transient, try-again message).
+          setAiStatus(res.unavailable === "not_configured" ? "unavailable" : "error");
+        } else {
+          const suggestion = res;
           setAiSuggestion(suggestion);
           setResultProvider(providerAtRequest);
           setAiStatus("ready");
@@ -350,8 +356,6 @@ const MocDetailsStep = ({
           if (projectId) {
             saveWizardInput("moc-sealing", projectId, aiFields).catch(() => {});
           }
-        } else {
-          setAiStatus("unavailable");
         }
       })
       .catch(() => setAiStatus("error"));
@@ -501,13 +505,14 @@ const MocDetailsStep = ({
 
             {aiStatus === "unavailable" && (
               <p className="mt-2 text-[12px] text-fg-3">
-                AI recommendations aren&apos;t configured for this deployment.
+                AI recommendations aren&apos;t configured — no valid AI API key
+                is set for this deployment.
               </p>
             )}
             {aiStatus === "error" && (
               <p className="mt-2 text-[12px] text-warn">
-                Couldn&apos;t get an AI recommendation — check your connection
-                and try again.
+                The AI service didn&apos;t respond — it may be temporarily busy
+                or over its rate limit. Please try again in a moment.
               </p>
             )}
 

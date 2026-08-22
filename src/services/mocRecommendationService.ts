@@ -59,11 +59,18 @@ export interface MocComponentSuggestions {
   alternatives: string;
 }
 
+/** Why the AI path produced no suggestion: "not_configured" = no usable API
+ * key for the chosen provider; "failed" = key present but the upstream call
+ * errored, was blocked, or was overloaded (e.g. Gemini 503). The UI maps
+ * these to different messages. */
+export type MocAiUnavailable = { unavailable: "not_configured" | "failed" };
+
 /** Advisory AI-generated per-component MOC/elastomer/sealing suggestion (not
  * a verified spec) — scoped to whatever process data the wizard has
- * collected so far. Returns null when the AI path is unavailable (no API key
- * configured, blocked response, or request failure) — never throws, so the
- * caller can just show "unavailable". */
+ * collected so far. Resolves to the suggestion on success, or a
+ * `{ unavailable }` reason otherwise (distinguish with `"unavailable" in x`).
+ * Only throws on a genuine transport/HTTP error (axios), which the caller
+ * treats as a failed request. */
 export const getMocAiSuggestion = async (input: {
   media: string;
   head?: string;
@@ -79,11 +86,10 @@ export const getMocAiSuggestion = async (input: {
   solidType?: string;
   /** Which LLM to use — defaults server-side to "gemini" if omitted. */
   provider?: MocAiProvider;
-}): Promise<MocComponentSuggestions | null> => {
-  const { data, status } = await apiClient.post<MocComponentSuggestions | null>(
+}): Promise<MocComponentSuggestions | MocAiUnavailable> => {
+  const { data } = await apiClient.post<MocComponentSuggestions | MocAiUnavailable>(
     "/moc-recommendation/ai-suggest",
-    input,
-    { validateStatus: (s) => s === 200 || s === 204 }
+    input
   );
-  return status === 204 ? null : data;
+  return data;
 };

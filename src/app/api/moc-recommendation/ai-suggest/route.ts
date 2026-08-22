@@ -1,5 +1,10 @@
 import { error, json } from "@/lib/api";
-import { getMocAiSuggestion, MOC_AI_PROVIDERS, type MocAiProvider } from "@/lib/moc-ai-suggestion";
+import {
+  getMocAiSuggestion,
+  isMocAiProviderConfigured,
+  MOC_AI_PROVIDERS,
+  type MocAiProvider,
+} from "@/lib/moc-ai-suggestion";
 
 export const dynamic = "force-dynamic";
 
@@ -11,9 +16,10 @@ const isProvider = (v: unknown): v is MocAiProvider =>
 
 // AI-assisted, per-component MOC/elastomer/sealing suggestion — advisory
 // only, scoped to whatever process data the wizard has actually collected so
-// far. Returns 204 (not 500) when the AI path is unavailable (no API key,
-// blocked response, request failure) so the frontend can show a plain
-// "unavailable" state rather than treating it as an error.
+// far. Always 200; the body is either the suggestion, or an
+// { unavailable } discriminator so the UI can distinguish a missing key
+// ("not_configured") from an upstream failure/overload ("failed") instead of
+// showing one misleading message for both.
 export async function POST(req: Request) {
   let body: Record<string, unknown>;
   try {
@@ -26,6 +32,12 @@ export async function POST(req: Request) {
   if (!media) return error("'media' is required", 400);
 
   const provider = isProvider(body.provider) ? body.provider : "gemini";
+
+  // No usable key for this provider — report that distinctly from a call that
+  // was attempted and failed, so the UI shows the right message.
+  if (!isMocAiProviderConfigured(provider)) {
+    return json({ unavailable: "not_configured" });
+  }
 
   const suggestion = await getMocAiSuggestion(
     {
@@ -45,8 +57,11 @@ export async function POST(req: Request) {
     provider,
   );
 
+  // Key is configured but the upstream call returned nothing — errored,
+  // blocked, or overloaded (e.g. Gemini 503). That's a transient/request
+  // failure, not a configuration problem.
   if (!suggestion) {
-    return new Response(null, { status: 204 });
+    return json({ unavailable: "failed" });
   }
   return json(suggestion);
 }
