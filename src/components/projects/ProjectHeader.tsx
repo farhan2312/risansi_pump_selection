@@ -17,7 +17,7 @@ const ProjectHeader = ({ project }: Props) => {
 
   return (
     <p className="project-id-line">
-      Project ID: <span>{project.code ?? project.id}</span>
+      Enquiry no.: <span>{project.code ?? project.id}</span>
     </p>
   );
 };

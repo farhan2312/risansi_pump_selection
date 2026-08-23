@@ -1,6 +1,6 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 
-import { error, json, projectToDict } from "@/lib/api";
+import { error, isUniqueViolation, json, projectToDict } from "@/lib/api";
 import { tryDecodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { projects, users } from "@/lib/db/schema";
@@ -32,35 +32,44 @@ export async function POST(req: Request) {
     return error("'name' is required", 400);
   }
 
+  // Enquiry no. (stored as project_code — column kept for compatibility) is
+  // now user-supplied and required on create, replacing the earlier auto-
+  // generated PRJ-NNN scheme. Uniqueness stays enforced by the DB constraint;
+  // a duplicate falls through to the catch below and returns 409.
+  const projectCode = String(body.project_code ?? body.projectCode ?? "").trim();
+  if (!projectCode) {
+    return error("'project_code' (Enquiry no.) is required", 400);
+  }
+
   // Derived from the verified session cookie, not client input — a client
   // could otherwise attribute a project to any arbitrary user id.
   const createdBy = tryDecodeToken(req)?.sub ?? null;
 
-  // Derived from the highest existing numeric suffix, not row count — a
-  // count-based scheme collides with an existing code once any project has
-  // ever been deleted (e.g. count=5 after PRJ-004 was deleted, but PRJ-006
-  // already exists), which is exactly the bug this replaced.
-  const [{ maxNum }] = await db
-    .select({
-      maxNum: sql<number>`coalesce(max(substring(${projects.projectCode} from 5)::int), 0)::int`,
-    })
-    .from(projects)
-    .where(sql`${projects.projectCode} ~ '^PRJ-[0-9]+$'`);
-  const [project] = await db
-    .insert(projects)
-    .values({
-      projectCode: `PRJ-${String(maxNum + 1).padStart(3, "0")}`,
-      name: String(name),
-      customerName: (body.customer as string) ?? null,
-      industry: (body.industry as string) ?? null,
-      remarks: (body.remarks as string) ?? null,
-      clientCode: (body.clientCode as string) ?? "Pending",
-      // New projects start "Pending" — flips to "In Progress" once General
-      // Information is saved, "Completed" once the final report is generated.
-      status: (body.status as string) ?? "Pending",
-      createdBy,
-    })
-    .returning();
+  let project: typeof projects.$inferSelect;
+  try {
+    [project] = await db
+      .insert(projects)
+      .values({
+        projectCode,
+        name: String(name),
+        customerName: (body.customer as string) ?? null,
+        industry: (body.industry as string) ?? null,
+        remarks: (body.remarks as string) ?? null,
+        clientCode: (body.clientCode as string) ?? "Pending",
+        // New projects start "Pending" — flips to "In Progress" once General
+        // Information is saved, "Completed" once the final report is generated.
+        status: (body.status as string) ?? "Pending",
+        createdBy,
+      })
+      .returning();
+  } catch (e) {
+    // unique_violation on project_code (the DB constraint enforces Enquiry-no.
+    // uniqueness; the client sees a friendly 409 rather than a 500).
+    if (isUniqueViolation(e)) {
+      return error(`Enquiry no. "${projectCode}" already exists`, 409);
+    }
+    throw e;
+  }
 
   let createdByName: string | null = null;
   if (createdBy) {

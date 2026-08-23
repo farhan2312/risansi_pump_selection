@@ -73,14 +73,14 @@ const DashboardPage = () => {
       <WelcomeCard />
 
       <div className="stats-grid">
-        <StatsCard title="Total Projects" value={isLoading ? 0 : stats.total} />
+        <StatsCard title="Total Enquiries" value={isLoading ? 0 : stats.total} />
         <StatsCard title="In Progress" value={isLoading ? 0 : stats.inProgress} />
         <StatsCard title="Completed" value={isLoading ? 0 : stats.completed} />
         <StatsCard title="Pending" value={isLoading ? 0 : stats.pending} />
       </div>
 
       <div className="dashboard-card">
-        <h3>Recent Projects</h3>
+        <h3>Recent Enquiries</h3>
 
         {isLoading && (
           <div style={{ padding: "16px" }}>
@@ -97,8 +97,8 @@ const DashboardPage = () => {
             <EmptyState
               compact
               icon="folder"
-              title="No projects yet"
-              description="Create your first project from the Projects page to see it appear here."
+              title="No enquiries yet"
+              description="Create your first enquiry from the Enquiries page to see it appear here."
             />
           </div>
         )}
@@ -107,7 +107,7 @@ const DashboardPage = () => {
           <table>
             <thead>
               <tr>
-                <th>Project</th>
+                <th>Enquiry</th>
                 <th>Client Code</th>
                 <th>Status</th>
               </tr>

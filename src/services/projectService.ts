@@ -37,6 +37,9 @@ export const getProject = async (id: string): Promise<ProjectRecord | null> => {
 };
 
 export interface CreateProjectInput {
+  /** Enquiry no. — user-supplied and required; sent as `project_code` to
+   * match the API contract (the column kept its original name). */
+  projectCode: string;
   name: string;
   clientCode: string;
   industry: string;
@@ -45,12 +48,18 @@ export interface CreateProjectInput {
 export const createProject = async (
   input: CreateProjectInput
 ): Promise<ProjectRecord> => {
-  const { data } = await apiClient.post<ProjectRecord>("/projects", input);
+  const { projectCode, ...rest } = input;
+  const { data } = await apiClient.post<ProjectRecord>("/projects", {
+    ...rest,
+    project_code: projectCode,
+  });
   return data;
 };
 
 // Any of these may be sent; only the provided keys are updated server-side.
 export interface UpdateProjectInput {
+  /** Enquiry no. — editable. */
+  projectCode?: string;
   name?: string;
   customerName?: string;
   clientCode?: string;

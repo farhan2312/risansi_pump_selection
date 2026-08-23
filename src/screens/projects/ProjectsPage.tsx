@@ -40,7 +40,7 @@ const ProjectsPage = () => {
     setError(null);
     listProjects()
       .then(setProjects)
-      .catch(() => setError("Couldn't load projects."))
+      .catch(() => setError("Couldn't load enquiries."))
       .finally(() => setIsLoading(false));
   };
 
@@ -49,10 +49,11 @@ const ProjectsPage = () => {
   }, []);
 
   const handleCreateProject = async (input: {
+    projectCode: string;
     name: string;
     clientCode: string;
     industry: string;
-  }) => {
+  }): Promise<string | null> => {
     setIsCreating(true);
     try {
       // createdBy is derived server-side from the session cookie, not sent
@@ -60,8 +61,14 @@ const ProjectsPage = () => {
       const created = await createProject(input);
       setProjects((prev) => [created, ...prev]);
       setIsModalOpen(false);
-    } catch {
-      setError("Couldn't create the project. Please try again.");
+      return null;
+    } catch (err) {
+      // Surface the API's specific message (e.g. duplicate Enquiry no.) so the
+      // modal can show it inline instead of a generic failure.
+      const msg =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+        "Couldn't create the project. Please try again.";
+      return msg;
     } finally {
       setIsCreating(false);
     }
@@ -121,11 +128,11 @@ const ProjectsPage = () => {
     <div className="projects-page">
       <div className="projects-header">
         <div className="projects-header-text">
-          <h1>Projects</h1>
-          <p>Create, open, and manage your PCP pump-selection projects.</p>
+          <h1>Enquiries</h1>
+          <p>Create, open, and manage your PCP pump-selection enquiries.</p>
         </div>
         <button className="projects-new-btn" onClick={() => setIsModalOpen(true)}>
-          <PlusIcon /> New Project
+          <PlusIcon /> New Enquiry
         </button>
       </div>
 
@@ -147,11 +154,11 @@ const ProjectsPage = () => {
       {!isLoading && !error && projects.length === 0 && (
         <EmptyState
           icon="folder"
-          title="No projects yet"
-          description="Create your first project to start scoping a PCP pump selection — capacity, head, media, and drive details all get saved per project."
+          title="No enquiries yet"
+          description="Create your first enquiry to start scoping a PCP pump selection — capacity, head, media, and drive details all get saved per enquiry."
           action={
             <button className="projects-new-btn" onClick={() => setIsModalOpen(true)}>
-              <PlusIcon /> Create your first project
+              <PlusIcon /> Create your first enquiry
             </button>
           }
         />
@@ -162,7 +169,7 @@ const ProjectsPage = () => {
           <table className="projects-table">
             <thead>
               <tr>
-                <th>Project ID</th>
+                <th>Enquiry no.</th>
                 <th>Client Name</th>
                 <th>Client Code</th>
                 <th>Created By</th>
@@ -190,7 +197,7 @@ const ProjectsPage = () => {
                       <button
                         className="project-btn"
                         onClick={() => setEditing(project)}
-                        aria-label={`Edit project ${project.project_code}`}
+                        aria-label={`Edit enquiry ${project.project_code}`}
                       >
                         <EditIcon /> Edit
                       </button>
@@ -199,7 +206,7 @@ const ProjectsPage = () => {
                         className="project-btn project-btn-danger"
                         disabled={deletingId === project.id}
                         onClick={() => setConfirmingDelete(project)}
-                        aria-label={`Delete project ${project.project_code}`}
+                        aria-label={`Delete enquiry ${project.project_code}`}
                       >
                         <TrashIcon /> Delete
                       </button>
@@ -228,7 +235,7 @@ const ProjectsPage = () => {
 
       <ConfirmModal
         open={confirmingDelete !== null}
-        title="Delete this project?"
+        title="Delete this enquiry?"
         description={
           confirmingDelete ? (
             <>

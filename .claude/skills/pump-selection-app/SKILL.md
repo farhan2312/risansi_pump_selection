@@ -97,7 +97,7 @@ assuming a table exists; this list can drift.
 | Table | Purpose |
 |---|---|
 | `users_pump` (exported as `users`) | Forked from a shared `users` table (owned by a separate testing-portal project — **never touch the original `users` table**). Seeded once; no ongoing sync. |
-| `projects` | One row per sales project. `project_code` auto-numbered `PRJ-NNN`. Full CRUD: `GET/POST /api/projects`, `PATCH/DELETE /api/projects/[id]` (any authenticated user, no ownership check — small internal tool). |
+| `projects` | One row per sales project. **`project_code` holds the user-entered "Enquiry no."** — required on create, editable, and UNIQUE (the auto-numbered `PRJ-NNN` scheme was removed; existing PRJ-* rows keep their codes). The DB column name stayed `project_code` deliberately — renaming it would churn many files for no gain, so only the *label* changed. A duplicate returns **409** with a friendly message, via `isUniqueViolation()` in `lib/api.ts` (Drizzle wraps driver errors, so SQLSTATE 23505 must be looked up along the `cause` chain, not on the top-level error — this bit once). Full CRUD: `GET/POST /api/projects`, `PATCH/DELETE /api/projects/[id]` (any authenticated user, no ownership check — small internal tool). |
 | `general_info_input`, `fluid_properties_input`, `operating_conditions_input`, `moc_sealing_input`, `motor_drive_input`, `drive_direct_input`, `drive_vbelt_input`, `drive_geared_input` | Autosaved wizard state, **one table per wizard step** (not a single `pump_selection_input` table — that was an earlier design, superseded), each with a unique `project_id` (one row per project, cascade-delete on project delete). Restores the form after a page refresh via `getWizardInput`/`saveWizardInput` (`src/services/wizardInputService.ts`) hitting `/api/wizard-input/[table]`. General Info holds only capacity/capacity-unit/head/head-unit/SG/RPM-range/media (+ selected-model/model-confirmed) — temperature and pH are entered on the Fluid step and persist in `fluid_properties_input` instead. MOC (step 4) + Sealing (step 5) share `moc_sealing_input`; Motor Rating (step 6) + the Drive step's common fields (step 7) share `motor_drive_input`; the Drive step's per-drive-type fields split further into one table per drive system. See schema.ts's block comment above `generalInfoInput` for the full split rationale. |
 | `pump_model_master` | The core catalog: one row per **(model, head)** point (540+ rows / ~55 models incl. 2H\*/4H\*/L-variants/Barrel\*). Columns include `stage` (1/2/4/8, derived from model name), `hard_solid_mm`/`soft_solid_mm`, `size_visc_*_in` (5 columns, per-viscosity-band suction/discharge pipe size — 2H\*/4H\* auto-inherit their bare-H\* base's values, L-variants deliberately left NULL, per an explicit user rule). |
 | `moc_recommendation` | Curated media→MOC/elastomer/seal-type reference (200 rows: 190 Non-Sugar + 10 Sugar). Also the source of the General Info step's Media dropdown. Has a derived `seal_type` (MS/GD) column — NOT sourced from any PDF, it's a rule applied over corrosive/hazard/temp columns (see schema.ts comment for the exact rule + citations). |
@@ -105,6 +105,7 @@ assuming a table exists; this list can drift.
 | `pulley_motor_option` + `pulley_belt_option` | V-belt drive master, mirroring the source sheet's own nested structure: a parent "motor option" (model × motor RPM × HP/KW tier, with belt-groove code) with child belt-ratio rows (target RPM → pump/motor pulley sizes, achieved RPM, V-belt number). Cascade-delete FK. Admin CRUD at `/admin/pulley-master`, including inline belt-child add/edit via a `belts` array on the POST/PATCH body (replace-all-children semantics on PATCH). |
 | `pbl_gearbox`, `ptl_gearbox`, `top_gear_gearbox` | Three independent gearbox-selection masters (from one source sheet with 3 side-by-side blocks sharing a merged Power Rating per row-group). Each has `power_rating_raw`/`power_rating_kw`, `output_rpm`, `model`, `gear_box_type` (PBL/PTL are always `"IN LINE HELICAL"`, Top Gear is always `"PLANTERY"` — i.e. GB Type effectively selects which table applies), `service_factor`, `rate_per_nos`. |
 | `motor_rating` | Standard KW↔HP reference (25 rows, `kw` UNIQUE, from `MOTOR RATING.xlsx`). This is now the source for the Motor Rating step's KW dropdown (see step 6 below) — not model-specific pulley data, so every model gets full coverage. |
+| `motor_master` | Motor price-comparison master from the IE2 1500-RPM "Havells/CGL/ABB/Siemens Motor Price Compare Sheet". **Normalized LONG** (one row per rating × brand, 116 rows: Siemens 23, ABB/CGL/Havells 31 each) — the source sheet is wide (4 brands side by side). Columns: motor_kw, motor_hp, motor_rpm, motor_type (IE2), mounting (FOOT), brand, frame_size, lp_price, final_price. Brand entries offering nothing for a rating (source frame "-"/"0" + zero prices) are omitted; missing fields are NULL; Excel float noise was rounded on import. The source sheet's SR NO column is intentionally NOT stored (row-index noise). Admin CRUD at `/admin/motor-master` via `/api/motor-master[/id]` — reuses the `pmm-*` styles from Pump Model Master. Required identifiers: brand + motor_kw. Also read by the wizard's Drive step through the separate, non-admin `GET /api/motor-options` (see step 7) for its motor-selection cards. |
 
 ### How schema changes are made (important — this is NOT the standard Drizzle flow)
 
@@ -207,8 +208,46 @@ in `src/data/Recommendations.ts`):
      clickable candidate cards — not a single auto-pick. If none land inside
      the window, the single nearest one is returned as a flagged "next best"
      fallback. Selection is manual (click a card); nothing is auto-filled
-     into formData on fetch anymore. A "Drive System Inputs" block (Motor
-     Speed/Make/Mounting/Type/Starter Type/Power Supply) also shows.
+     into formData on fetch anymore.
+   - **"Drive System Inputs" + Motor Selection (ALL drive types, not just
+     V-Belt)**: field order is Motor Rating → Speed → Make → Mounting →
+     **Std / Non-Std**, and that last select gates what follows. *Standard* →
+     Efficiency, Protection, Frequency, Voltage. *Non-Standard* → Protection,
+     Frequency, and Voltage each paired with a **% price uplift** input. Those
+     three percentages are **summed (additive) and applied once** to the
+     picked motor's final price:
+     `uplifted = finalPrice × (1 + (prot% + freq% + volt%)/100)`.
+     **Efficiency deliberately has NO % uplift** — it is a *dropdown of IE
+     classes* (`MOTOR_EFFICIENCY_CLASSES` = IE2/IE3) that **filters the motor
+     candidates by `motor_master.motor_type`** rather than adding cost. The
+     master only holds IE2 today; IE3 is listed ahead of its rows existing.
+     Below that, **Motor Selection** shows every `motor_master` motor matching
+     the fixed KW + RPM + mounting (narrowed by Make and Efficiency) as
+     clickable cards in the same orange style as the V-Belt candidates —
+     manual pick only, via `GET /api/motor-options` (auth'd with
+     `decodeToken`, NOT `requireAdmin` like the `/api/motor-master` admin
+     CRUD). Mounting matches loosely on the first word (`"Foot B3"` → stored
+     `"FOOT"`) and KW compares numerically. The **entire "Drive System Inputs"
+     block** (rating-plate fields *and* Motor Selection) is **hidden when
+     Configuration = "Geared Motor"** — that's an integrated unit whose motor
+     isn't specified or sourced separately ("Gear Box + Motor" still does
+     both).
+   - **Select-then-confirm on all three card groups** (V-Belt, Gearbox,
+     Motor): clicking a card *selects* it, clicking the selected card again
+     *unselects* it, and a `ConfirmBar` under the group asks for an explicit
+     confirmation — the same two-stage gate as the pump model's
+     `modelConfirmed`. Badges read "Selected" (orange) until confirmed, then
+     "✓ Confirmed" (green). Persisted as real boolean columns
+     `drive_vbelt_input.vbelt_confirmed`, `drive_geared_input.gearbox_confirmed`,
+     `motor_drive_input.drive_motor_confirmed`; any *new* pick resets its flag
+     to false. `BOOLEAN_FIELDS` in `PumpSelectionPage.tsx` lists every
+     boolean-backed field so a NULL restores as `false`, not `""`. Note
+     unselecting a motor deliberately does NOT clear `driveMotorMake` — that
+     field doubles as the candidate filter.
+     These fields persist in **`motor_drive_input`** (drive-agnostic) — they
+     were moved out of `drive_vbelt_input`, which only ever saves when the
+     drive system is V-Belt, so Direct/Geared selections silently never
+     persisted before.
    - **Geared Motor Drive/Gear Box + Motor**: a **Configuration** dropdown
      ("Gear Box + Motor" vs "Geared Motor") cascades Mounting and Coupling:
      Gear Box + Motor → Mounting fixed to Foot Mount (B3, read-only), Coupling
@@ -264,6 +303,17 @@ ratings, required speed, duty cycle, industry standard) aren't collected yet
 rather than silently omitting them.
 
 UI layout (top to bottom), per explicit user design direction:
+0. **"Add Client Requirements"** button at the very top of the step, toggling
+   a collapsed free-text textarea (`formData.clientRequirements`, persisted to
+   `moc_sealing_input.client_requirements`). It's for details the client
+   supplies that no wizard field covers — chemical composition, special
+   service notes. The text is appended verbatim to the AI prompt as a
+   trailing "Client requirements" block, explicitly framed there as *process
+   data to factor in, not instructions that change the output format* (it's
+   free-form user text landing in a prompt, so it must not read as
+   directives). Also rendered as a row in the PDF report's process-data
+   table. The panel auto-opens when a restored draft already has text, and
+   the collapsed button shows an "Added" badge.
 1. Button — while loading, cycles through `AI_LOADING_MESSAGES` (rotating
    status text) every 1.4s rather than a static "Loading…".
 2. An "AI Material Recommendation" card once fetched — header + a "Download

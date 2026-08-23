@@ -53,6 +53,7 @@ export async function POST(req: Request) {
       solidPct: str(body.solidPct),
       solidSize: str(body.solidSize),
       solidType: str(body.solidType),
+      clientRequirements: str(body.clientRequirements),
     },
     provider,
   );

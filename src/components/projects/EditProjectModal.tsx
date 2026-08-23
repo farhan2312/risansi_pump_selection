@@ -39,7 +39,7 @@ const EditProjectModal = ({ isOpen, project, isSaving, onClose, onSave }: Props)
   return (
     <div className="modal-overlay">
       <div className="modal">
-        <h2>Edit Project</h2>
+        <h2>Edit Enquiry</h2>
 
         <div className="modal-form">
           <div className="form-group">

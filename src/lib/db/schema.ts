@@ -179,6 +179,10 @@ export const mocSealingInput = pgTable("moc_sealing_input", {
     .references(() => projects.id, { onDelete: "cascade" }),
   sealingType: varchar("sealing_type", { length: 30 }),
   sealingSubType: varchar("sealing_sub_type", { length: 10 }),
+  // Free-text extras the client supplied that the wizard has no field for
+  // (chemical composition, special service notes, ...). Appended verbatim to
+  // the MOC AI prompt as a "Client requirements" block.
+  clientRequirements: text("client_requirements"),
   // Manual per-component MOC picks + open remarks (optionally eyeballed
   // against the AI suggestion below, entered independently — never
   // auto-filled from it, per the app's firm "advisory only" convention).
@@ -230,6 +234,14 @@ export const mocSealingInput = pgTable("moc_sealing_input", {
 // System Type itself, Motor RPM). The type-specific detail fields live in
 // the three drive*Input tables below — only the one matching driveSystem
 // ever gets a row.
+//
+// The whole "Drive System Inputs" motor block also lives here (make/mounting/
+// efficiency/protection/frequency/voltage/starter/supply/std-non-std, the
+// Non-Standard % uplifts, and the motor picked from motor_master). It used to
+// sit in drive_vbelt_input, but those inputs apply to EVERY drive type — and
+// that table is only written when driveSystem is "V-Belt Drive", so Direct/
+// Geared selections silently never persisted. Moved here (drive-agnostic) to
+// fix that; drive_vbelt_input now holds only genuinely belt-specific fields.
 export const motorDriveInput = pgTable("motor_drive_input", {
   id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   projectId: uuid("project_id")
@@ -242,6 +254,37 @@ export const motorDriveInput = pgTable("motor_drive_input", {
   // more conventional motorRpm — so autosave field lists don't need a
   // mapping layer.
   motorRPM: varchar("motor_rpm", { length: 10 }),
+  // --- Drive System Inputs (all drive types) ---
+  driveMotorSpeed: varchar("drive_motor_speed", { length: 20 }),
+  driveMotorMake: varchar("drive_motor_make", { length: 50 }),
+  driveMotorMounting: varchar("drive_motor_mounting", { length: 50 }),
+  // Std / Non-Std gates which of the fields below are shown: Standard shows
+  // efficiency/protection/frequency/voltage; Non-Standard additionally shows
+  // the four *_pct uplift inputs.
+  driveStdNonStd: varchar("drive_std_non_std", { length: 20 }),
+  driveMotorEfficiency: varchar("drive_motor_efficiency", { length: 20 }),
+  driveMotorProtection: varchar("drive_motor_protection", { length: 20 }),
+  driveMotorFrequency: varchar("drive_motor_frequency", { length: 20 }),
+  driveMotorVoltage: varchar("drive_motor_voltage", { length: 20 }),
+  // Non-Standard only — percentage uplifts applied to the selected motor's
+  // final price. Summed (additive), then applied once: uplifted =
+  // finalPrice × (1 + (prot% + freq% + volt%)/100). Efficiency deliberately
+  // has NO % uplift — it isn't a price adder, it selects which motor type
+  // (IE class) the candidate list is filtered to.
+  driveMotorProtectionPct: varchar("drive_motor_protection_pct", { length: 20 }),
+  driveMotorFrequencyPct: varchar("drive_motor_frequency_pct", { length: 20 }),
+  driveMotorVoltagePct: varchar("drive_motor_voltage_pct", { length: 20 }),
+  // The motor picked from the motor_master candidate cards (filtered by KW +
+  // RPM + mounting, narrowed by make). Denormalized copies, so a later edit to
+  // motor_master doesn't silently change an already-quoted project.
+  driveMotorFrameSize: varchar("drive_motor_frame_size", { length: 50 }),
+  driveMotorLpPrice: varchar("drive_motor_lp_price", { length: 30 }),
+  driveMotorFinalPrice: varchar("drive_motor_final_price", { length: 30 }),
+  driveMotorPriceUplifted: varchar("drive_motor_price_uplifted", { length: 30 }),
+  // Select-then-confirm, same as vbeltConfirmed above.
+  driveMotorConfirmed: boolean("drive_motor_confirmed").default(false),
+  driveStarterType: varchar("drive_starter_type", { length: 20 }),
+  drivePowerSupply: varchar("drive_power_supply", { length: 20 }),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
@@ -260,10 +303,10 @@ export const driveDirectInput = pgTable("drive_direct_input", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
 
-// V-Belt Drive specifics — the selected belt option (groove/pulleys/rpm/
-// center distance/belt number, written when a candidate card is clicked)
-// plus the Drive System Inputs block (motor speed/make/mounting/rating
-// plate details/starter/power supply).
+// V-Belt Drive specifics — ONLY the selected belt option (groove/pulleys/rpm/
+// center distance/belt number, written when a candidate card is clicked). The
+// motor/rating-plate inputs that used to live here moved to motor_drive_input
+// (see the comment there) because they apply to every drive type.
 export const driveVbeltInput = pgTable("drive_vbelt_input", {
   id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   projectId: uuid("project_id")
@@ -276,16 +319,10 @@ export const driveVbeltInput = pgTable("drive_vbelt_input", {
   driveVbeltRpm: varchar("drive_vbelt_rpm", { length: 20 }),
   driveCenterDistance: varchar("drive_center_distance", { length: 20 }),
   driveVbeltNo: varchar("drive_vbelt_no", { length: 20 }),
-  driveMotorSpeed: varchar("drive_motor_speed", { length: 20 }),
-  driveMotorMake: varchar("drive_motor_make", { length: 50 }),
-  driveMotorMounting: varchar("drive_motor_mounting", { length: 50 }),
-  driveMotorEfficiency: varchar("drive_motor_efficiency", { length: 20 }),
-  driveMotorProtection: varchar("drive_motor_protection", { length: 20 }),
-  driveMotorFrequency: varchar("drive_motor_frequency", { length: 20 }),
-  driveMotorVoltage: varchar("drive_motor_voltage", { length: 20 }),
-  driveStarterType: varchar("drive_starter_type", { length: 20 }),
-  drivePowerSupply: varchar("drive_power_supply", { length: 20 }),
-  driveStdNonStd: varchar("drive_std_non_std", { length: 20 }),
+  // Clicking a candidate card only *selects* it; the user then confirms (same
+  // two-stage pattern as the pump model's modelConfirmed gate). Clicking the
+  // selected card again clears both.
+  vbeltConfirmed: boolean("vbelt_confirmed").default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
@@ -311,6 +348,8 @@ export const driveGearedInput = pgTable("drive_geared_input", {
   gearboxOutputRpm: varchar("gearbox_output_rpm", { length: 20 }),
   gearboxServiceFactor: varchar("gearbox_service_factor", { length: 20 }),
   gearboxRatePerNos: varchar("gearbox_rate_per_nos", { length: 20 }),
+  // Select-then-confirm, same as vbeltConfirmed above.
+  gearboxConfirmed: boolean("gearbox_confirmed").default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
@@ -471,6 +510,30 @@ export const motorRating = pgTable("motor_rating", {
   id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   kw: numeric("kw", { precision: 8, scale: 3 }).notNull().unique(),
   hp: numeric("hp", { precision: 8, scale: 2 }).notNull(),
+});
+
+// Motor price-comparison master, sourced from the IE2 1500-RPM
+// "Havells/CGL/ABB/Siemens Motor Price Compare Sheet". Normalized to LONG form
+// (one row per motor rating × brand), per explicit user choice — the source
+// sheet is wide (4 brands side by side per rating). Brand entries that offer
+// nothing for a rating (source frame size "-"/"0" with zero prices) are NOT
+// stored; any individual missing field is NULL rather than 0/"-". Excel float
+// noise (e.g. 0.55000000000000004) was rounded on import. 116 rows as seeded
+// (Siemens 23, ABB/CGL/Havells 31 each — Siemens lists fewer ratings). The
+// source sheet's SR NO column is intentionally NOT stored (it's just a
+// row index, not meaningful data).
+export const motorMaster = pgTable("motor_master", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  motorKw: numeric("motor_kw", { precision: 10, scale: 3 }),
+  motorHp: numeric("motor_hp", { precision: 10, scale: 3 }),
+  motorRpm: integer("motor_rpm"),
+  motorType: varchar("motor_type", { length: 20 }), // e.g. IE2
+  mounting: varchar("mounting", { length: 20 }), // e.g. FOOT
+  brand: varchar("brand", { length: 20 }), // Siemens / ABB / CGL / Havells
+  frameSize: varchar("frame_size", { length: 50 }),
+  lpPrice: numeric("lp_price", { precision: 14, scale: 2 }), // list price
+  finalPrice: numeric("final_price", { precision: 14, scale: 2 }), // discounted/final
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
 
 /*export const performanceCurve = pgTable("performance_curve", {

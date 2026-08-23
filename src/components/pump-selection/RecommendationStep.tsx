@@ -230,17 +230,49 @@ const RecommendationStep = ({
     ["Centre Distance", formData.driveCenterDistance],
     ["V-Belt No.", formData.driveVbeltNo],
   ];
+  // Non-Standard pairs each rating-plate field with a % price uplift; for
+  // Standard those percentages don't apply, so they're folded in only when set.
+  const withPct = (value: unknown, pctValue: unknown): string => {
+    const v = value ? String(value) : "";
+    const p = pctValue ? String(pctValue) : "";
+    if (!v) return "";
+    return p ? `${v} (+${p}%)` : v;
+  };
+  const isNonStd = formData.driveStdNonStd === "Non-Standard";
   const vbeltInputItems: FieldItem[] = [
     ["Drive Motor Speed", formData.driveMotorSpeed ? `${formData.driveMotorSpeed} RPM` : ""],
     ["Drive Motor Make", formData.driveMotorMake],
     ["Motor Mounting", formData.driveMotorMounting],
+    ["Std / Non-Std", formData.driveStdNonStd],
+    // Efficiency has no % uplift — it selects the motor type, not the price.
     ["Efficiency", formData.driveMotorEfficiency],
-    ["Protection", formData.driveMotorProtection],
-    ["Frequency", formData.driveMotorFrequency],
-    ["Voltage", formData.driveMotorVoltage],
+    [
+      "Protection",
+      isNonStd
+        ? withPct(formData.driveMotorProtection, formData.driveMotorProtectionPct)
+        : formData.driveMotorProtection,
+    ],
+    [
+      "Frequency",
+      isNonStd
+        ? withPct(formData.driveMotorFrequency, formData.driveMotorFrequencyPct)
+        : formData.driveMotorFrequency,
+    ],
+    [
+      "Voltage",
+      isNonStd
+        ? withPct(formData.driveMotorVoltage, formData.driveMotorVoltagePct)
+        : formData.driveMotorVoltage,
+    ],
+    ["Motor Frame Size", formData.driveMotorFrameSize],
+    ["Motor LP Price", formData.driveMotorLpPrice],
+    ["Motor Final Price", formData.driveMotorFinalPrice],
+    [
+      isNonStd ? "Motor Price (with uplift)" : "Motor Price",
+      formData.driveMotorPriceUplifted,
+    ],
     ["Starter Type", formData.driveStarterType],
     ["Power Supply", formData.drivePowerSupply],
-    ["Std / Non-Std", formData.driveStdNonStd],
   ];
 
   const gearedSelectedItems: FieldItem[] = [
@@ -260,7 +292,12 @@ const RecommendationStep = ({
   ];
 
   const driveSelectedItems = isVBelt ? vbeltSelectedItems : isGeared ? gearedSelectedItems : [];
-  const driveInputItems = isVBelt ? vbeltInputItems : isGeared ? gearedInputItems : [];
+  // The motor/rating-plate inputs (vbeltInputItems) apply to every drive
+  // system now — not just V-Belt — so they always show, with the geared-only
+  // gearbox configuration fields appended when that drive type is chosen.
+  const driveInputItems: FieldItem[] = isGeared
+    ? [...gearedInputItems, ...vbeltInputItems]
+    : vbeltInputItems;
   const driveHasAnything =
     hasAny(driveCommonItems) || hasAny(driveSelectedItems) || hasAny(driveInputItems);
 

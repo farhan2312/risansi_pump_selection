@@ -64,7 +64,7 @@ const icons = {
 
 const mainLinks = [
   { href: "/dashboard", label: "Dashboard", icon: icons.dashboard },
-  { href: "/projects", label: "Projects", icon: icons.projects },
+  { href: "/projects", label: "Enquiries", icon: icons.projects },
   { href: "/pump-selection", label: "Pump Selection", icon: icons.pump },
   { href: "/selection-summary", label: "Reports", icon: icons.reports },
 ];
@@ -98,6 +98,7 @@ const Sidebar = () => {
             {navLink("/admin/pump-model-master", "Pump Model Master", icons.database)}
             {navLink("/admin/pulley-master", "Pulley Master", icons.database)}
             {navLink("/admin/gearbox-master", "Gearbox Type", icons.database)}
+            {navLink("/admin/motor-master", "Motor Master", icons.database)}
           </>
         )}
 

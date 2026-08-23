@@ -239,6 +239,14 @@ const MocDetailsStep = ({
   const media = formData.media as string;
   const { user } = useCurrentUser();
 
+  // Free-text client extras fed into the AI prompt. The panel starts open when
+  // a restored draft already has text, so saved requirements aren't hidden
+  // behind a collapsed button.
+  const clientRequirements = (formData.clientRequirements as string) ?? "";
+  const [showClientReq, setShowClientReq] = useState(
+    () => clientRequirements.trim() !== "",
+  );
+
   // AI-assisted per-component suggestion — advisory only, opt-in via button
   // click (not fetched automatically). Reset whenever the media changes so a
   // stale suggestion for a previous media can't linger.
@@ -318,6 +326,7 @@ const MocDetailsStep = ({
       solidPct: formData.solidPercentage || undefined,
       solidSize: formData.solidSize || undefined,
       solidType: formData.solidType || undefined,
+      clientRequirements: clientRequirements.trim() || undefined,
       provider: aiProvider,
     })
       .then((res) => {
@@ -382,6 +391,7 @@ const MocDetailsStep = ({
         solidPct: formData.solidPercentage || undefined,
         solidSize: formData.solidSize || undefined,
         solidType: formData.solidType || undefined,
+        clientRequirements: clientRequirements.trim() || undefined,
         suggestion: aiSuggestion,
         generatedBy: user?.name || user?.email || undefined,
       });
@@ -413,6 +423,53 @@ const MocDetailsStep = ({
           ) : null}
           .
         </p>
+
+        {/* Free-text client extras — anything the wizard has no field for
+            (chemical composition, special service notes). Collapsed by
+            default; appended to the AI prompt when set. */}
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => setShowClientReq((v) => !v)}
+            className="inline-flex items-center gap-2 rounded-lg border border-line-strong bg-paper px-4 py-2 text-[13px] font-semibold text-fg transition-colors hover:border-accent"
+          >
+            <span className="text-base">📋</span>
+            {showClientReq ? "Hide" : "Add"} Client Requirements
+            {!showClientReq && clientRequirements.trim() !== "" && (
+              <span className="rounded-full bg-[var(--pos-soft)] px-2 py-0.5 text-[10px] font-semibold text-pos">
+                Added
+              </span>
+            )}
+          </button>
+
+          {showClientReq && (
+            <div className="mt-2 rounded-md border border-line bg-elev p-4">
+              <label className="section-label" htmlFor="client-requirements">
+                Additional Client Requirements
+              </label>
+              <p className="mt-1 text-[12px] text-fg-3">
+                Chemical composition, service conditions, or any other detail the
+                client supplied that isn&apos;t captured by the fields above. This
+                text is added to the AI recommendation prompt.
+              </p>
+              <textarea
+                id="client-requirements"
+                rows={5}
+                className={`${control} mt-2 resize-y`}
+                placeholder="e.g. Media contains 12% H2SO4 and traces of chlorides; client requires all wetted parts to be certified for food contact…"
+                value={clientRequirements}
+                onChange={(e) =>
+                  setFormData({ ...formData, clientRequirements: e.target.value })
+                }
+              />
+              {clientRequirements.trim() !== "" && (
+                <p className="mt-1 text-[12px] text-fg-3">
+                  Regenerate the AI recommendation below to take this into account.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
 
         {!media && (
           <p className="mt-4 text-[13px] text-fg-3">

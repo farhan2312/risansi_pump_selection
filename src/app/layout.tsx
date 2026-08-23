@@ -63,7 +63,7 @@ const instrumentSerif = Instrument_Serif({
 export const metadata: Metadata = {
   title: "Pump Selection & Testing Portal",
   description:
-    "Intelligent pump recommendation platform for sales engineers with integrated testing reports and project management.",
+    "Intelligent pump recommendation platform for sales engineers with integrated testing reports and enquiry management.",
 };
 
 export default function RootLayout({

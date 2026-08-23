@@ -51,6 +51,7 @@ const FIELDS: Record<TableKey, readonly string[]> = {
   ],
   "moc-sealing": [
     "sealingType", "sealingSubType",
+    "clientRequirements",
     "mocAiBearingHousing", "mocAiBearingHousingRemarks",
     "mocAiBasePlate", "mocAiBasePlateRemarks",
     "mocAiTieRod", "mocAiTieRodRemarks",
@@ -67,21 +68,29 @@ const FIELDS: Record<TableKey, readonly string[]> = {
     "mocAiSuggestedSealRecommendation", "mocAiSuggestedSealRationale",
     "mocAiGeneratedAt",
   ],
-  "motor-drive": ["driveMotorKw", "driveSystem", "motorRPM"],
+  "motor-drive": [
+    "driveMotorKw", "driveSystem", "motorRPM",
+    // Drive System Inputs — apply to every drive type (see schema.ts).
+    "driveMotorSpeed", "driveMotorMake", "driveMotorMounting", "driveStdNonStd",
+    "driveMotorEfficiency", "driveMotorProtection", "driveMotorFrequency",
+    "driveMotorVoltage",
+    "driveMotorProtectionPct", "driveMotorFrequencyPct", "driveMotorVoltagePct",
+    "driveMotorFrameSize", "driveMotorLpPrice", "driveMotorFinalPrice",
+    "driveMotorPriceUplifted",
+    "driveMotorConfirmed",
+    "driveStarterType", "drivePowerSupply",
+  ],
   // No fields today — the table exists for structural symmetry (see
   // schema.ts). PUT still succeeds, it just creates/touches an empty row.
   "drive-direct": [],
   "drive-vbelt": [
     "driveVbeltGroove", "drivePumpPulley", "driveMotorPulley", "driveVbeltRpm",
-    "driveCenterDistance", "driveVbeltNo", "driveMotorSpeed", "driveMotorMake",
-    "driveMotorMounting", "driveMotorEfficiency", "driveMotorProtection",
-    "driveMotorFrequency", "driveMotorVoltage", "driveStarterType",
-    "drivePowerSupply", "driveStdNonStd",
+    "driveCenterDistance", "driveVbeltNo", "vbeltConfirmed",
   ],
   "drive-geared": [
     "gearBoxType", "gearedConfigType", "gbConstructionType", "gearBoxMounting",
     "driveCoupling", "asfRange", "gearboxSource", "gearboxModel",
-    "gearboxOutputRpm", "gearboxServiceFactor", "gearboxRatePerNos",
+    "gearboxOutputRpm", "gearboxServiceFactor", "gearboxRatePerNos", "gearboxConfirmed",
   ],
 };
 

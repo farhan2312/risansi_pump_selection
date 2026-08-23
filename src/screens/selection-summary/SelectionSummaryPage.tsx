@@ -84,12 +84,12 @@ const SelectionSummaryPage = () => {
       <div className="summary-header">
         <div>
           <h1>Reports</h1>
-          <p>Every generated Selection Summary report, one per project.</p>
+          <p>Every generated Selection Summary report, one per enquiry.</p>
         </div>
         <input
           type="search"
           className="summary-search"
-          placeholder="Search project, name, client…"
+          placeholder="Search enquiry, name, client…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -109,7 +109,7 @@ const SelectionSummaryPage = () => {
         <EmptyState
           icon="table"
           title="No reports generated yet"
-          description="Click Confirm Pump Selection on the last wizard step of a project to generate and save its report here."
+          description="Click Confirm Pump Selection on the last wizard step of an enquiry to generate and save its report here."
         />
       )}
 
@@ -118,7 +118,7 @@ const SelectionSummaryPage = () => {
           <table className="summary-table">
             <thead>
               <tr>
-                <th>Project</th>
+                <th>Enquiry</th>
                 <th>Client</th>
                 <th>Status</th>
                 <th>Generated</th>
@@ -161,7 +161,7 @@ const SelectionSummaryPage = () => {
                       compact
                       icon="search"
                       title={`No reports match “${search}”`}
-                      description="Try a different project, name, or client."
+                      description="Try a different enquiry, name, or client."
                     />
                   </td>
                 </tr>

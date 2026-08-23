@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 
-import { error, json, projectToDict } from "@/lib/api";
+import { error, isUniqueViolation, json, projectToDict } from "@/lib/api";
 import { AuthError, decodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { projects, users } from "@/lib/db/schema";
@@ -75,6 +75,16 @@ export async function PATCH(
     if (!n) return error("'name' can't be empty", 400);
     patch.name = n;
   }
+  // Enquiry no. (project_code) is also NOT NULL and UNIQUE — accepted from
+  // either projectCode or project_code so client code doesn't have to pick.
+  const rawCode = "projectCode" in body ? body.projectCode
+    : "project_code" in body ? body.project_code
+    : undefined;
+  if (rawCode !== undefined) {
+    const c = String(rawCode ?? "").trim();
+    if (!c) return error("'project_code' (Enquiry no.) can't be empty", 400);
+    patch.projectCode = c;
+  }
   if ("customerName" in body) patch.customerName = textOrNull(body.customerName);
   if ("clientCode" in body) patch.clientCode = textOrNull(body.clientCode);
   if ("industry" in body) patch.industry = textOrNull(body.industry);
@@ -90,11 +100,19 @@ export async function PATCH(
   }
   patch.updatedAt = new Date();
 
-  const [updated] = await db
-    .update(projects)
-    .set(patch)
-    .where(eq(projects.id, id))
-    .returning();
+  let updated: typeof projects.$inferSelect | undefined;
+  try {
+    [updated] = await db
+      .update(projects)
+      .set(patch)
+      .where(eq(projects.id, id))
+      .returning();
+  } catch (e) {
+    if (isUniqueViolation(e)) {
+      return error(`Enquiry no. "${patch.projectCode}" already exists`, 409);
+    }
+    throw e;
+  }
   if (!updated) return error("Project not found", 404);
 
   let createdByName: string | null = null;

@@ -84,6 +84,10 @@ export interface PumpSelectionFormData {
   driveSystem: string;
   sealingType: string;
   sealingSubType?: string; // MSA / SCG / DCG — Mechanical Seal only
+  /** Free-text extras the client supplied that no wizard field covers
+   * (chemical composition, special service notes). Appended to the MOC AI
+   * prompt as a "Client requirements" block. */
+  clientRequirements?: string;
   motorMake?: string;
   gearboxMake?: string;
   motorRPM?: string;
@@ -100,6 +104,8 @@ export interface PumpSelectionFormData {
   gearboxOutputRpm?: string;
   gearboxServiceFactor?: string;
   gearboxRatePerNos?: string;
+  /** Gearbox card picked, then explicitly confirmed. */
+  gearboxConfirmed?: boolean;
   // Per-component MOC (manual selection, optionally seeded from the AI
   // recommendation panel) — non-wettable components
   mocAiBearingHousing?: string;
@@ -145,17 +151,33 @@ export interface PumpSelectionFormData {
   driveVbeltRpm?: string; // recommended (or next-best) achieved pump RPM
   driveCenterDistance?: string;
   driveVbeltNo?: string;
-  // Drive System inputs (shown when Drive System = V-Belt Drive)
+  /** Belt card picked, then explicitly confirmed (select-then-confirm gate). */
+  vbeltConfirmed?: boolean;
+  // Drive System inputs (shown for every drive system)
   driveMotorSpeed?: string; // motor nameplate speed (RPM) — manual, defaults from motorRPM
   driveMotorMake?: string; // BBL / Havells / CGL / ABB / Siemens / Other
   driveMotorMounting?: string; // Foot (B3) / Flange (B5) / Foot cum Flange (B35)
-  driveMotorEfficiency?: string; // free text, e.g. "IE3"
+  driveStdNonStd?: string; // Standard / Non-Standard — gates the fields below
+  /** Motor efficiency (IE) class — filters the motor_master candidates by
+   * motor_type rather than adding to the price. */
+  driveMotorEfficiency?: string; // "IE2" / "IE3"
   driveMotorProtection?: string; // free text, e.g. "IP55"
   driveMotorFrequency?: string; // free text, e.g. "50 Hz"
   driveMotorVoltage?: string; // free text, e.g. "415 V"
+  // Non-Standard only — % price uplifts, summed then applied once to the
+  // selected motor's final price. No efficiency % by design (see above).
+  driveMotorProtectionPct?: string;
+  driveMotorFrequencyPct?: string;
+  driveMotorVoltagePct?: string;
+  // Motor picked from the motor_master candidate cards
+  driveMotorFrameSize?: string;
+  driveMotorLpPrice?: string;
+  driveMotorFinalPrice?: string;
+  driveMotorPriceUplifted?: string; // finalPrice x (1 + total uplift %)
+  /** Motor card picked, then explicitly confirmed. */
+  driveMotorConfirmed?: boolean;
   driveStarterType?: string; // Star-Delta / DOL
   drivePowerSupply?: string; // Single Phase / Three Phase
-  driveStdNonStd?: string; // Standard / Non-Standard
 }
 
 // Output shape — matches what RecommendationTable / PumpDetailsCard render.

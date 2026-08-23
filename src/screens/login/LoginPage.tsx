@@ -6,7 +6,7 @@ import "./LoginPage.css";
 import { login, requestAccess, type RequestableRole } from "../../services/authService";
 
 const ROLE_OPTIONS: { value: RequestableRole; label: string; hint: string }[] = [
-  { value: "user", label: "User", hint: "Pump selection & projects" },
+  { value: "user", label: "User", hint: "Pump selection & enquiries" },
   { value: "admin", label: "Admin", hint: "Also manages master data" },
 ];
 
@@ -160,7 +160,7 @@ const LoginPage = () => {
 
           <p>
             Intelligent pump recommendation platform for sales engineers with
-            integrated testing reports and project management.
+            integrated testing reports and enquiry management.
           </p>
         </div>
 

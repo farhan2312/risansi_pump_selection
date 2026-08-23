@@ -15,6 +15,18 @@ export function error(message: string, status = 400): NextResponse {
   return json({ error: message }, status);
 }
 
+/** True when a thrown DB error is a Postgres unique-constraint violation
+ * (SQLSTATE 23505). Drizzle wraps the driver error, so the real `code` lives
+ * on the `cause` chain rather than the top-level error — check both. */
+export function isUniqueViolation(err: unknown): boolean {
+  let e: unknown = err;
+  for (let depth = 0; e && depth < 5; depth++) {
+    if ((e as { code?: string }).code === "23505") return true;
+    e = (e as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
 type UserRow = typeof schema.users.$inferSelect;
 type ProjectRow = typeof schema.projects.$inferSelect;
 

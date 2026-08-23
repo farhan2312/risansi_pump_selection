@@ -84,6 +84,9 @@ export const getMocAiSuggestion = async (input: {
   solidPct?: string;
   solidSize?: string;
   solidType?: string;
+  /** Free-text client extras appended to the prompt (chemical composition,
+   * special service notes — anything the wizard has no field for). */
+  clientRequirements?: string;
   /** Which LLM to use — defaults server-side to "gemini" if omitted. */
   provider?: MocAiProvider;
 }): Promise<MocComponentSuggestions | MocAiUnavailable> => {

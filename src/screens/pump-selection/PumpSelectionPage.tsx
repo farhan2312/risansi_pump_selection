@@ -50,6 +50,7 @@ const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
   ],
   "moc-sealing": [
     "sealingType", "sealingSubType",
+    "clientRequirements",
     "mocAiBearingHousing", "mocAiBearingHousingRemarks",
     "mocAiBasePlate", "mocAiBasePlateRemarks",
     "mocAiTieRod", "mocAiTieRodRemarks",
@@ -66,21 +67,37 @@ const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
     "mocAiSuggestedSealRecommendation", "mocAiSuggestedSealRationale",
     "mocAiGeneratedAt",
   ],
-  "motor-drive": ["driveMotorKw", "driveSystem", "motorRPM"],
+  "motor-drive": [
+    "driveMotorKw", "driveSystem", "motorRPM",
+    "driveMotorSpeed", "driveMotorMake", "driveMotorMounting", "driveStdNonStd",
+    "driveMotorEfficiency", "driveMotorProtection", "driveMotorFrequency",
+    "driveMotorVoltage",
+    "driveMotorProtectionPct", "driveMotorFrequencyPct", "driveMotorVoltagePct",
+    "driveMotorFrameSize", "driveMotorLpPrice", "driveMotorFinalPrice",
+    "driveMotorPriceUplifted",
+    "driveMotorConfirmed",
+    "driveStarterType", "drivePowerSupply",
+  ],
   "drive-direct": [],
   "drive-vbelt": [
     "driveVbeltGroove", "drivePumpPulley", "driveMotorPulley", "driveVbeltRpm",
-    "driveCenterDistance", "driveVbeltNo", "driveMotorSpeed", "driveMotorMake",
-    "driveMotorMounting", "driveMotorEfficiency", "driveMotorProtection",
-    "driveMotorFrequency", "driveMotorVoltage", "driveStarterType",
-    "drivePowerSupply", "driveStdNonStd",
+    "driveCenterDistance", "driveVbeltNo", "vbeltConfirmed",
   ],
   "drive-geared": [
     "gearBoxType", "gearedConfigType", "gbConstructionType", "gearBoxMounting",
     "driveCoupling", "asfRange", "gearboxSource", "gearboxModel",
-    "gearboxOutputRpm", "gearboxServiceFactor", "gearboxRatePerNos",
+    "gearboxOutputRpm", "gearboxServiceFactor", "gearboxRatePerNos", "gearboxConfirmed",
   ],
 };
+
+// Fields backed by a boolean column — a NULL restores as `false`, not the ""
+// every other (string) field falls back to.
+const BOOLEAN_FIELDS = new Set([
+  "modelConfirmed",
+  "vbeltConfirmed",
+  "gearboxConfirmed",
+  "driveMotorConfirmed",
+]);
 
 // Which table(s) each wizard step writes when the user leaves it — so a Next
 // (or stepper jump, or Previous) saves ONLY the step being left, not every
@@ -212,10 +229,15 @@ const PumpSelectionPage = () => {
     gearboxOutputRpm: "",
     gearboxServiceFactor: "",
     gearboxRatePerNos: "",
+    gearboxConfirmed: false, // gearbox card picked, then explicitly confirmed
 
     // Step 4
     sealingType: "",
     sealingSubType: "", // MSA / SCG / DCG — Mechanical Seal only
+
+    // Free-text client extras (chemical composition, special notes) with no
+    // dedicated wizard field — appended to the MOC AI prompt.
+    clientRequirements: "",
 
     mocAiBearingHousing: "",
     mocAiBearingHousingRemarks: "",
@@ -264,18 +286,30 @@ const PumpSelectionPage = () => {
     driveVbeltRpm: "",
     driveCenterDistance: "",
     driveVbeltNo: "",
+    vbeltConfirmed: false, // belt card picked, then explicitly confirmed
 
-    // Step 7 — Drive System inputs (shown when Drive System = V-Belt Drive)
+    // Step 7 — Drive System inputs (shown for every drive system)
     driveMotorSpeed: "",
     driveMotorMake: "",
     driveMotorMounting: "",
+    driveStdNonStd: "", // Standard / Non-Standard — gates the fields below
     driveMotorEfficiency: "",
     driveMotorProtection: "",
     driveMotorFrequency: "",
     driveMotorVoltage: "",
+    // Non-Standard only — % uplifts, summed then applied to the motor's final
+    // price. No efficiency % — efficiency instead filters the motor type.
+    driveMotorProtectionPct: "",
+    driveMotorFrequencyPct: "",
+    driveMotorVoltagePct: "",
+    // Motor picked from the motor_master candidate cards
+    driveMotorFrameSize: "",
+    driveMotorLpPrice: "",
+    driveMotorFinalPrice: "",
+    driveMotorPriceUplifted: "",
+    driveMotorConfirmed: false, // motor card picked, then explicitly confirmed
     driveStarterType: "",
     drivePowerSupply: "",
-    driveStdNonStd: "",
   });
 
   // Whether the autosaved draft has been loaded (or confirmed absent) for the
@@ -300,7 +334,7 @@ const PumpSelectionPage = () => {
           if (!row) return;
           const tableKey = RESTORABLE_TABLES[i];
           for (const key of TABLE_FIELDS[tableKey]) {
-            merged[key] = row[key] ?? (key === "modelConfirmed" ? false : "");
+            merged[key] = row[key] ?? (BOOLEAN_FIELDS.has(key) ? false : "");
           }
         });
         setFormData((f: typeof formData) => ({ ...f, ...merged }));
@@ -465,18 +499,18 @@ const PumpSelectionPage = () => {
           📁
         </div>
         <h2 className="text-[18px] font-semibold text-fg">
-          {wasDeleted ? "This project was deleted" : "No project selected"}
+          {wasDeleted ? "This enquiry was deleted" : "No enquiry selected"}
         </h2>
         <p className="text-[13px] text-fg-3">
           {wasDeleted
-            ? "The project you had open has since been deleted. Open or create another one from the Projects page."
-            : "Pump selection is tied to a project. Open or create one from the Projects page, then click “Open” to start configuring a pump for it."}
+            ? "The enquiry you had open has since been deleted. Open or create another one from the Enquiries page."
+            : "Pump selection is tied to an enquiry. Open or create one from the Enquiries page, then click “Open” to start configuring a pump for it."}
         </p>
         <Link
           href="/projects"
           className="mt-2 rounded-lg bg-title px-6 py-2.5 text-[14px] font-semibold text-white transition-opacity hover:opacity-90"
         >
-          Go to Projects
+          Go to Enquiries
         </Link>
       </div>
     );
@@ -491,7 +525,7 @@ const PumpSelectionPage = () => {
         <div className="h-10 w-10 animate-spin rounded-full border-2 border-line border-t-title" />
         <h2 className="text-[16px] font-semibold text-fg">Loading pump selection…</h2>
         <p className="text-[13px] text-fg-3">
-          Fetching this project&apos;s saved configuration from the database.
+          Fetching this enquiry&apos;s saved configuration from the database.
         </p>
       </div>
     );

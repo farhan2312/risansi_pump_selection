@@ -99,6 +99,15 @@
   box-shadow: 0 0 0 4px var(--accent-soft);
 }
 
+/* Inline create error (blank or duplicate Enquiry no.) — sits between the
+   form and the action buttons so it can't be missed. */
+.modal-error {
+  margin: 0;
+  padding: 0 24px 4px;
+  font-size: 13px;
+  color: var(--warn, #b45309);
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;

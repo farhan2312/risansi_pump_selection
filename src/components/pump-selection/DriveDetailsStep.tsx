@@ -11,6 +11,10 @@ import {
   type GearboxRecommendation,
 } from "../../services/gearboxOptionsService";
 import { getRecommendations } from "../../services/recommendationService";
+import {
+  listMotorOptions,
+  type MotorMasterRow,
+} from "../../services/motorMasterService";
 import type { PumpRecommendation } from "../../data/Recommendations";
 import { toM3PerHr, toMwc } from "../../utils/units";
 
@@ -26,8 +30,60 @@ type Props = {
 
 type VbeltStatus = "idle" | "loading" | "ready" | "error";
 type GearboxStatus = "idle" | "loading" | "ready" | "error";
+type MotorStatus = "idle" | "loading" | "ready" | "error";
 
 const num = (n: number | null): string => (n === null ? "—" : String(n));
+
+/** Parses a percentage input; blank/invalid counts as 0 so a partially-filled
+ * Non-Standard form still prices sensibly. */
+const pct = (v: unknown): number => {
+  const n = parseFloat(String(v ?? ""));
+  return Number.isNaN(n) ? 0 : n;
+};
+
+/** Two-stage pick bar shown under a group of candidate cards: clicking a card
+ * only *selects* it, then this asks for an explicit confirmation (mirroring
+ * the pump model's confirm gate in LivePumpRecommendation). Clicking the
+ * selected card again clears the pick, so this disappears. */
+const ConfirmBar = ({
+  label,
+  confirmed,
+  onConfirm,
+}: {
+  label: string;
+  confirmed: boolean;
+  onConfirm: () => void;
+}) =>
+  confirmed ? (
+    <div className="mt-2 flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2">
+      <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+        ✓ Confirmed
+      </span>
+      <span className="text-[13px] text-emerald-900">
+        <b>{label}</b> is locked in. Click the card again to change it.
+      </span>
+    </div>
+  ) : (
+    <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
+      <span className="text-[13px] text-amber-900">
+        Confirm <b>{label}</b> as your selection?
+      </span>
+      <button
+        type="button"
+        onClick={onConfirm}
+        className="rounded-lg bg-amber-600 px-3 py-1.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
+      >
+        Confirm
+      </button>
+    </div>
+  );
+
+/** Indian-format money for the motor cards (prices are plain rupee amounts). */
+const money = (v: string | number | null): string => {
+  const n = typeof v === "number" ? v : parseFloat(String(v ?? ""));
+  if (Number.isNaN(n)) return "—";
+  return n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+};
 
 // Drive System input option lists (from the drive-selection spec sheet).
 const MOTOR_MAKES = ["BBL", "Havells", "CGL", "ABB", "Siemens", "Other"];
@@ -36,6 +92,10 @@ const MOTOR_MOUNTINGS = [
  // { value: "Flange B5", label: "Flange Mounted (B5)" },
   //{ value: "Foot cum Flange B35", label: "Foot cum Flange (B35)" },
 ];
+// Motor efficiency (IE) classes — matched against motor_master.motor_type to
+// filter the motor candidates. The master currently only holds IE2 rows; IE3
+// is listed ahead of time so it works as soon as those rows are added.
+const MOTOR_EFFICIENCY_CLASSES = ["IE2", "IE3"];
 const STARTER_TYPES = ["Star-Delta", "DOL"];
 const POWER_SUPPLIES = ["Single Phase", "Three Phase"];
 const STD_OPTIONS = ["Standard", "Non-Standard"];
@@ -174,7 +234,22 @@ const DriveDetailsStep = ({
 
   // Manual belt pick — clicking a candidate card records its details into
   // formData for the summary step. No auto-selection on fetch (per spec).
-  const selectVBelt = (grooves: string | null, opt: VBeltOption) => {
+  // Clicking the already-selected card clears it; a fresh pick always drops
+  // back to unconfirmed so the user has to confirm it explicitly.
+  const selectVBelt = (grooves: string | null, opt: VBeltOption, alreadySelected: boolean) => {
+    if (alreadySelected) {
+      setFormData({
+        ...formData,
+        driveVbeltGroove: "",
+        drivePumpPulley: "",
+        driveMotorPulley: "",
+        driveVbeltRpm: "",
+        driveCenterDistance: "",
+        driveVbeltNo: "",
+        vbeltConfirmed: false,
+      });
+      return;
+    }
     setFormData({
       ...formData,
       driveVbeltGroove: grooves ?? "",
@@ -183,17 +258,130 @@ const DriveDetailsStep = ({
       driveVbeltRpm: opt.actualRpm != null ? String(opt.actualRpm) : "",
       driveCenterDistance: opt.centerDistance != null ? String(opt.centerDistance) : "",
       driveVbeltNo: opt.vBelt != null ? String(opt.vBelt) : "",
+      vbeltConfirmed: false,
     });
   };
 
   // "Drive Motor Speed" is the motor's nameplate RPM — default it from the
-  // selected Motor RPM (960/1440), but leave it editable afterwards.
+  // selected Motor RPM (960/1440), but leave it editable afterwards. Applies
+  // to every drive system, not just V-Belt.
   useEffect(() => {
-    if (isVBelt && motorRpm && !formData.driveMotorSpeed) {
+    if (formData.driveSystem && motorRpm && !formData.driveMotorSpeed) {
       setFormData((f: typeof formData) => ({ ...f, driveMotorSpeed: motorRpm }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isVBelt, motorRpm]);
+  }, [formData.driveSystem, motorRpm]);
+
+  // --- Motor selection (motor_master candidates) --------------------------
+  // Every motor matching the fixed rating (KW) + RPM + mounting, optionally
+  // narrowed by make. Shown as clickable cards, same manual-pick pattern as
+  // the V-Belt/gearbox candidates — nothing is auto-selected.
+  const [motorStatus, setMotorStatus] = useState<MotorStatus>("idle");
+  const [motorOptions, setMotorOptions] = useState<MotorMasterRow[]>([]);
+
+  // A "Geared Motor" is an integrated unit — the motor is built onto the
+  // gearbox and isn't specified or sourced separately, so the whole "Drive
+  // System Inputs" block (rating-plate details AND the motor recommendation)
+  // is hidden for it. ("Gear Box + Motor" is the opposite: two separate units,
+  // so that config still specifies and picks a motor.)
+  const skipMotorSelection =
+    isGeared && formData.gearedConfigType === "Geared Motor";
+
+  useEffect(() => {
+    if (!formData.driveSystem || !formData.driveMotorKw || skipMotorSelection) {
+      setMotorStatus("idle");
+      setMotorOptions([]);
+      return;
+    }
+    let cancelled = false;
+    setMotorStatus("loading");
+    listMotorOptions({
+      kw: formData.driveMotorKw,
+      rpm: formData.driveMotorSpeed || motorRpm || undefined,
+      mounting: formData.driveMotorMounting || undefined,
+      make: formData.driveMotorMake || undefined,
+      motorType: formData.driveMotorEfficiency || undefined,
+    })
+      .then((rows) => {
+        if (cancelled) return;
+        setMotorOptions(rows);
+        setMotorStatus("ready");
+      })
+      .catch(() => {
+        if (!cancelled) setMotorStatus("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    formData.driveSystem,
+    formData.driveMotorKw,
+    formData.driveMotorSpeed,
+    motorRpm,
+    formData.driveMotorMounting,
+    formData.driveMotorMake,
+    formData.driveMotorEfficiency,
+    skipMotorSelection,
+  ]);
+
+  const isNonStandard = formData.driveStdNonStd === "Non-Standard";
+
+  // Non-Standard uplift: the percentages are summed, then applied once to the
+  // motor's final price (additive, per spec) — not compounded. Efficiency is
+  // NOT among them: it filters which motor type (IE class) is offered rather
+  // than adding cost.
+  const upliftPct = isNonStandard
+    ? pct(formData.driveMotorProtectionPct) +
+      pct(formData.driveMotorFrequencyPct) +
+      pct(formData.driveMotorVoltagePct)
+    : 0;
+
+  const upliftedPrice = (finalPrice: string | null): number | null => {
+    const base = finalPrice === null ? NaN : parseFloat(finalPrice);
+    if (Number.isNaN(base)) return null;
+    return Math.round(base * (1 + upliftPct / 100) * 100) / 100;
+  };
+
+  // Manual motor pick — records the motor and its (uplift-adjusted) price.
+  // Same select/unselect + confirm cycle as the belt/gearbox cards. Note the
+  // make is deliberately NOT cleared on unselect: it doubles as the candidate
+  // filter, so wiping it would reshuffle the list the user is choosing from.
+  const selectMotor = (m: MotorMasterRow, alreadySelected: boolean) => {
+    if (alreadySelected) {
+      setFormData({
+        ...formData,
+        driveMotorFrameSize: "",
+        driveMotorLpPrice: "",
+        driveMotorFinalPrice: "",
+        driveMotorPriceUplifted: "",
+        driveMotorConfirmed: false,
+      });
+      return;
+    }
+    const up = upliftedPrice(m.finalPrice);
+    setFormData({
+      ...formData,
+      driveMotorMake: m.brand ?? "",
+      driveMotorFrameSize: m.frameSize ?? "",
+      driveMotorLpPrice: m.lpPrice ?? "",
+      driveMotorFinalPrice: m.finalPrice ?? "",
+      driveMotorPriceUplifted: up === null ? "" : String(up),
+      driveMotorConfirmed: false,
+    });
+  };
+
+  // Keep the stored uplifted price in step with the % inputs after a motor is
+  // already picked, so editing a percentage doesn't leave a stale total.
+  useEffect(() => {
+    if (!formData.driveMotorFinalPrice) return;
+    const up = upliftedPrice(formData.driveMotorFinalPrice);
+    const next = up === null ? "" : String(up);
+    if (next !== formData.driveMotorPriceUplifted) {
+      setFormData((f: typeof formData) => ({ ...f, driveMotorPriceUplifted: next }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [upliftPct, formData.driveMotorFinalPrice]);
 
   // Gearbox recommendation (PBL/PTL/Top Gear), only once a model + duty point
   // + the Motor Rating step's KW are known. Re-screens whenever ASF Range or
@@ -235,7 +423,24 @@ const DriveDetailsStep = ({
     formData.gbConstructionType,
   ]);
 
-  const selectGearbox = (source: "PBL" | "PTL" | "Top Gear", opt: GearboxOption) => {
+  // Same select/unselect + confirm cycle as the belt cards above.
+  const selectGearbox = (
+    source: "PBL" | "PTL" | "Top Gear",
+    opt: GearboxOption,
+    alreadySelected: boolean,
+  ) => {
+    if (alreadySelected) {
+      setFormData({
+        ...formData,
+        gearboxSource: "",
+        gearboxModel: "",
+        gearboxOutputRpm: "",
+        gearboxServiceFactor: "",
+        gearboxRatePerNos: "",
+        gearboxConfirmed: false,
+      });
+      return;
+    }
     setFormData({
       ...formData,
       gearboxSource: source,
@@ -243,6 +448,7 @@ const DriveDetailsStep = ({
       gearboxOutputRpm: String(opt.outputRpm),
       gearboxServiceFactor: opt.serviceFactor != null ? String(opt.serviceFactor) : "",
       gearboxRatePerNos: opt.ratePerNos != null ? String(opt.ratePerNos) : "",
+      gearboxConfirmed: false,
     });
   };
 
@@ -536,7 +742,7 @@ const DriveDetailsStep = ({
         <button
           type="button"
           key={o.id}
-          onClick={() => selectGearbox(source, o)}
+          onClick={() => selectGearbox(source, o, isSelected)}
           className={`group rounded-xl border p-3 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
             isSelected
               ? "border-orange-400 bg-orange-100 ring-2 ring-orange-300"
@@ -549,8 +755,12 @@ const DriveDetailsStep = ({
             </strong>
 
             {isSelected && (
-              <span className="rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-semibold text-white">
-                ✓ Selected
+              <span
+                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold text-white ${
+                  formData.gearboxConfirmed ? "bg-emerald-600" : "bg-orange-500"
+                }`}
+              >
+                {formData.gearboxConfirmed ? "✓ Confirmed" : "Selected"}
               </span>
             )}
           </div>
@@ -579,6 +789,16 @@ const DriveDetailsStep = ({
   </div>
 </div>
                     ),
+                )}
+
+                {formData.gearboxModel && (
+                  <ConfirmBar
+                    label={`${formData.gearboxSource ? `${formData.gearboxSource} ` : ""}${
+                      formData.gearboxModel
+                    }`}
+                    confirmed={Boolean(formData.gearboxConfirmed)}
+                    onConfirm={() => setFormData({ ...formData, gearboxConfirmed: true })}
+                  />
                 )}
               </>
             )}
@@ -647,7 +867,7 @@ const DriveDetailsStep = ({
       <button
         type="button"
         key={o.targetRpm}
-        onClick={() => selectVBelt(vbelt.grooves, o)}
+        onClick={() => selectVBelt(vbelt.grooves, o, isSelected)}
         className={`group rounded-xl border p-3 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
           isSelected
             ? "border-orange-400 bg-orange-100 ring-2 ring-orange-300"
@@ -660,8 +880,12 @@ const DriveDetailsStep = ({
           </strong>
 
           {isSelected && (
-            <span className="rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-semibold text-white">
-              ✓ Selected
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold text-white ${
+                formData.vbeltConfirmed ? "bg-emerald-600" : "bg-orange-500"
+              }`}
+            >
+              {formData.vbeltConfirmed ? "✓ Confirmed" : "Selected"}
             </span>
           )}
         </div>
@@ -695,12 +919,22 @@ const DriveDetailsStep = ({
     );
   })}
 </div>
+
+                {formData.driveVbeltRpm && (
+                  <ConfirmBar
+                    label={`${formData.driveVbeltRpm} RPM belt${
+                      formData.driveVbeltNo ? ` (V-Belt ${formData.driveVbeltNo})` : ""
+                    }`}
+                    confirmed={Boolean(formData.vbeltConfirmed)}
+                    onConfirm={() => setFormData({ ...formData, vbeltConfirmed: true })}
+                  />
+                )}
               </>
             )}
           </div>
         )}
 
-        {isVBelt && (
+        {formData.driveSystem && !skipMotorSelection && (
           <div className="mt-4 rounded-md border border-line bg-elev p-4">
             <span className="section-label">Drive System Inputs</span>
             <div className={`${grid} mt-2`}>
@@ -766,57 +1000,145 @@ const DriveDetailsStep = ({
                 </select>
               </div>
 
+              {/* Std / Non-Std sits directly after Motor Mounting and gates
+                  every rating-plate field below it. */}
               <div className={fieldWrap}>
-                <label className={label}>Efficiency</label>
-                <input
-                  type="text"
+                <label className={label}>Std / Non-Std</label>
+                <select
                   className={control}
-                  placeholder="e.g. IE3"
-                  value={formData.driveMotorEfficiency ?? ""}
+                  value={formData.driveStdNonStd ?? ""}
                   onChange={(e) =>
-                    setFormData({ ...formData, driveMotorEfficiency: e.target.value })
+                    setFormData({ ...formData, driveStdNonStd: e.target.value })
                   }
-                />
+                >
+                  <option value="">Select</option>
+                  {STD_OPTIONS.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              <div className={fieldWrap}>
-                <label className={label}>Protection</label>
-                <input
-                  type="text"
-                  className={control}
-                  placeholder="e.g. IP55"
-                  value={formData.driveMotorProtection ?? ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, driveMotorProtection: e.target.value })
-                  }
-                />
-              </div>
+              {/* Standard → the plain rating-plate fields.
+                  Non-Standard → protection/frequency/voltage each paired with
+                  a % price uplift. Efficiency never gets a % — it selects the
+                  motor type (IE class) the candidate list is filtered to. */}
+              {formData.driveStdNonStd && (
+                <>
+                  <div className={fieldWrap}>
+                    <label className={label}>Efficiency</label>
+                    <select
+                      className={control}
+                      value={formData.driveMotorEfficiency ?? ""}
+                      onChange={(e) =>
+                        setFormData({ ...formData, driveMotorEfficiency: e.target.value })
+                      }
+                    >
+                      <option value="">All efficiency classes</option>
+                      {MOTOR_EFFICIENCY_CLASSES.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                    <span className={hint}>Filters the motor list by type.</span>
+                  </div>
 
-              <div className={fieldWrap}>
-                <label className={label}>Frequency</label>
-                <input
-                  type="text"
-                  className={control}
-                  placeholder="e.g. 50 Hz"
-                  value={formData.driveMotorFrequency ?? ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, driveMotorFrequency: e.target.value })
-                  }
-                />
-              </div>
+                  <div className={fieldWrap}>
+                    <label className={label}>Protection</label>
+                    <input
+                      type="text"
+                      className={control}
+                      placeholder="e.g. IP55"
+                      value={formData.driveMotorProtection ?? ""}
+                      onChange={(e) =>
+                        setFormData({ ...formData, driveMotorProtection: e.target.value })
+                      }
+                    />
+                  </div>
+                  {isNonStandard && (
+                    <div className={fieldWrap}>
+                      <label className={label}>Protection %</label>
+                      <input
+                        type="number"
+                        step="any"
+                        className={control}
+                        placeholder="Price increase %"
+                        value={formData.driveMotorProtectionPct ?? ""}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            driveMotorProtectionPct: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                  )}
 
-              <div className={fieldWrap}>
-                <label className={label}>Voltage</label>
-                <input
-                  type="text"
-                  className={control}
-                  placeholder="e.g. 415 V"
-                  value={formData.driveMotorVoltage ?? ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, driveMotorVoltage: e.target.value })
-                  }
-                />
-              </div>
+                  <div className={fieldWrap}>
+                    <label className={label}>Frequency</label>
+                    <input
+                      type="text"
+                      className={control}
+                      placeholder="e.g. 50 Hz"
+                      value={formData.driveMotorFrequency ?? ""}
+                      onChange={(e) =>
+                        setFormData({ ...formData, driveMotorFrequency: e.target.value })
+                      }
+                    />
+                  </div>
+                  {isNonStandard && (
+                    <div className={fieldWrap}>
+                      <label className={label}>Frequency %</label>
+                      <input
+                        type="number"
+                        step="any"
+                        className={control}
+                        placeholder="Price increase %"
+                        value={formData.driveMotorFrequencyPct ?? ""}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            driveMotorFrequencyPct: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                  )}
+
+                  <div className={fieldWrap}>
+                    <label className={label}>Voltage</label>
+                    <input
+                      type="text"
+                      className={control}
+                      placeholder="e.g. 415 V"
+                      value={formData.driveMotorVoltage ?? ""}
+                      onChange={(e) =>
+                        setFormData({ ...formData, driveMotorVoltage: e.target.value })
+                      }
+                    />
+                  </div>
+                  {isNonStandard && (
+                    <div className={fieldWrap}>
+                      <label className={label}>Voltage %</label>
+                      <input
+                        type="number"
+                        step="any"
+                        className={control}
+                        placeholder="Price increase %"
+                        value={formData.driveMotorVoltagePct ?? ""}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            driveMotorVoltagePct: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                  )}
+                </>
+              )}
 
               <div className={fieldWrap}>
                 <label className={label}>Starter Type</label>
@@ -854,23 +1176,154 @@ const DriveDetailsStep = ({
                 </select>
               </div>
 
-            {/*  <div className={fieldWrap}>
-                <label className={label}>Std / Non-Std</label>
-                <select
-                  className={control}
-                  value={formData.driveStdNonStd ?? ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, driveStdNonStd: e.target.value })
-                  }
-                >
-                  <option value="">Select</option>
-                  {STD_OPTIONS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>*/}
+            </div>
+
+            {/* --- Motor selection (candidates from motor_master) --- */}
+            <div className="mt-4 border-t border-line pt-3">
+              <span className="section-label">Motor Selection</span>
+
+              {!formData.driveMotorKw && (
+                <p className="mt-2 text-[13px] text-fg-3">
+                  Set the Motor Rating (kW) on the previous step to see matching
+                  motors.
+                </p>
+              )}
+
+              {formData.driveMotorKw && (
+                <>
+                  <p className="mt-2 text-[12px] text-fg-3">
+                    Motors rated{" "}
+                    <b className="mono text-fg-2">{formData.driveMotorKw} kW</b>
+                    {(formData.driveMotorSpeed || motorRpm) && (
+                      <>
+                        {" "}at{" "}
+                        <b className="mono text-fg-2">
+                          {formData.driveMotorSpeed || motorRpm} RPM
+                        </b>
+                      </>
+                    )}
+                    {formData.driveMotorMounting && (
+                      <>
+                        , <b className="mono text-fg-2">{formData.driveMotorMounting}</b>
+                      </>
+                    )}
+                    . Pick a Motor Make above to narrow the list.
+                    {isNonStandard && upliftPct !== 0 && (
+                      <>
+                        {" "}Non-Standard uplift of{" "}
+                        <b className="mono text-fg-2">{upliftPct}%</b> is applied to
+                        each price below.
+                      </>
+                    )}
+                  </p>
+
+                  {motorStatus === "loading" && (
+                    <p className="mt-2 text-[13px] text-fg-3">Screening motors…</p>
+                  )}
+                  {motorStatus === "error" && (
+                    <p className="mt-2 text-[13px] text-warn">
+                      Couldn&apos;t load motors — check your connection and try again.
+                    </p>
+                  )}
+                  {motorStatus === "ready" && motorOptions.length === 0 && (
+                    <p className="mt-2 text-[13px] text-warn">
+                      No motor in the master matches this rating
+                      {formData.driveMotorMake ? ` for ${formData.driveMotorMake}` : ""}.
+                      Try a different make or mounting.
+                    </p>
+                  )}
+
+                  {motorStatus === "ready" && motorOptions.length > 0 && (
+                    <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                      {motorOptions.map((m) => {
+                        const isSelected =
+                          formData.driveMotorFrameSize === (m.frameSize ?? "") &&
+                          formData.driveMotorMake === (m.brand ?? "");
+                        const up = upliftedPrice(m.finalPrice);
+                        return (
+                          <button
+                            type="button"
+                            key={m.id}
+                            onClick={() => selectMotor(m, isSelected)}
+                            className={`group rounded-xl border p-3 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
+                              isSelected
+                                ? "border-orange-400 bg-orange-100 ring-2 ring-orange-300"
+                                : "border-orange-200 bg-orange-50 hover:border-orange-300 hover:bg-orange-100"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <strong className="text-[14px] font-bold text-orange-900">
+                                {m.brand ?? "—"}
+                              </strong>
+                              {isSelected && (
+                                <span
+                                  className={`rounded-full px-2 py-0.5 text-[10px] font-semibold text-white ${
+                                    formData.driveMotorConfirmed
+                                      ? "bg-emerald-600"
+                                      : "bg-orange-500"
+                                  }`}
+                                >
+                                  {formData.driveMotorConfirmed ? "✓ Confirmed" : "Selected"}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="mt-3 rounded-lg bg-white/70 p-2">
+                              <div className="flex justify-between text-[12px]">
+                                <span className="text-slate-500">Frame</span>
+                                <b className="mono text-slate-800">
+                                  {m.frameSize ?? "—"}
+                                </b>
+                              </div>
+                              <div className="mt-1 flex justify-between text-[12px]">
+                                <span className="text-slate-500">kW / HP</span>
+                                <b className="mono text-slate-800">
+                                  {m.motorKw ?? "—"} / {m.motorHp ?? "—"}
+                                </b>
+                              </div>
+
+                              <div className="mt-2 border-t border-orange-200 pt-2">
+                                <div className="flex justify-between text-[12px]">
+                                  <span className="text-slate-500">LP Price</span>
+                                  <b className="mono text-slate-800">
+                                    {money(m.lpPrice)}
+                                  </b>
+                                </div>
+                                <div className="mt-1 flex justify-between text-[12px]">
+                                  <span className="text-slate-500">Final Price</span>
+                                  <b className="mono text-slate-800">
+                                    {money(m.finalPrice)}
+                                  </b>
+                                </div>
+                                {isNonStandard && upliftPct !== 0 && (
+                                  <div className="mt-1 flex justify-between text-[12px]">
+                                    <span className="text-slate-500">
+                                      +{upliftPct}% Price
+                                    </span>
+                                    <b className="mono text-orange-900">{money(up)}</b>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {formData.driveMotorFrameSize && (
+                    <ConfirmBar
+                      label={`${formData.driveMotorMake ? `${formData.driveMotorMake} ` : ""}${
+                        formData.driveMotorFrameSize
+                      }`}
+                      confirmed={Boolean(formData.driveMotorConfirmed)}
+                      onConfirm={() =>
+                        setFormData({ ...formData, driveMotorConfirmed: true })
+                      }
+                    />
+                  )}
+                </>
+              )}
             </div>
           </div>
         )}
