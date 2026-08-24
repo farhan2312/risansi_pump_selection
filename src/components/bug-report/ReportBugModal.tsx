@@ -14,6 +14,44 @@ type Props = {
 
 const SEVERITIES: BugReportSeverity[] = ["Low", "Medium", "High", "Critical"];
 
+// All the copy that flips between "report a bug" and "request a feature" —
+// kept in one place so the two flows read as genuinely different forms
+// rather than a bug form with a mislabeled radio button.
+const COPY: Record<
+  BugReportType,
+  {
+    eyebrow: string;
+    title: string;
+    subtitle: string;
+    titlePlaceholder: string;
+    descriptionLabel: string;
+    descriptionPlaceholder: string;
+    submitLabel: string;
+    submittingLabel: string;
+  }
+> = {
+  bug: {
+    eyebrow: "🐞 REPORT A BUG",
+    title: "Report a Bug",
+    subtitle: "Tell us what went wrong — it goes straight to the admin's Bug Tracker.",
+    titlePlaceholder: "Short summary of the issue",
+    descriptionLabel: "What happened?",
+    descriptionPlaceholder: "Steps to reproduce, what you expected, what actually happened…",
+    submitLabel: "Submit Bug",
+    submittingLabel: "Submitting…",
+  },
+  feature: {
+    eyebrow: "💡 REPORT A FEATURE",
+    title: "Report a Feature",
+    subtitle: "Tell us what you'd like to see — it goes straight to the admin's Bug Tracker.",
+    titlePlaceholder: "Short summary of the request",
+    descriptionLabel: "What would you like?",
+    descriptionPlaceholder: "What you're trying to do, and how this feature would help…",
+    submitLabel: "Submit Feature",
+    submittingLabel: "Submitting…",
+  },
+};
+
 // Reads a File/Blob (from an <input> pick or a clipboard paste) into a data:
 // URL — the shape the API expects for screenshotDataUrl.
 const readAsDataUrl = (file: Blob): Promise<string> =>
@@ -72,6 +110,8 @@ const ReportBugModal = ({ isOpen, onClose, page, onSubmitted }: Props) => {
 
   if (!isOpen) return null;
 
+  const copy = COPY[type];
+
   const handleFilePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -118,11 +158,9 @@ const ReportBugModal = ({ isOpen, onClose, page, onSubmitted }: Props) => {
           ✕
         </button>
 
-        <div className="bug-modal-eyebrow">🐞 REPORT A BUG</div>
-        <h2 className="bug-modal-title">Report a Bug</h2>
-        <p className="bug-modal-subtitle">
-          Tell us what went wrong — it goes straight to the admin&apos;s Bug Tracker.
-        </p>
+        <div className="bug-modal-eyebrow">{copy.eyebrow}</div>
+        <h2 className="bug-modal-title">{copy.title}</h2>
+        <p className="bug-modal-subtitle">{copy.subtitle}</p>
 
         <div className="bug-modal-form">
           <div className="bug-field">
@@ -152,19 +190,19 @@ const ReportBugModal = ({ isOpen, onClose, page, onSubmitted }: Props) => {
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Short summary of the issue"
+              placeholder={copy.titlePlaceholder}
             />
           </div>
 
           <div className="bug-field">
             <label>
-              What happened? <span className="req">*</span>
+              {copy.descriptionLabel} <span className="req">*</span>
             </label>
             <textarea
               rows={4}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Steps to reproduce, what you expected, what actually happened…"
+              placeholder={copy.descriptionPlaceholder}
             />
           </div>
 
@@ -226,7 +264,7 @@ const ReportBugModal = ({ isOpen, onClose, page, onSubmitted }: Props) => {
             Cancel
           </button>
           <button className="submit-bug-btn" onClick={handleSubmit} disabled={submitting}>
-            {submitting ? "Submitting…" : "Submit Bug"}
+            {submitting ? copy.submittingLabel : copy.submitLabel}
           </button>
         </div>
       </div>

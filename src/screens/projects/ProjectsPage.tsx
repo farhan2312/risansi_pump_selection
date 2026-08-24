@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import "./ProjectsPage.css";
 import CreateProjectModal from "../../components/projects/CreateProjectModal";
@@ -34,6 +34,13 @@ const ProjectsPage = () => {
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Filters — client name matches project.name (the "Client Name" column;
+  // that's what the Create/Edit forms actually call this field), enquiry
+  // code matches project.project_code. Independent, case-insensitive
+  // substring matches, combined with AND.
+  const [clientNameFilter, setClientNameFilter] = useState("");
+  const [enquiryCodeFilter, setEnquiryCodeFilter] = useState("");
 
   const loadProjects = () => {
     setIsLoading(true);
@@ -108,6 +115,19 @@ const ProjectsPage = () => {
     }
   };
 
+  const filteredProjects = useMemo(() => {
+    const clientQ = clientNameFilter.trim().toLowerCase();
+    const codeQ = enquiryCodeFilter.trim().toLowerCase();
+    if (!clientQ && !codeQ) return projects;
+    return projects.filter((p) => {
+      const matchesClient = !clientQ || (p.name ?? "").toLowerCase().includes(clientQ);
+      const matchesCode = !codeQ || (p.project_code ?? "").toLowerCase().includes(codeQ);
+      return matchesClient && matchesCode;
+    });
+  }, [projects, clientNameFilter, enquiryCodeFilter]);
+
+  const hasFilter = clientNameFilter !== "" || enquiryCodeFilter !== "";
+
   const handleDelete = async () => {
     if (!confirmingDelete) return;
     const target = confirmingDelete;
@@ -143,6 +163,43 @@ const ProjectsPage = () => {
         </div>
       )}
 
+      {!isLoading && !error && projects.length > 0 && (
+        <div className="projects-filter-bar">
+          <div className="projects-filter-field">
+            <label htmlFor="filter-client-name">Client Name</label>
+            <input
+              id="filter-client-name"
+              type="text"
+              placeholder="Search by client name…"
+              value={clientNameFilter}
+              onChange={(e) => setClientNameFilter(e.target.value)}
+            />
+          </div>
+          <div className="projects-filter-field">
+            <label htmlFor="filter-enquiry-code">Enquiry no.</label>
+            <input
+              id="filter-enquiry-code"
+              type="text"
+              placeholder="Search by enquiry no.…"
+              value={enquiryCodeFilter}
+              onChange={(e) => setEnquiryCodeFilter(e.target.value)}
+            />
+          </div>
+          {hasFilter && (
+            <button
+              type="button"
+              className="projects-filter-clear"
+              onClick={() => {
+                setClientNameFilter("");
+                setEnquiryCodeFilter("");
+              }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
       {isLoading && (
         <div className="projects-panel">
           <div className="projects-loading">
@@ -164,7 +221,15 @@ const ProjectsPage = () => {
         />
       )}
 
-      {!isLoading && !error && projects.length > 0 && (
+      {!isLoading && !error && projects.length > 0 && filteredProjects.length === 0 && (
+        <EmptyState
+          icon="folder"
+          title="No enquiries match this filter"
+          description="Try a different client name or enquiry no., or clear the filter above."
+        />
+      )}
+
+      {!isLoading && !error && filteredProjects.length > 0 && (
         <div className="projects-panel">
           <table className="projects-table">
             <thead>
@@ -178,7 +243,7 @@ const ProjectsPage = () => {
             </thead>
 
             <tbody>
-              {projects.map((project) => (
+              {filteredProjects.map((project) => (
                 <tr key={project.id}>
                   <td className="project-code">{project.project_code}</td>
                   <td className="project-name">{project.name || "—"}</td>

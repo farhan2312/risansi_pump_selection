@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import "./TopBar.css";
+import Breadcrumb from "./Breadcrumb";
 import NotificationBell from "./NotificationBell";
 import ReportBugModal from "../bug-report/ReportBugModal";
 
@@ -16,7 +17,7 @@ const TopBar = () => {
   return (
     <>
       <div className="topbar">
-        <div className="topbar-spacer" />
+        <Breadcrumb />
         <div className="topbar-actions">
           <button type="button" className="topbar-report-btn" onClick={() => setReportOpen(true)}>
             🐞 Report a Bug

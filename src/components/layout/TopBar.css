@@ -9,10 +9,6 @@
   border-bottom: 1px solid var(--line);
 }
 
-.topbar-spacer {
-  flex: 1;
-}
-
 .topbar-actions {
   display: flex;
   align-items: center;

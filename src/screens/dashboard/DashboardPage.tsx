@@ -25,52 +25,124 @@ const statusPillClass = (status: string | null | undefined): string => {
   }
 };
 
+// True when `createdAt` falls within [from, to] — either bound may be blank
+// (meaning "no limit that side"). `to` is treated as inclusive through the
+// END of that day, since a plain date input has no time component.
+const inDateRange = (createdAt: string | null, from: string, to: string): boolean => {
+  if (!from && !to) return true;
+  const t = createdAt ? new Date(createdAt).getTime() : NaN;
+  if (Number.isNaN(t)) return false;
+  if (from && t < new Date(`${from}T00:00:00`).getTime()) return false;
+  if (to && t > new Date(`${to}T23:59:59.999`).getTime()) return false;
+  return true;
+};
+
 const DashboardPage = () => {
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    listProjects()
-      .then((rows) => {
-        if (!cancelled) setProjects(rows);
-      })
-      .catch(() => {
-        if (!cancelled) setError("Couldn't load dashboard data.");
-      })
+  // Date-range filter — applies to both the stat cards and the Recent
+  // Enquiries table below, scoped to each enquiry's created_at.
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+
+  const load = (isManualRefresh: boolean) => {
+    if (isManualRefresh) setIsRefreshing(true);
+    else setIsLoading(true);
+    setError(null);
+    return listProjects()
+      .then(setProjects)
+      .catch(() => setError("Couldn't load dashboard data."))
       .finally(() => {
-        if (!cancelled) setIsLoading(false);
+        setIsLoading(false);
+        setIsRefreshing(false);
       });
-    return () => {
-      cancelled = true;
-    };
+  };
+
+  useEffect(() => {
+    load(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const filtered = useMemo(
+    () => projects.filter((p) => inDateRange(p.created_at, fromDate, toDate)),
+    [projects, fromDate, toDate]
+  );
 
   const stats = useMemo(() => {
     const byStatus = (status: string) =>
-      projects.filter((p) => norm(p.status) === status).length;
+      filtered.filter((p) => norm(p.status) === status).length;
     return {
-      total: projects.length,
+      total: filtered.length,
       inProgress: byStatus("in progress"),
       completed: byStatus("completed"),
       pending: byStatus("pending"),
     };
-  }, [projects]);
+  }, [filtered]);
 
   // Most recent first — listProjects already orders by created_at desc, but
   // sort defensively so the "Recent" table is correct regardless.
   const recent = useMemo(
     () =>
-      [...projects]
+      [...filtered]
         .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""))
         .slice(0, 5),
-    [projects]
+    [filtered]
   );
+
+  const hasDateFilter = fromDate !== "" || toDate !== "";
 
   return (
     <div className="dashboard-page">
       <WelcomeCard />
+
+      <div className="dashboard-filter-bar">
+        <div className="dashboard-filter-field">
+          <label htmlFor="dashboard-from-date">From</label>
+          <input
+            id="dashboard-from-date"
+            type="date"
+            value={fromDate}
+            max={toDate || undefined}
+            onChange={(e) => setFromDate(e.target.value)}
+          />
+        </div>
+        <div className="dashboard-filter-field">
+          <label htmlFor="dashboard-to-date">To</label>
+          <input
+            id="dashboard-to-date"
+            type="date"
+            value={toDate}
+            min={fromDate || undefined}
+            onChange={(e) => setToDate(e.target.value)}
+          />
+        </div>
+        {hasDateFilter && (
+          <button
+            type="button"
+            className="dashboard-filter-clear"
+            onClick={() => {
+              setFromDate("");
+              setToDate("");
+            }}
+          >
+            Clear
+          </button>
+        )}
+
+        <button
+          type="button"
+          className="dashboard-refresh-btn"
+          onClick={() => load(true)}
+          disabled={isLoading || isRefreshing}
+          aria-label="Refresh dashboard data"
+        >
+          <RefreshIcon spinning={isRefreshing} />
+          {isRefreshing ? "Refreshing…" : "Refresh"}
+        </button>
+      </div>
 
       <div className="stats-grid">
         <StatsCard title="Total Enquiries" value={isLoading ? 0 : stats.total} />
@@ -97,8 +169,12 @@ const DashboardPage = () => {
             <EmptyState
               compact
               icon="folder"
-              title="No enquiries yet"
-              description="Create your first enquiry from the Enquiries page to see it appear here."
+              title={hasDateFilter ? "No enquiries in this date range" : "No enquiries yet"}
+              description={
+                hasDateFilter
+                  ? "Try widening or clearing the From / To date filter above."
+                  : "Create your first enquiry from the Enquiries page to see it appear here."
+              }
             />
           </div>
         )}
@@ -132,5 +208,21 @@ const DashboardPage = () => {
     </div>
   );
 };
+
+const RefreshIcon = ({ spinning }: { spinning: boolean }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    className={spinning ? "dashboard-refresh-icon spinning" : "dashboard-refresh-icon"}
+  >
+    <path
+      d="M20 11a8 8 0 1 0-2.34 5.66M20 5v6h-6"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
 
 export default DashboardPage;
