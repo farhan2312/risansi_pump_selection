@@ -278,10 +278,13 @@ const RecommendationStep = ({
     ["Motor Type", formData.driveMotorEfficiency],
     ["LP Price", formData.driveMotorLpPrice],
     ["Final Price", formData.driveMotorFinalPrice],
-    [
-      isNonStd ? "Price (with uplift)" : "Price",
-      formData.driveMotorPriceUplifted,
-    ],
+    // Standard motors have no uplift, so the uplifted figure would just repeat
+    // Final Price — only Non-Standard gets the extra (increased) price row.
+    ...(isNonStd
+      ? ([
+          ["Final Non-Standard Price", formData.driveMotorPriceUplifted],
+        ] as FieldItem[])
+      : []),
   ];
 
   const gearedSelectedItems: FieldItem[] = [

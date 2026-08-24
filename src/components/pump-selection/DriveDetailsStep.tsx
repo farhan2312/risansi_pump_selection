@@ -194,10 +194,14 @@ const DriveDetailsStep = ({
       return out;
     };
     saveWizardInput("motor-drive", projectId, pick(MOTOR_DRIVE_FIELDS)).catch(() => {});
+    // Only the table matching the chosen drive system — the API clears the
+    // other two on write, so an enquiry keeps exactly one drive row.
     if (isVBelt) {
       saveWizardInput("drive-vbelt", projectId, pick(DRIVE_VBELT_FIELDS)).catch(() => {});
     } else if (isGeared) {
       saveWizardInput("drive-geared", projectId, pick(DRIVE_GEARED_FIELDS)).catch(() => {});
+    } else if (formData.driveSystem === "Direct Drive") {
+      saveWizardInput("drive-direct", projectId, {}).catch(() => {});
     }
   };
 

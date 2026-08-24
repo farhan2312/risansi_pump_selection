@@ -378,8 +378,11 @@ const PumpSelectionPage = () => {
   const stepTablesToSave = (fromStep: number): WizardInputTable[] => {
     const tables = [...(STEP_TABLES[fromStep] ?? [])];
     if (fromStep === 7) {
+      // Exactly one drive table per enquiry — the API deletes the other two
+      // on write, so switching drive type can't leave a stale row behind.
       if (formData.driveSystem === "V-Belt Drive") tables.push("drive-vbelt");
-      if (formData.driveSystem === "Geared Motor Drive/Gear Box + Motor") tables.push("drive-geared");
+      else if (formData.driveSystem === "Geared Motor Drive/Gear Box + Motor") tables.push("drive-geared");
+      else if (formData.driveSystem === "Direct Drive") tables.push("drive-direct");
     }
     return tables;
   };

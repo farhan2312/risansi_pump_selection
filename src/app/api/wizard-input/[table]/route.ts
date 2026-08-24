@@ -33,6 +33,10 @@ const TABLES = {
 
 type TableKey = keyof typeof TABLES;
 
+// The three mutually-exclusive drive-system tables — an enquiry has one drive
+// system, so at most one of these ever holds a row for a given project.
+const DRIVE_TABLE_KEYS: TableKey[] = ["drive-direct", "drive-vbelt", "drive-geared"];
+
 // Fields the wizard actually sends per table — anything else in the request
 // body is ignored rather than trusted straight into the insert/update.
 const FIELDS: Record<TableKey, readonly string[]> = {
@@ -200,6 +204,24 @@ export async function PUT(
     .returning();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [row] = result as any[];
+
+  // An enquiry has exactly ONE drive system, so it must end up with exactly
+  // one drive-* row. Writing one drive table therefore clears the other two —
+  // otherwise switching drive type (e.g. V-Belt -> Geared) leaves the old
+  // row orphaned against the enquiry, and the restore path would rehydrate
+  // stale belt/gearbox picks that no longer apply. Enforced here rather than
+  // client-side so it holds no matter which caller does the write.
+  if (DRIVE_TABLE_KEYS.includes(tableKey)) {
+    for (const otherKey of DRIVE_TABLE_KEYS) {
+      if (otherKey === tableKey) continue;
+      const otherTable = TABLES[otherKey];
+      await db
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .delete(otherTable as any)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .where(eq((otherTable as any).projectId, projectId));
+    }
+  }
 
   // Project lifecycle: the first time General Information is saved with any
   // real content, flip a still-"Pending" project to "In Progress". Never
