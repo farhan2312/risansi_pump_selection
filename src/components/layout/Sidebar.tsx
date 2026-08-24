@@ -109,6 +109,7 @@ const Sidebar = () => {
             <p className="sidebar-group-label">System Admin</p>
 
             {navLink("/admin/users", "Users & Access", icons.users)}
+            {navLink("/admin/bug-tracker", "Bug Tracker", icons.database)}
           </>
         )}
       </nav>

@@ -506,6 +506,33 @@ export const topGearGearbox = pgTable("top_gear_gearbox", gearboxColumns());
 
 // Standard motor rating (KW ↔ HP) reference, from "MOTOR RATING.xlsx" — 25
 // rows, one KW value per row with its standard HP equivalent. kw is unique.
+// "Report a Bug" reports filed from the top bar, for THIS app (kept in its
+// OWN table, separate from the shared testing-portal `bug_reports` table so
+// the two apps' bug data never mix — mirrors that table's shape plus the two
+// bell-notification columns this app adds: reporter_unread + updated_at).
+// Filed by any logged-in user; triaged by a system_admin on the Bug Tracker
+// page; the reporter's bell lights up when their report's status changes.
+export const bugReportSelection = pgTable("bug_report_selection", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  type: varchar("type", { length: 20 }).default("bug"), // bug | feature
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  severity: varchar("severity", { length: 20 }).default("Medium"), // Low|Medium|High|Critical
+  page: varchar("page", { length: 255 }), // URL path where it was filed
+  status: varchar("status", { length: 20 }).default("Open"), // Open|In progress|Resolved|Closed
+  screenshotFileName: varchar("screenshot_file_name", { length: 255 }),
+  screenshotMimeType: varchar("screenshot_mime_type", { length: 100 }),
+  screenshotFileSize: integer("screenshot_file_size"),
+  screenshotData: bytea("screenshot_data"),
+  reportedBy: uuid("reported_by"), // reporter (users.id); null on legacy
+  reportedByName: varchar("reported_by_name", { length: 100 }),
+  // Set true whenever the status changes; cleared once the reporter views
+  // their notifications. Drives the top-bar bell badge for the reporter.
+  reporterUnread: boolean("reporter_unread").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().$defaultFn(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().$defaultFn(() => new Date()),
+});
+
 export const motorRating = pgTable("motor_rating", {
   id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   kw: numeric("kw", { precision: 8, scale: 3 }).notNull().unique(),
