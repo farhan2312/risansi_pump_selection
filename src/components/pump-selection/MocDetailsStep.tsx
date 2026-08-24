@@ -259,16 +259,12 @@ const MocDetailsStep = ({
   );
   const [aiSuggestion, setAiSuggestion] =
     useState<MocComponentSuggestions | null>(() => reconstructAiSuggestion(formData));
-  // Which LLM generates the recommendation — user-selectable per request,
-  // defaults to Gemini (the provider that's been configured the longest).
-  const [aiProvider, setAiProvider] = useState<MocAiProvider>("gemini");
-  // Provider that actually produced the currently-shown aiSuggestion — kept
-  // separate from aiProvider so flipping the dropdown before regenerating
-  // doesn't retroactively relabel an already-fetched result. Seeded from the
-  // persisted provider so a restored panel is labelled correctly.
-  const [resultProvider, setResultProvider] = useState<MocAiProvider>(
-    () => (formData.mocAiProvider as MocAiProvider) || "gemini",
-  );
+  // Anthropic (Claude Haiku) is the only provider now, so there's no picker —
+  // just a fixed value passed with each request.
+  const aiProvider: MocAiProvider = "anthropic";
+  // Provider that produced the currently-shown aiSuggestion. Only Anthropic
+  // exists now, so any legacy persisted "gemini" is normalized to it.
+  const [resultProvider, setResultProvider] = useState<MocAiProvider>("anthropic");
   // Tracks the previous media so a genuine change (not the initial "" -> X
   // transition when a restored draft's media is first learned) can clear
   // the *persisted* per-component AI record too — otherwise a stale
@@ -332,8 +328,8 @@ const MocDetailsStep = ({
       .then((res) => {
         if ("unavailable" in res) {
           // "not_configured" = no key → "unavailable" (config message);
-          // "failed" = key present but the call errored/was overloaded (e.g.
-          // Gemini 503) → "error" (transient, try-again message).
+          // "failed" = key present but the call errored/was overloaded →
+          // "error" (transient, try-again message).
           setAiStatus(res.unavailable === "not_configured" ? "unavailable" : "error");
         } else {
           const suggestion = res;
@@ -489,20 +485,6 @@ const MocDetailsStep = ({
                 </span>
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <select
-                  value={aiProvider}
-                  disabled={aiStatus === "loading"}
-                  onChange={(e) => setAiProvider(e.target.value as MocAiProvider)}
-                  aria-label="AI model"
-                  className="rounded-lg border border-line-strong bg-paper px-3 py-2.5 text-sm font-medium text-fg outline-none transition-colors focus:border-accent disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {MOC_AI_PROVIDERS.map((p) => (
-                    <option key={p.value} value={p.value}>
-                      {p.label}
-                    </option>
-                  ))}
-                </select>
-
                 <button
                   type="button"
                   disabled={aiStatus === "loading"}

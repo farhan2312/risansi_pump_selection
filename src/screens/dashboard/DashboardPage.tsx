@@ -96,52 +96,57 @@ const DashboardPage = () => {
 
   return (
     <div className="dashboard-page">
-      <WelcomeCard />
+      {/* Header row: greeting on the left, date-range filter + Refresh pinned
+          to the top-right (inline, no surrounding panel). */}
+      <div className="dashboard-header-row">
+        <WelcomeCard />
 
-      <div className="dashboard-filter-bar">
-        <div className="dashboard-filter-field">
-          <label htmlFor="dashboard-from-date">From</label>
-          <input
-            id="dashboard-from-date"
-            type="date"
-            value={fromDate}
-            max={toDate || undefined}
-            onChange={(e) => setFromDate(e.target.value)}
-          />
-        </div>
-        <div className="dashboard-filter-field">
-          <label htmlFor="dashboard-to-date">To</label>
-          <input
-            id="dashboard-to-date"
-            type="date"
-            value={toDate}
-            min={fromDate || undefined}
-            onChange={(e) => setToDate(e.target.value)}
-          />
-        </div>
-        {hasDateFilter && (
+        <div className="dashboard-filter">
+          <div className="dashboard-filter-field">
+            <label htmlFor="dashboard-from-date">From</label>
+            <input
+              id="dashboard-from-date"
+              type="date"
+              value={fromDate}
+              max={toDate || undefined}
+              onChange={(e) => setFromDate(e.target.value)}
+            />
+          </div>
+          <div className="dashboard-filter-field">
+            <label htmlFor="dashboard-to-date">To</label>
+            <input
+              id="dashboard-to-date"
+              type="date"
+              value={toDate}
+              min={fromDate || undefined}
+              onChange={(e) => setToDate(e.target.value)}
+            />
+          </div>
+
           <button
             type="button"
-            className="dashboard-filter-clear"
-            onClick={() => {
-              setFromDate("");
-              setToDate("");
-            }}
+            className="dashboard-refresh-btn"
+            onClick={() => load(true)}
+            disabled={isLoading || isRefreshing}
+            aria-label="Refresh dashboard data"
           >
-            Clear
+            <RefreshIcon spinning={isRefreshing} />
+            {isRefreshing ? "Refreshing…" : "Refresh"}
           </button>
-        )}
 
-        <button
-          type="button"
-          className="dashboard-refresh-btn"
-          onClick={() => load(true)}
-          disabled={isLoading || isRefreshing}
-          aria-label="Refresh dashboard data"
-        >
-          <RefreshIcon spinning={isRefreshing} />
-          {isRefreshing ? "Refreshing…" : "Refresh"}
-        </button>
+          {hasDateFilter && (
+            <button
+              type="button"
+              className="dashboard-filter-clear"
+              onClick={() => {
+                setFromDate("");
+                setToDate("");
+              }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="stats-grid">

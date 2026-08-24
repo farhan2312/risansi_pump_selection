@@ -204,7 +204,7 @@ export const mocSealingInput = pgTable("moc_sealing_input", {
   mocAiStatorRubberRemarks: text("moc_ai_stator_rubber_remarks"),
   // The AI's own per-component recommendation, as generated — "Suggested"
   // distinguishes these from the mocAi<Component> manual picks above.
-  mocAiProvider: varchar("ai_provider", { length: 20 }), // "gemini" | "anthropic"
+  mocAiProvider: varchar("ai_provider", { length: 20 }), // "anthropic" (legacy rows may hold "gemini")
   mocAiSuggestedBearingHousing: text("ai_bearing_housing"),
   mocAiSuggestedBasePlate: text("ai_base_plate"),
   mocAiSuggestedTieRod: text("ai_tie_rod"),

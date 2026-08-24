@@ -18,8 +18,8 @@ const isProvider = (v: unknown): v is MocAiProvider =>
 // only, scoped to whatever process data the wizard has actually collected so
 // far. Always 200; the body is either the suggestion, or an
 // { unavailable } discriminator so the UI can distinguish a missing key
-// ("not_configured") from an upstream failure/overload ("failed") instead of
-// showing one misleading message for both.
+// ("not_configured") from an upstream failure ("failed") instead of showing
+// one misleading message for both.
 export async function POST(req: Request) {
   let body: Record<string, unknown>;
   try {
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
   const media = str(body.media);
   if (!media) return error("'media' is required", 400);
 
-  const provider = isProvider(body.provider) ? body.provider : "gemini";
+  const provider = isProvider(body.provider) ? body.provider : "anthropic";
 
   // No usable key for this provider — report that distinctly from a call that
   // was attempted and failed, so the UI shows the right message.
@@ -59,8 +59,8 @@ export async function POST(req: Request) {
   );
 
   // Key is configured but the upstream call returned nothing — errored,
-  // blocked, or overloaded (e.g. Gemini 503). That's a transient/request
-  // failure, not a configuration problem.
+  // blocked, or overloaded. That's a transient/request failure, not a
+  // configuration problem.
   if (!suggestion) {
     return json({ unavailable: "failed" });
   }

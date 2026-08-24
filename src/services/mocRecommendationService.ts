@@ -33,9 +33,8 @@ export const MOC_AI_ELASTOMERS = [
 // Mirrors src/lib/moc-ai-suggestion.ts's MOC_AI_PROVIDERS — kept as an
 // independent client-side literal for the same reason MOC_AI_MATERIALS is
 // (that file has server-only concerns and can't be imported into a client
-// component).
+// component). Gemini was removed; Anthropic is the only provider now.
 export const MOC_AI_PROVIDERS = [
-  { value: "gemini", label: "Gemini" },
   { value: "anthropic", label: "Claude Haiku 4.5" },
 ] as const;
 export type MocAiProvider = (typeof MOC_AI_PROVIDERS)[number]["value"];
@@ -60,9 +59,8 @@ export interface MocComponentSuggestions {
 }
 
 /** Why the AI path produced no suggestion: "not_configured" = no usable API
- * key for the chosen provider; "failed" = key present but the upstream call
- * errored, was blocked, or was overloaded (e.g. Gemini 503). The UI maps
- * these to different messages. */
+ * key; "failed" = key present but the upstream call errored or was blocked.
+ * The UI maps these to different messages. */
 export type MocAiUnavailable = { unavailable: "not_configured" | "failed" };
 
 /** Advisory AI-generated per-component MOC/elastomer/sealing suggestion (not
@@ -70,7 +68,7 @@ export type MocAiUnavailable = { unavailable: "not_configured" | "failed" };
  * collected so far. Resolves to the suggestion on success, or a
  * `{ unavailable }` reason otherwise (distinguish with `"unavailable" in x`).
  * Only throws on a genuine transport/HTTP error (axios), which the caller
- * treats as a failed request. */
+ * treats as a failed request. Uses Anthropic (Claude Haiku) server-side. */
 export const getMocAiSuggestion = async (input: {
   media: string;
   head?: string;
@@ -87,7 +85,7 @@ export const getMocAiSuggestion = async (input: {
   /** Free-text client extras appended to the prompt (chemical composition,
    * special service notes — anything the wizard has no field for). */
   clientRequirements?: string;
-  /** Which LLM to use — defaults server-side to "gemini" if omitted. */
+  /** Which LLM to use — defaults server-side to "anthropic" if omitted. */
   provider?: MocAiProvider;
 }): Promise<MocComponentSuggestions | MocAiUnavailable> => {
   const { data } = await apiClient.post<MocComponentSuggestions | MocAiUnavailable>(

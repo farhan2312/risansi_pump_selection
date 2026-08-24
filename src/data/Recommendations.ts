@@ -129,7 +129,7 @@ export interface PumpSelectionFormData {
   // The AI's own recommendation, persisted in full so the whole post-
   // generation panel rebuilds on reload — distinct from the manual
   // mocAi<Component> picks above, which are never auto-filled from these.
-  mocAiProvider?: string; // "gemini" | "anthropic"
+  mocAiProvider?: string; // "anthropic" (legacy rows may hold "gemini")
   mocAiSuggestedBearingHousing?: string;
   mocAiSuggestedBasePlate?: string;
   mocAiSuggestedTieRod?: string;
