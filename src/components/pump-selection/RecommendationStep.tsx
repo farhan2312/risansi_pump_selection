@@ -264,15 +264,24 @@ const RecommendationStep = ({
         ? withPct(formData.driveMotorVoltage, formData.driveMotorVoltagePct)
         : formData.driveMotorVoltage,
     ],
-    ["Motor Frame Size", formData.driveMotorFrameSize],
-    ["Motor LP Price", formData.driveMotorLpPrice],
-    ["Motor Final Price", formData.driveMotorFinalPrice],
-    [
-      isNonStd ? "Motor Price (with uplift)" : "Motor Price",
-      formData.driveMotorPriceUplifted,
-    ],
     ["Starter Type", formData.driveStarterType],
     ["Power Supply", formData.drivePowerSupply],
+  ];
+
+  // The motor actually picked from the motor master — surfaced in its own
+  // highlighted box, mirroring the "Selected V-Belt / Gearbox Option" design
+  // so the two confirmed selections read the same way.
+  const motorSelectedItems: FieldItem[] = [
+    ["Motor Make", formData.driveMotorMake],
+    ["Motor Frame Size", formData.driveMotorFrameSize],
+    ["Motor Rating (kW)", formData.driveMotorKw],
+    ["Motor Type", formData.driveMotorEfficiency],
+    ["LP Price", formData.driveMotorLpPrice],
+    ["Final Price", formData.driveMotorFinalPrice],
+    [
+      isNonStd ? "Price (with uplift)" : "Price",
+      formData.driveMotorPriceUplifted,
+    ],
   ];
 
   const gearedSelectedItems: FieldItem[] = [
@@ -299,7 +308,10 @@ const RecommendationStep = ({
     ? [...gearedInputItems, ...vbeltInputItems]
     : vbeltInputItems;
   const driveHasAnything =
-    hasAny(driveCommonItems) || hasAny(driveSelectedItems) || hasAny(driveInputItems);
+    hasAny(driveCommonItems) ||
+    hasAny(driveSelectedItems) ||
+    hasAny(driveInputItems) ||
+    hasAny(motorSelectedItems);
 
   // Mirrors PumpDetailsCard's own displayed rows — kept as a flat field list
   // here too so the PDF export (which can't render that component directly)
@@ -336,6 +348,11 @@ const RecommendationStep = ({
       items: driveSelectedItems,
       highlight: true,
     },
+    {
+      title: "Selected Motor",
+      items: motorSelectedItems,
+      highlight: true,
+    },
   ];
 
   const [confirming, setConfirming] = useState(false);
@@ -370,7 +387,7 @@ const RecommendationStep = ({
 
   return (
     <div className="step-container">
-      <Stepper currentStep={8} onStepClick={onStepClick} />
+      <Stepper currentStep={8} maxStep={formData.wizardMaxStep} onStepClick={onStepClick} />
 
       <div className="step-card">
         <h2>Selection Summary</h2>
@@ -437,6 +454,15 @@ const RecommendationStep = ({
                         Selected {isVBelt ? "V-Belt" : "Gearbox"} Option
                       </span>
                       <FieldGrid items={driveSelectedItems} tone="pos" />
+                    </div>
+                  )}
+
+                  {hasAny(motorSelectedItems) && (
+                    <div className="mt-4 rounded-md border-2 border-pos bg-[var(--pos-soft)] p-3">
+                      <span className="mb-2 block text-[11px] font-bold uppercase tracking-wide text-[var(--pos-strong)]">
+                        Selected Motor
+                      </span>
+                      <FieldGrid items={motorSelectedItems} tone="pos" />
                     </div>
                   )}
                 </div>

@@ -39,6 +39,7 @@ const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
   "general-info": [
     "capacity", "capacityUnit", "head", "headUnit", "media",
     "sg", "rpmRange", "selectedModel", "modelConfirmed",
+    "wizardStep", "wizardMaxStep",
   ],
   "fluid-properties": [
     "viscosity", "viscosityUnit", "viscosityRange", "viscosityCp",
@@ -98,6 +99,20 @@ const BOOLEAN_FIELDS = new Set([
   "gearboxConfirmed",
   "driveMotorConfirmed",
 ]);
+
+// Fields backed by an integer column — a NULL restores as 1 (step one), not
+// the "" every other (string) field falls back to.
+const NUMBER_FIELDS = new Set(["wizardStep", "wizardMaxStep"]);
+
+const TOTAL_STEPS = 8;
+
+// Keep a restored step inside the wizard's real range — a corrupt/stale value
+// shouldn't strand the user on a step that doesn't exist.
+const clampStep = (n: unknown): number => {
+  const v = Math.round(Number(n));
+  if (!Number.isFinite(v)) return 1;
+  return Math.min(Math.max(v, 1), TOTAL_STEPS);
+};
 
 // Which table(s) each wizard step writes when the user leaves it — so a Next
 // (or stepper jump, or Previous) saves ONLY the step being left, not every
@@ -196,6 +211,11 @@ const PumpSelectionPage = () => {
     rpmRange: "", // manual RPM band filter (low/medium/high/vhigh)
     selectedModel: "", // pump picked in the live panel; persists across steps
     modelConfirmed: false, // gate: a model must be picked + confirmed after the Fluid step before continuing
+    // Wizard progress (persisted): where the user last was, and the furthest
+    // step they've reached — the stepper keeps everything below the latter
+    // ticked even after jumping back.
+    wizardStep: 1,
+    wizardMaxStep: 1,
 
     // Step 2
     viscosity: "",
@@ -334,10 +354,14 @@ const PumpSelectionPage = () => {
           if (!row) return;
           const tableKey = RESTORABLE_TABLES[i];
           for (const key of TABLE_FIELDS[tableKey]) {
-            merged[key] = row[key] ?? (BOOLEAN_FIELDS.has(key) ? false : "");
+            merged[key] =
+              row[key] ??
+              (BOOLEAN_FIELDS.has(key) ? false : NUMBER_FIELDS.has(key) ? 1 : "");
           }
         });
         setFormData((f: typeof formData) => ({ ...f, ...merged }));
+        // Reopen the wizard exactly where the user left off.
+        setStep(clampStep(merged.wizardStep));
       })
       .finally(() => {
         if (!cancelled) setRestored(true);
@@ -362,10 +386,13 @@ const PumpSelectionPage = () => {
 
   // Persists ONLY the step being left — one PUT per its table(s), not all of
   // them. Called on every navigation (Next / Previous / stepper jump).
-  const saveStep = (fromStep: number) => {
+  // `data` defaults to the current formData; goToStep passes the
+  // progress-updated copy so the new wizardStep lands in the same write
+  // (React state updates aren't visible synchronously).
+  const saveStep = (fromStep: number, data: typeof formData = formData) => {
     if (!project?.id || !restored) return;
     for (const table of stepTablesToSave(fromStep)) {
-      saveWizardInput(table, project.id, pickTableFields(table, formData)).catch(() => {
+      saveWizardInput(table, project.id, pickTableFields(table, data)).catch(() => {
         // Best-effort — the wizard still works from in-memory state if a save fails.
       });
     }
@@ -380,8 +407,22 @@ const PumpSelectionPage = () => {
   // before navigating, so its inputs land in that step's own table.
   const goToStep = (target: number) => {
     if (target > 2 && !formData.modelConfirmed) return;
-    saveStep(step);
-    setStep(target);
+    const clamped = clampStep(target);
+    // Record progress before saving so the step being left writes the new
+    // position in the same PUT (general-info carries wizardStep/wizardMaxStep).
+    const nextMax = Math.max(clampStep(formData.wizardMaxStep), clamped);
+    const progressed = { ...formData, wizardStep: clamped, wizardMaxStep: nextMax };
+    setFormData(progressed);
+    saveStep(step, progressed);
+    // The step being left isn't always general-info, so make sure the progress
+    // itself is persisted too (no-op duplicate when it *is* general-info).
+    if (project?.id && restored) {
+      saveWizardInput("general-info", project.id, {
+        wizardStep: clamped,
+        wizardMaxStep: nextMax,
+      }).catch(() => {});
+    }
+    setStep(clamped);
   };
 
   const renderStep = () => {
@@ -460,6 +501,7 @@ const PumpSelectionPage = () => {
             formData={formData}
             setFormData={setFormData}
             onStepClick={goToStep}
+            projectId={project?.id}
           />
         );
 

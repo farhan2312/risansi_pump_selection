@@ -57,7 +57,7 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
 
   return (
     <div className="step-container">
-      <Stepper currentStep={6} onStepClick={onStepClick} />
+      <Stepper currentStep={6} maxStep={formData.wizardMaxStep} onStepClick={onStepClick} />
 
       <div className="step-card">
         <h2>Motor Rating (KW)</h2>

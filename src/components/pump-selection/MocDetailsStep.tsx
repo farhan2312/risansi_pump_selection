@@ -405,7 +405,7 @@ const MocDetailsStep = ({
 
   return (
     <div className="step-container">
-      <Stepper currentStep={4} onStepClick={onStepClick} />
+      <Stepper currentStep={4} maxStep={formData.wizardMaxStep} onStepClick={onStepClick} />
 
       <div className="step-card">
         <h2>MOC &amp; Elastomer</h2>

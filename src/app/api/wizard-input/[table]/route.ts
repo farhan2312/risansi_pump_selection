@@ -39,6 +39,7 @@ const FIELDS: Record<TableKey, readonly string[]> = {
   "general-info": [
     "capacity", "capacityUnit", "head", "headUnit", "media",
     "sg", "rpmRange", "selectedModel", "modelConfirmed",
+    "wizardStep", "wizardMaxStep",
   ],
   "fluid-properties": [
     "viscosity", "viscosityUnit", "viscosityRange", "viscosityCp",

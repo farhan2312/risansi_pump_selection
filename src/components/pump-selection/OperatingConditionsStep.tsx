@@ -79,7 +79,7 @@ const OperatingConditionsStep = ({
 
   return (
     <div className="step-container">
-      <Stepper currentStep={3} onStepClick={onStepClick} />
+      <Stepper currentStep={3} maxStep={formData.wizardMaxStep} onStepClick={onStepClick} />
 
       <div className="step-card">
         <h2>Specifications</h2>

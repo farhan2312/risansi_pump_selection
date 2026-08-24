@@ -23,7 +23,7 @@ const SealingDetailsStep = ({
 }: Props) => {
   return (
     <div className="step-container">
-      <Stepper currentStep={5} onStepClick={onStepClick} />
+      <Stepper currentStep={5} maxStep={formData.wizardMaxStep} onStepClick={onStepClick} />
 
       <div className="step-card">
         <h2>Sealing Details</h2>

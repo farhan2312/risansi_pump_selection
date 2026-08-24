@@ -88,6 +88,10 @@ export interface PumpSelectionFormData {
    * (chemical composition, special service notes). Appended to the MOC AI
    * prompt as a "Client requirements" block. */
   clientRequirements?: string;
+  /** Wizard progress: last step visited, and the furthest step ever reached
+   * (steps below it stay ticked in the stepper). Persisted on general_info. */
+  wizardStep?: number;
+  wizardMaxStep?: number;
   motorMake?: string;
   gearboxMake?: string;
   motorRPM?: string;

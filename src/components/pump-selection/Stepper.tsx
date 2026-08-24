@@ -2,6 +2,10 @@ import "./Stepper.css";
 
 type StepperProps = {
   currentStep: number;
+  /** Furthest step the user has ever reached for this enquiry. Every step
+   * below it stays ticked/green even after jumping back, so the stepper shows
+   * what's already done vs. what's left rather than just "before the cursor". */
+  maxStep?: number;
   onStepClick?: (step: number) => void;
 };
 
@@ -16,14 +20,18 @@ const steps = [
   "Recommendation",
 ];
 
-const Stepper = ({ currentStep, onStepClick }: StepperProps) => {
+const Stepper = ({ currentStep, maxStep, onStepClick }: StepperProps) => {
+  // Progress reaches as far as the user has ever been, not just where the
+  // cursor is now — jumping back to step 1 shouldn't visually undo the work.
+  const reached = Math.max(currentStep, maxStep ?? currentStep);
+
   // Fill the connecting progress line proportionally to how far we are:
   // 0% before step 1, 100% at the last step. `--step-progress` is consumed
   // by .stepper::after in Stepper.css to size the filled overlay.
   const progressPct =
     steps.length <= 1
       ? 0
-      : ((Math.max(1, Math.min(currentStep, steps.length)) - 1) /
+      : ((Math.max(1, Math.min(reached, steps.length)) - 1) /
           (steps.length - 1)) *
         100;
 
@@ -38,8 +46,10 @@ const Stepper = ({ currentStep, onStepClick }: StepperProps) => {
     >
       {steps.map((step, index) => {
         const stepNumber = index + 1;
-        const isCompleted = stepNumber < currentStep;
         const isActive = stepNumber === currentStep;
+        // Any step before the furthest one reached counts as done — including
+        // ones ahead of the current cursor after jumping back.
+        const isCompleted = !isActive && stepNumber < reached;
         return (
           <button
             type="button"

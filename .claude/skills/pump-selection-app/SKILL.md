@@ -238,7 +238,12 @@ in `src/data/Recommendations.ts`):
      "✓ Confirmed" (green). Persisted as real boolean columns
      `drive_vbelt_input.vbelt_confirmed`, `drive_geared_input.gearbox_confirmed`,
      `motor_drive_input.drive_motor_confirmed`; any *new* pick resets its flag
-     to false. `BOOLEAN_FIELDS` in `PumpSelectionPage.tsx` lists every
+     to false. **Once confirmed, each group collapses to just the chosen
+     card** (the other candidates hide, same as the pump card) — clicking it
+     again reopens the full list. **Recheck also persists** the Drive step's
+     tables (`motor-drive` + the matching `drive-*`) so an explicit recheck
+     saves without needing a Next/Previous navigation; it still calls the
+     recommendation API for the pump's qth/VE/ME. `BOOLEAN_FIELDS` in `PumpSelectionPage.tsx` lists every
      boolean-backed field so a NULL restores as `false`, not `""`. Note
      unselecting a motor deliberately does NOT clear `driveMotorMake` — that
      field doubles as the candidate filter.
@@ -269,6 +274,16 @@ in `src/data/Recommendations.ts`):
    range, Sealing Type, MOC code, Testing Status) plus every other configured
    field, including the V-Belt/Gearbox picks and the per-component MOC AI
    selections (see below) with their remarks folded into each summary line.
+
+**Wizard progress / stepper**: `general_info_input.wizard_step` (last step
+visited) and `.wizard_max_step` (furthest step ever reached) persist per
+enquiry. On load the wizard **reopens at `wizard_step`** instead of always
+step 1, and `Stepper` takes a `maxStep` prop so every step below
+`max(currentStep, maxStep)` stays ticked/green — jumping back to step 1 no
+longer visually undoes completed steps. `goToStep()` bumps both (max is
+monotonic) and writes them to `general-info` on every navigation. Note the
+restore path needs `NUMBER_FIELDS` alongside `BOOLEAN_FIELDS` in
+`PumpSelectionPage` so a NULL integer restores as `1`, not `""`.
 
 **Model confirm/lock gate**: a pump model must be picked in the live
 recommendation panel (bottom of every step 1-7 page) and explicitly confirmed

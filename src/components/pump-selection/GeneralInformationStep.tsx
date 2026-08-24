@@ -44,7 +44,7 @@ const GeneralInformationStep = ({
 
   return (
     <div className="step-container">
-      <Stepper currentStep={1} onStepClick={onStepClick} />
+      <Stepper currentStep={1} maxStep={formData.wizardMaxStep} onStepClick={onStepClick} />
 
       <div className="step-card">
         <h2>General Information</h2>

@@ -15,6 +15,7 @@ import {
   listMotorOptions,
   type MotorMasterRow,
 } from "../../services/motorMasterService";
+import { saveWizardInput } from "../../services/wizardInputService";
 import type { PumpRecommendation } from "../../data/Recommendations";
 import { toM3PerHr, toMwc } from "../../utils/units";
 
@@ -26,6 +27,9 @@ type Props = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setFormData: any;
   onStepClick?: (step: number) => void;
+  /** Open project's id — Recheck persists the drive + motor inputs against it
+   * (see handleRecheck) rather than waiting for a Next/Previous navigation. */
+  projectId?: string;
 };
 
 type VbeltStatus = "idle" | "loading" | "ready" | "error";
@@ -120,12 +124,37 @@ const COUPLING_BY_CONFIG: Record<string, string> = {
   "Geared Motor": "1 Drive + Driven Coupling",
 };
 
+// Fields this step persists on Recheck — mirrors TABLE_FIELDS in
+// PumpSelectionPage for the same three tables.
+const MOTOR_DRIVE_FIELDS = [
+  "driveMotorKw", "driveSystem", "motorRPM",
+  "driveMotorSpeed", "driveMotorMake", "driveMotorMounting", "driveStdNonStd",
+  "driveMotorEfficiency", "driveMotorProtection", "driveMotorFrequency",
+  "driveMotorVoltage",
+  "driveMotorProtectionPct", "driveMotorFrequencyPct", "driveMotorVoltagePct",
+  "driveMotorFrameSize", "driveMotorLpPrice", "driveMotorFinalPrice",
+  "driveMotorPriceUplifted", "driveMotorConfirmed",
+  "driveStarterType", "drivePowerSupply",
+] as const;
+
+const DRIVE_VBELT_FIELDS = [
+  "driveVbeltGroove", "drivePumpPulley", "driveMotorPulley", "driveVbeltRpm",
+  "driveCenterDistance", "driveVbeltNo", "vbeltConfirmed",
+] as const;
+
+const DRIVE_GEARED_FIELDS = [
+  "gearBoxType", "gearedConfigType", "gbConstructionType", "gearBoxMounting",
+  "driveCoupling", "asfRange", "gearboxSource", "gearboxModel",
+  "gearboxOutputRpm", "gearboxServiceFactor", "gearboxRatePerNos", "gearboxConfirmed",
+] as const;
+
 const DriveDetailsStep = ({
   onNext,
   onPrevious,
   formData,
   setFormData,
   onStepClick,
+  projectId,
 }: Props) => {
   const isVBelt = formData.driveSystem === "V-Belt Drive";
   const isGeared = formData.driveSystem === "Geared Motor Drive/Gear Box + Motor";
@@ -152,6 +181,26 @@ const DriveDetailsStep = ({
       ? "Gearbox output RPM"
       : "Motor RPM (direct drive)";
 
+  // Writes the Drive step's own tables: the drive-agnostic motor/rating-plate
+  // block plus whichever drive-system-specific table matches the current
+  // choice. Field lists mirror TABLE_FIELDS in PumpSelectionPage — the API
+  // whitelists on its side too, so an extra key here is ignored rather than
+  // trusted.
+  const persistDriveInputs = () => {
+    if (!projectId) return;
+    const pick = (keys: readonly string[]) => {
+      const out: Record<string, unknown> = {};
+      for (const k of keys) out[k] = formData[k];
+      return out;
+    };
+    saveWizardInput("motor-drive", projectId, pick(MOTOR_DRIVE_FIELDS)).catch(() => {});
+    if (isVBelt) {
+      saveWizardInput("drive-vbelt", projectId, pick(DRIVE_VBELT_FIELDS)).catch(() => {});
+    } else if (isGeared) {
+      saveWizardInput("drive-geared", projectId, pick(DRIVE_GEARED_FIELDS)).catch(() => {});
+    }
+  };
+
   const handleRecheck = async () => {
     setRecheckError(null);
     if (!formData.selectedModel) {
@@ -175,6 +224,11 @@ const DriveDetailsStep = ({
       setShowRecheck(true);
       return;
     }
+    // Recheck doubles as an explicit "save my work" action — persist the
+    // drive + motor inputs now rather than waiting for a Next/Previous
+    // navigation, so a refresh right after rechecking keeps them.
+    persistDriveInputs();
+
     setRecheckLoading(true);
     setShowRecheck(true);
     try {
@@ -454,7 +508,7 @@ const DriveDetailsStep = ({
 
   return (
     <div className="step-container">
-      <Stepper currentStep={7} onStepClick={onStepClick} />
+      <Stepper currentStep={7} maxStep={formData.wizardMaxStep} onStepClick={onStepClick} />
 
       <div className="step-card">
         <h2>Drive Details</h2>
@@ -725,18 +779,25 @@ const DriveDetailsStep = ({
                     ["PTL", gearboxRec.ptl],
                     ["Top Gear", gearboxRec.topGear],
                   ] as [ "PBL" | "PTL" | "Top Gear", GearboxOption[] ][]
-                ).map(
-                  ([source, opts]) =>
+                ).map(([source, allOpts]) => {
+                  // Once confirmed, collapse to just the chosen gearbox —
+                  // same as the pump card, so the panel reads as a decision
+                  // rather than an open list. Clicking it again reopens.
+                  const isSelectedOpt = (o: GearboxOption) =>
+                    formData.gearboxSource === source &&
+                    formData.gearboxModel === o.model &&
+                    formData.gearboxOutputRpm === String(o.outputRpm);
+                  const opts = formData.gearboxConfirmed
+                    ? allOpts.filter(isSelectedOpt)
+                    : allOpts;
+                  return (
                     opts.length > 0 && (
                     <div key={source} className="mt-4">
   <span className="section-label text-orange-800">{source}</span>
 
   <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
     {opts.map((o) => {
-      const isSelected =
-        formData.gearboxSource === source &&
-        formData.gearboxModel === o.model &&
-        formData.gearboxOutputRpm === String(o.outputRpm);
+      const isSelected = isSelectedOpt(o);
 
       return (
         <button
@@ -788,8 +849,9 @@ const DriveDetailsStep = ({
     })}
   </div>
 </div>
-                    ),
-                )}
+                    )
+                  );
+                })}
 
                 {formData.gearboxModel && (
                   <ConfirmBar
@@ -853,7 +915,16 @@ const DriveDetailsStep = ({
                 )}
 
                 <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
-  {vbelt.candidates.map((o) => {
+  {/* Once confirmed, collapse to just the chosen belt — same as the pump
+      card. Clicking it again reopens the full list. */}
+  {vbelt.candidates
+    .filter((o) =>
+      !formData.vbeltConfirmed ||
+      (formData.driveVbeltGroove === (vbelt.grooves ?? "") &&
+        formData.driveVbeltRpm === (o.actualRpm != null ? String(o.actualRpm) : "") &&
+        formData.driveVbeltNo === (o.vBelt != null ? String(o.vBelt) : "")),
+    )
+    .map((o) => {
     const isSelected =
       formData.driveVbeltGroove === (vbelt.grooves ?? "") &&
       formData.drivePumpPulley ===
@@ -1235,7 +1306,16 @@ const DriveDetailsStep = ({
 
                   {motorStatus === "ready" && motorOptions.length > 0 && (
                     <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                      {motorOptions.map((m) => {
+                      {/* Once confirmed, collapse to just the chosen motor —
+                          same as the pump card. Clicking it reopens the list. */}
+                      {motorOptions
+                        .filter(
+                          (m) =>
+                            !formData.driveMotorConfirmed ||
+                            (formData.driveMotorFrameSize === (m.frameSize ?? "") &&
+                              formData.driveMotorMake === (m.brand ?? "")),
+                        )
+                        .map((m) => {
                         const isSelected =
                           formData.driveMotorFrameSize === (m.frameSize ?? "") &&
                           formData.driveMotorMake === (m.brand ?? "");

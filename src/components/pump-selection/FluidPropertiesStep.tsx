@@ -80,7 +80,7 @@ const FluidPropertiesStep = ({
 
   return (
     <div className="step-container">
-      <Stepper currentStep={2} onStepClick={onStepClick} />
+      <Stepper currentStep={2} maxStep={formData.wizardMaxStep} onStepClick={onStepClick} />
 
       <div className="step-card">
         <h2>Fluid Properties</h2>

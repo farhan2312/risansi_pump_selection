@@ -118,6 +118,11 @@ export const generalInfoInput = pgTable("general_info_input", {
   rpmRange: varchar("rpm_range", { length: 20 }),
   selectedModel: varchar("selected_model", { length: 100 }),
   modelConfirmed: boolean("model_confirmed").default(false),
+  // Wizard progress: the step the user was last on (so a refresh reopens
+  // exactly where they left off) and the furthest step they've ever reached
+  // (so every step before it stays ticked/green even after jumping back).
+  wizardStep: integer("wizard_step").default(1),
+  wizardMaxStep: integer("wizard_max_step").default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
