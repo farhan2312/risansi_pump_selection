@@ -14,9 +14,11 @@
 // padding-block), which lose to App.css's physical `* { padding: 0 }` reset
 // in some cascade situations. Physical utilities target the same properties
 // as that reset, so there's no ambiguity about which one wins.
-export const grid = "grid grid-cols-2 gap-x-[24px] gap-y-[14px]";
+// Single column on phones, two from `sm` up — a 2-up grid puts ~150px per
+// field on a 375px screen, which is too narrow for these inputs.
+export const grid = "grid grid-cols-1 sm:grid-cols-2 gap-x-[24px] gap-y-[14px]";
 export const fieldWrap = "flex flex-col gap-[5px]";
-export const fullWidth = "col-span-2";
+export const fullWidth = "col-span-1 sm:col-span-2";
 export const label =
   "text-[11.5px] font-semibold uppercase tracking-[0.09em] text-fg-3";
 
@@ -35,7 +37,10 @@ export const btnPrimary =
 export const btnGhost =
   "inline-flex items-center justify-center gap-[8px] rounded-lg border border-line-strong bg-paper pl-[28px] pr-[28px] pt-[11px] pb-[11px] text-[15px] font-semibold text-fg-2 transition-all duration-150 hover:border-accent hover:text-accent hover:bg-elev active:translate-y-[1px] disabled:cursor-not-allowed disabled:opacity-50";
 
-export const actions = "mt-[22px] flex justify-end gap-[12px]";
+// Full-width stacked buttons on phones (easier tap targets, no cramped row),
+// right-aligned inline from `sm` up.
+export const actions =
+  "mt-[22px] flex flex-col-reverse sm:flex-row sm:justify-end gap-[12px] [&>button]:w-full sm:[&>button]:w-auto";
 export const hint = "text-[12px] text-fg-3";
 export const hintError = "text-[12px] text-neg";
 

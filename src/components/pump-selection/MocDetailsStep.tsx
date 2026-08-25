@@ -698,7 +698,9 @@ const MocComponentTable = ({
   <div className="mt-3">
     <span className="section-label">{title}</span>
     <div className="mt-1 overflow-x-auto rounded-md border border-line-strong">
-      <table className="w-full border-collapse text-[13px]">
+      {/* min-w keeps real column widths on phones — without it `w-full` shrinks
+          the 4 columns to ~47px each instead of letting the wrapper scroll. */}
+      <table className="w-full min-w-[600px] border-collapse text-[13px]">
         <thead>
           <tr className="bg-paper text-left text-[11px] uppercase tracking-wide text-fg-3">
             <th className="px-3 py-2">Component</th>

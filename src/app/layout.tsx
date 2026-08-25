@@ -75,6 +75,11 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${plexSans.variable} ${plexMono.variable} ${instrumentSerif.variable}`}
+      // The inline script below sets data-theme on <html> before React
+      // hydrates, so the server markup (no attribute) intentionally differs
+      // from the client DOM. This silences that expected mismatch — it only
+      // applies to this element's own attributes, not to any children.
+      suppressHydrationWarning
     >
       <head>
         {/* Sets data-theme before first paint so themed CSS variables are

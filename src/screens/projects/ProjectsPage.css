@@ -263,7 +263,33 @@
   padding: 18px;
 }
 
+@media (max-width: 860px) {
+  .projects-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .projects-new-btn {
+    justify-content: center;
+  }
+
+  /* Filter fields stack full-width instead of sitting side by side. */
+  .projects-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .projects-filter-field {
+    min-width: 0;
+  }
+  .projects-filter-clear {
+    align-self: flex-start;
+  }
+}
+
 @media (max-width: 640px) {
+  /* Rows become stacked cards — the header row is hidden, so each cell
+     carries its own label via data-label (set in ProjectsPage.tsx). */
   .projects-table thead {
     display: none;
   }
@@ -279,12 +305,32 @@
   }
   .projects-table tbody td {
     display: flex;
+    align-items: baseline;
     justify-content: space-between;
-    padding: 4px 0;
+    gap: 12px;
+    padding: 5px 0;
     border-bottom: none;
+    text-align: right;
+  }
+  .projects-table tbody td::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--fg-3);
+    text-align: left;
+  }
+  /* The actions cell has no label and spans the full width. */
+  .projects-table tbody td.projects-actions-col::before {
+    content: none;
   }
   .projects-actions {
     justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
     margin-top: 8px;
+    width: 100%;
   }
 }

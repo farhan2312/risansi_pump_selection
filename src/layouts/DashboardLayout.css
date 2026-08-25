@@ -23,3 +23,25 @@
     overflow-y:auto;
     overflow-x:hidden;
 }
+
+/* ---------- Tablet ---------- */
+@media (max-width: 1100px) {
+    .dashboard-main{
+        padding:20px 24px;
+    }
+}
+
+/* ---------- Mobile: sidebar out, bottom nav in ---------- */
+@media (max-width: 860px) {
+    .sidebar{
+        display:none;
+    }
+
+    .dashboard-main{
+        padding:16px 14px;
+        /* Leave room for the fixed bottom bar (58px + safe-area) so the last
+           row of a page is never trapped underneath it. */
+        padding-bottom:calc(74px + env(safe-area-inset-bottom, 0px));
+        -webkit-overflow-scrolling:touch;
+    }
+}

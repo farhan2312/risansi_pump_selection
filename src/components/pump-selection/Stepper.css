@@ -117,6 +117,56 @@
   font-weight: 600;
 }
 
+/* ---------- Mobile: 8 steps can't fit across a phone, so the stepper
+   becomes a horizontally scrollable strip with fixed-width steps. The
+   connecting line is dropped — it can't track a scrolling container. ---------- */
+@media (max-width: 700px) {
+  .stepper {
+    justify-content: flex-start;
+    gap: 2px;
+    padding: 4px 0 6px;
+    margin-bottom: 14px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .stepper::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* No continuous track when the strip scrolls. */
+  .stepper::before,
+  .stepper::after {
+    display: none;
+  }
+
+  .step {
+    flex: 0 0 auto;
+    width: 68px;
+    scroll-snap-align: center;
+    padding: 2px;
+  }
+
+  .step-circle {
+    width: 30px;
+    height: 30px;
+    font-size: 12.5px;
+    margin-bottom: 5px;
+  }
+
+  .step span {
+    font-size: 10.5px;
+  }
+
+  /* Active step keeps its ring but drops the scale so neighbours don't clip. */
+  .step.active .step-circle {
+    transform: none;
+    box-shadow: 0 0 0 3px rgba(26, 92, 184, 0.15);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .stepper::after,
   .step-circle {

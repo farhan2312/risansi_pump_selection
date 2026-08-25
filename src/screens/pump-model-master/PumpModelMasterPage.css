@@ -484,6 +484,62 @@
   .pmm-modal-overlay, .pmm-modal { animation: none; }
 }
 
+/* ---------- Mobile ---------- */
+@media (max-width: 860px) {
+  .pmm-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .pmm-header-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .pmm-search-wrap,
+  .pmm-search {
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* Keep real column widths and let the table scroll sideways — these master
+     tables have too many numeric columns to stack usefully. */
+  .pmm-table-wrap {
+    max-height: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .pmm-table {
+    min-width: 720px;
+  }
+
+  /* Actions wrap instead of forcing the row even wider. */
+  .pmm-row-actions {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  /* Full-width sheet-style modal with its own scroll. */
+  .pmm-modal {
+    width: 100%;
+    max-width: none;
+    max-height: 92vh;
+    overflow-y: auto;
+    border-radius: 16px 16px 0 0;
+    margin: 0;
+  }
+  .pmm-modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .pmm-modal-actions {
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+  .pmm-modal-actions button {
+    width: 100%;
+  }
+}
+
 @media (max-width: 560px) {
   .pmm-details-grid,
   .pmm-form-grid {

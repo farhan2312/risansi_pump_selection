@@ -21,6 +21,101 @@ const errorMessage = (err: unknown, fallback: string): string => {
   return response?.data?.error ?? fallback;
 };
 
+// --- Inline icons (stroke = currentColor, so they inherit surrounding color) --
+
+const MailIcon = () => (
+  <svg className="field-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <rect x="3" y="5" width="18" height="14" rx="2.5" stroke="currentColor" strokeWidth="1.7" />
+    <path d="m4 7 8 6 8-6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const LockIcon = () => (
+  <svg className="field-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <rect x="4.5" y="10.5" width="15" height="9.5" rx="2.2" stroke="currentColor" strokeWidth="1.7" />
+    <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+  </svg>
+);
+
+const PersonIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <circle cx="12" cy="8" r="3.4" stroke="currentColor" strokeWidth="1.7" />
+    <path d="M5.5 19.5a6.5 6.5 0 0 1 13 0" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+  </svg>
+);
+
+const EyeIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+    <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.7" />
+  </svg>
+);
+
+const EyeOffIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M10.6 6.1A8.5 8.5 0 0 1 12 6c6 0 9.5 6 9.5 6a17 17 0 0 1-2.8 3.4M6.3 7.9A16.8 16.8 0 0 0 2.5 12S6 18 12 18c1.5 0 2.8-.4 4-.9" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2M3.5 3.5l17 17" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+  </svg>
+);
+
+const ShieldIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M12 3.5 5 6v5.5c0 4.2 2.9 7.4 7 8.9 4.1-1.5 7-4.7 7-8.9V6l-7-2.5Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+    <path d="m9.2 12 2 2 3.6-3.8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const ArrowRightIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+// Feature tile icons
+const ScreenIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <rect x="3" y="4" width="18" height="13" rx="2" stroke="currentColor" strokeWidth="1.6" />
+    <path d="M7 13.5 10 10l2.5 2 3.5-4.5M9 21h6m-3-4v4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const GearIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.6" />
+    <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.2 5.2l2.1 2.1M16.7 16.7l2.1 2.1M18.8 5.2l-2.1 2.1M7.3 16.7l-2.1 2.1" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+  </svg>
+);
+
+const DocIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M6 3h8l4 4v14H6V3Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+    <path d="M14 3v4h4M9 12h6M9 16h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const FEATURES = [
+  {
+    icon: <ScreenIcon />,
+    title: "Model screening",
+    desc: "against the full PCP catalogue on capacity, head, viscosity and solids",
+  },
+  {
+    icon: <ShieldIcon />,
+    title: "MOC, elastomer & sealing",
+    desc: "guidance with AI-assisted material recommendations",
+  },
+  {
+    icon: <GearIcon />,
+    title: "Motor & drive selection",
+    desc: "V-Belt, gearbox and motor sizing with live price comparison",
+  },
+  {
+    icon: <DocIcon />,
+    title: "One spec sheet per enquiry",
+    desc: "saved and downloadable as a ready-to-share report",
+  },
+];
+
 const LoginPage = () => {
   const router = useRouter();
 
@@ -150,234 +245,291 @@ const LoginPage = () => {
   return (
     <div className="login-page">
       <div className="branding-panel">
+        <div className="blueprint-bg" aria-hidden="true">
+          <svg viewBox="0 0 400 400" fill="none">
+            <circle cx="250" cy="200" r="150" stroke="currentColor" strokeWidth="1" />
+            <circle cx="250" cy="200" r="110" stroke="currentColor" strokeWidth="1" />
+            <circle cx="250" cy="200" r="60" stroke="currentColor" strokeWidth="1" />
+            <circle cx="250" cy="200" r="24" stroke="currentColor" strokeWidth="1.4" />
+            <path d="M250 40v320M90 200h320M143 93l214 214M357 93 143 307" stroke="currentColor" strokeWidth="0.7" />
+            <rect x="40" y="170" width="120" height="60" rx="6" stroke="currentColor" strokeWidth="1.2" />
+            <circle cx="250" cy="90" r="5" stroke="currentColor" strokeWidth="1.2" />
+            <circle cx="250" cy="310" r="5" stroke="currentColor" strokeWidth="1.2" />
+            <circle cx="140" cy="200" r="5" stroke="currentColor" strokeWidth="1.2" />
+            <circle cx="360" cy="200" r="5" stroke="currentColor" strokeWidth="1.2" />
+          </svg>
+        </div>
+
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/logo.png" alt="Risansi Industries" className="company-logo" />
 
         <div className="branding-content">
           <h1>
-            Pump Selection Portal
+            <span>Pump Selection</span>
+            <span className="brand-accent">Portal</span>
           </h1>
+          <div className="brand-accent-bar" aria-hidden="true" />
 
-          <p>
-            Intelligent pump recommendation platform for sales engineers with
-            integrated testing reports and enquiry management.
+          <p className="branding-lead">
+            From duty point to complete spec sheet — Risansi&apos;s engineering
+            workbench for sizing Progressive Cavity Pumps, guided end to end.
           </p>
+
+          <ul className="branding-features">
+            {FEATURES.map((f) => (
+              <li key={f.title}>
+                <span className="feature-icon">{f.icon}</span>
+                <span className="feature-text">
+                  <strong>{f.title}</strong>
+                  <span>{f.desc}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
 
-        <span className="branding-footer">Version 1.0</span>
+        <span className="branding-badge">
+          <ShieldIcon />
+          Secure. Reliable. Engineered for you.
+        </span>
       </div>
 
       <div className="login-form-container">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="Risansi Industries" className="form-logo" />
+        <div className="login-card">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="Risansi Industries" className="form-logo" />
 
-        <div className="auth-tabs" role="tablist">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === "login"}
-            className={mode === "login" ? "active" : ""}
-            onClick={() => switchMode("login")}
-          >
-            Sign In
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === "request"}
-            className={mode === "request" ? "active" : ""}
-            onClick={() => switchMode("request")}
-          >
-            Request Access
-          </button>
-        </div>
-
-        {formSuccess && (
-          <div className="form-success" role="status">
-            {formSuccess}
-          </div>
-        )}
-
-        {mode === "login" ? (
-          <form onSubmit={handleLogin} noValidate>
-            <h2>Sign In</h2>
-            <p>Login with your company credentials</p>
-
-            {formError && (
-              <div className="form-error" role="alert">
-                {formError}
-              </div>
-            )}
-
-            <label htmlFor="email">Company Email</label>
-            <input
-              id="email"
-              type="email"
-              placeholder="you@risansi.com"
-              value={email}
-              autoComplete="username"
-              aria-invalid={!!emailError}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                if (emailError) setEmailError("");
-                if (formError) setFormError("");
-              }}
-            />
-
-            {emailError && (
-              <span className="error-text" role="alert">
-                {emailError}
-              </span>
-            )}
-
-            <label htmlFor="password">Password</label>
-            <div className="password-field">
-              <input
-                id="password"
-                type={showPassword ? "text" : "password"}
-                placeholder="Password"
-                value={password}
-                autoComplete="current-password"
-                aria-invalid={!!passwordError}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  if (passwordError) setPasswordError("");
-                  if (formError) setFormError("");
-                }}
-              />
-              <button
-                type="button"
-                className="toggle-visibility"
-                onClick={() => setShowPassword((prev) => !prev)}
-                aria-label={showPassword ? "Hide password" : "Show password"}
-              >
-                {showPassword ? "Hide" : "Show"}
-              </button>
+          {formSuccess && (
+            <div className="form-success" role="status">
+              {formSuccess}
             </div>
+          )}
 
-            {passwordError && (
-              <span className="error-text" role="alert">
-                {passwordError}
-              </span>
-            )}
+          {mode === "login" ? (
+            <form onSubmit={handleLogin} noValidate>
+              <h2>Welcome back</h2>
+              <p>Log in with your company credentials</p>
 
-            <button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Signing in..." : "Sign In"}
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleRequestAccess} noValidate>
-            <h2>Request Access</h2>
-            <p>Submit your details — an admin will review and approve you</p>
+              {formError && (
+                <div className="form-error" role="alert">
+                  {formError}
+                </div>
+              )}
 
-            {formError && (
-              <div className="form-error" role="alert">
-                {formError}
+              <label htmlFor="email">Company Email</label>
+              <div className="input-icon">
+                <MailIcon />
+                <input
+                  id="email"
+                  type="email"
+                  placeholder="you@risansi.com"
+                  value={email}
+                  autoComplete="username"
+                  aria-invalid={!!emailError}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (emailError) setEmailError("");
+                    if (formError) setFormError("");
+                  }}
+                />
               </div>
-            )}
 
-            <label htmlFor="name">Full Name</label>
-            <input
-              id="name"
-              type="text"
-              placeholder="Jane Doe"
-              value={name}
-              autoComplete="name"
-              aria-invalid={!!nameError}
-              onChange={(e) => {
-                setName(e.target.value);
-                if (nameError) setNameError("");
-                if (formError) setFormError("");
-              }}
-            />
+              {emailError && (
+                <span className="error-text" role="alert">
+                  {emailError}
+                </span>
+              )}
 
-            {nameError && (
-              <span className="error-text" role="alert">
-                {nameError}
-              </span>
-            )}
+              <label htmlFor="password">Password</label>
+              <div className="input-icon input-icon-password">
+                <LockIcon />
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Password"
+                  value={password}
+                  autoComplete="current-password"
+                  aria-invalid={!!passwordError}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (passwordError) setPasswordError("");
+                    if (formError) setFormError("");
+                  }}
+                />
+                <button
+                  type="button"
+                  className="toggle-visibility"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                </button>
+              </div>
 
-            <label htmlFor="request-email">Company Email</label>
-            <input
-              id="request-email"
-              type="email"
-              placeholder="you@risansi.com"
-              value={email}
-              autoComplete="username"
-              aria-invalid={!!emailError}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                if (emailError) setEmailError("");
-                if (formError) setFormError("");
-              }}
-            />
+              {passwordError && (
+                <span className="error-text" role="alert">
+                  {passwordError}
+                </span>
+              )}
 
-            {emailError && (
-              <span className="error-text" role="alert">
-                {emailError}
-              </span>
-            )}
+              <button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Signing in..." : "Sign In"}
+                <span className="btn-arrow">
+                  <ArrowRightIcon />
+                </span>
+              </button>
 
-            <label htmlFor="request-password">Password</label>
-            <input
-              id="request-password"
-              type="password"
-              placeholder="Password"
-              value={password}
-              autoComplete="new-password"
-              aria-invalid={!!passwordError}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                if (passwordError) setPasswordError("");
-                if (formError) setFormError("");
-              }}
-            />
+              <p className="mode-switch">
+                Need access?{" "}
+                <button type="button" onClick={() => switchMode("request")}>
+                  Request Access
+                </button>
+              </p>
+            </form>
+          ) : (
+            <form onSubmit={handleRequestAccess} noValidate>
+              <h2>Request Access</h2>
+              <p>Submit your details — an admin will review and approve you</p>
 
-            {passwordError && (
-              <span className="error-text" role="alert">
-                {passwordError}
-              </span>
-            )}
+              {formError && (
+                <div className="form-error" role="alert">
+                  {formError}
+                </div>
+              )}
 
-            <label htmlFor="confirm-password">Confirm Password</label>
-            <input
-              id="confirm-password"
-              type="password"
-              placeholder="Confirm password"
-              value={confirmPassword}
-              autoComplete="new-password"
-              aria-invalid={!!confirmPasswordError}
-              onChange={(e) => {
-                setConfirmPassword(e.target.value);
-                if (confirmPasswordError) setConfirmPasswordError("");
-                if (formError) setFormError("");
-              }}
-            />
+              <label htmlFor="name">Full Name</label>
+              <div className="input-icon">
+                <PersonIcon />
+                <input
+                  id="name"
+                  type="text"
+                  placeholder="Jane Doe"
+                  value={name}
+                  autoComplete="name"
+                  aria-invalid={!!nameError}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    if (nameError) setNameError("");
+                    if (formError) setFormError("");
+                  }}
+                />
+              </div>
 
-            {confirmPasswordError && (
-              <span className="error-text" role="alert">
-                {confirmPasswordError}
-              </span>
-            )}
+              {nameError && (
+                <span className="error-text" role="alert">
+                  {nameError}
+                </span>
+              )}
 
-            <label htmlFor="request-role">Role</label>
-            <select
-              id="request-role"
-              value={requestedRole}
-              onChange={(e) => setRequestedRole(e.target.value as RequestableRole)}
-            >
-              {ROLE_OPTIONS.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label} — {r.hint}
-                </option>
-              ))}
-            </select>
+              <label htmlFor="request-email">Company Email</label>
+              <div className="input-icon">
+                <MailIcon />
+                <input
+                  id="request-email"
+                  type="email"
+                  placeholder="you@risansi.com"
+                  value={email}
+                  autoComplete="username"
+                  aria-invalid={!!emailError}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (emailError) setEmailError("");
+                    if (formError) setFormError("");
+                  }}
+                />
+              </div>
 
-            <button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Submitting..." : "Request Access"}
-            </button>
-          </form>
-        )}
+              {emailError && (
+                <span className="error-text" role="alert">
+                  {emailError}
+                </span>
+              )}
+
+              <label htmlFor="request-password">Password</label>
+              <div className="input-icon input-icon-password">
+                <LockIcon />
+                <input
+                  id="request-password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Password"
+                  value={password}
+                  autoComplete="new-password"
+                  aria-invalid={!!passwordError}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (passwordError) setPasswordError("");
+                    if (formError) setFormError("");
+                  }}
+                />
+                <button
+                  type="button"
+                  className="toggle-visibility"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                </button>
+              </div>
+
+              {passwordError && (
+                <span className="error-text" role="alert">
+                  {passwordError}
+                </span>
+              )}
+
+              <label htmlFor="confirm-password">Confirm Password</label>
+              <div className="input-icon">
+                <LockIcon />
+                <input
+                  id="confirm-password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Confirm password"
+                  value={confirmPassword}
+                  autoComplete="new-password"
+                  aria-invalid={!!confirmPasswordError}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    if (confirmPasswordError) setConfirmPasswordError("");
+                    if (formError) setFormError("");
+                  }}
+                />
+              </div>
+
+              {confirmPasswordError && (
+                <span className="error-text" role="alert">
+                  {confirmPasswordError}
+                </span>
+              )}
+
+              <label htmlFor="request-role">Role</label>
+              <select
+                id="request-role"
+                value={requestedRole}
+                onChange={(e) => setRequestedRole(e.target.value as RequestableRole)}
+              >
+                {ROLE_OPTIONS.map((r) => (
+                  <option key={r.value} value={r.value}>
+                    {r.label} — {r.hint}
+                  </option>
+                ))}
+              </select>
+
+              <button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Submitting..." : "Request Access"}
+                <span className="btn-arrow">
+                  <ArrowRightIcon />
+                </span>
+              </button>
+
+              <p className="mode-switch">
+                Already have access?{" "}
+                <button type="button" onClick={() => switchMode("login")}>
+                  Sign in
+                </button>
+              </p>
+            </form>
+          )}
+        </div>
       </div>
     </div>
   );

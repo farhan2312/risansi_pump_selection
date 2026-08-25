@@ -19,8 +19,14 @@ const TopBar = () => {
       <div className="topbar">
         <Breadcrumb />
         <div className="topbar-actions">
-          <button type="button" className="topbar-report-btn" onClick={() => setReportOpen(true)}>
-            🐞 Report a Bug
+          <button
+            type="button"
+            className="topbar-report-btn"
+            onClick={() => setReportOpen(true)}
+            aria-label="Report a Bug"
+          >
+            <span aria-hidden="true">🐞</span>
+            <span className="topbar-report-label">Report a Bug</span>
           </button>
           <NotificationBell />
         </div>

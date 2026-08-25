@@ -219,8 +219,51 @@
   }
 }
 
+@media (max-width: 860px) {
+  .dashboard-page {
+    padding: 0;
+  }
+
+  /* Greeting above, filter below — side by side is too cramped on a phone. */
+  .dashboard-header-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .dashboard-filter {
+    width: 100%;
+    gap: 10px;
+  }
+  .dashboard-filter-field {
+    flex: 1 1 140px;
+    min-width: 0;
+  }
+  .dashboard-filter-field input[type="date"] {
+    width: 100%;
+  }
+  .dashboard-refresh-btn {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+
+  /* The Recent Enquiries table scrolls sideways rather than crushing cells. */
+  .dashboard-card table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+  .dashboard-card thead th,
+  .dashboard-card tbody td {
+    padding: 10px 14px;
+  }
+}
+
 @media (max-width: 700px) {
   .stats-grid {
-    grid-template-columns: 1fr;
+    /* Two-up keeps the four KPIs glanceable without a long scroll. */
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
   }
 }

@@ -245,10 +245,16 @@ const ProjectsPage = () => {
             <tbody>
               {filteredProjects.map((project) => (
                 <tr key={project.id}>
-                  <td className="project-code">{project.project_code}</td>
-                  <td className="project-name">{project.name || "—"}</td>
-                  <td>{project.client_code || "—"}</td>
-                  <td>{project.created_by_name || "—"}</td>
+                  {/* data-label feeds the stacked mobile card view, where the
+                      table header row is hidden (see ProjectsPage.css). */}
+                  <td className="project-code" data-label="Enquiry no.">
+                    {project.project_code}
+                  </td>
+                  <td className="project-name" data-label="Client Name">
+                    {project.name || "—"}
+                  </td>
+                  <td data-label="Client Code">{project.client_code || "—"}</td>
+                  <td data-label="Created By">{project.created_by_name || "—"}</td>
 
                   <td className="projects-actions-col">
                     <div className="projects-actions">

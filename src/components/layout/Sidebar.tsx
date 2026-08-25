@@ -6,68 +6,12 @@ import type { ReactNode } from "react";
 import "./Sidebar.css";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import SidebarUserMenu from "./SidebarUserMenu";
-
-// 15x15 stroke icons (stroke:currentColor, width 1.5) per the Risansi guide §7.7.
-const icon = (path: ReactNode) => (
-  <svg
-    className="nav-icon"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.6"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    {path}
-  </svg>
-);
-
-const icons = {
-  dashboard: icon(
-    <>
-      <rect x="3" y="3" width="7" height="7" rx="1" />
-      <rect x="14" y="3" width="7" height="7" rx="1" />
-      <rect x="14" y="14" width="7" height="7" rx="1" />
-      <rect x="3" y="14" width="7" height="7" rx="1" />
-    </>,
-  ),
-  projects: icon(<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />),
-  pump: icon(
-    <>
-      <circle cx="12" cy="12" r="3" />
-      <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1" />
-    </>,
-  ),
-  reports: icon(
-    <>
-      <path d="M14 3v4a1 1 0 0 0 1 1h4" />
-      <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" />
-      <path d="M9 13h6M9 17h4" />
-    </>,
-  ),
-  users: icon(
-    <>
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-    </>,
-  ),
-  database: icon(
-    <>
-      <ellipse cx="12" cy="5" rx="8" ry="3" />
-      <path d="M4 5v6a8 3 0 0 0 16 0V5" />
-      <path d="M4 11v6a8 3 0 0 0 16 0v-6" />
-    </>,
-  ),
-};
-
-const mainLinks = [
-  { href: "/dashboard", label: "Dashboard", icon: icons.dashboard },
-  { href: "/projects", label: "Enquiries", icon: icons.projects },
-  { href: "/pump-selection", label: "Pump Selection", icon: icons.pump },
-  { href: "/selection-summary", label: "Reports", icon: icons.reports },
-];
+import {
+  ADMIN_LINKS,
+  MAIN_LINKS,
+  SYSTEM_ADMIN_LINKS,
+  navIcons,
+} from "./navLinks";
 
 const Sidebar = () => {
   const pathname = usePathname();
@@ -89,16 +33,12 @@ const Sidebar = () => {
 
       <nav className="flex-1">
         <p className="sidebar-group-label">Main</p>
-        {mainLinks.map((l) => navLink(l.href, l.label, l.icon))}
+        {MAIN_LINKS.map((l) => navLink(l.href, l.label, navIcons[l.icon]))}
 
         {(user?.role === "admin" || user?.role === "system_admin") && (
           <>
             <p className="sidebar-group-label">Admin</p>
-
-            {navLink("/admin/pump-model-master", "Pump Model Master", icons.database)}
-            {navLink("/admin/pulley-master", "Pulley Master", icons.database)}
-            {navLink("/admin/gearbox-master", "Gearbox Type", icons.database)}
-            {navLink("/admin/motor-master", "Motor Master", icons.database)}
+            {ADMIN_LINKS.map((l) => navLink(l.href, l.label, navIcons[l.icon]))}
           </>
         )}
 
@@ -107,9 +47,7 @@ const Sidebar = () => {
         {user?.role === "system_admin" && (
           <>
             <p className="sidebar-group-label">System Admin</p>
-
-            {navLink("/admin/users", "Users & Access", icons.users)}
-            {navLink("/admin/bug-tracker", "Bug Tracker", icons.database)}
+            {SYSTEM_ADMIN_LINKS.map((l) => navLink(l.href, l.label, navIcons[l.icon]))}
           </>
         )}
       </nav>
