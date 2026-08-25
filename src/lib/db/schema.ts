@@ -48,6 +48,10 @@ export const users = pgTable("users_pump", {
   status: varchar("status", { length: 20 }).default("pending"),
   reviewedBy: uuid("reviewed_by"),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  // Set when an admin issues/resets a password: the user is forced onto the
+  // change-password screen and can't reach the rest of the app until they pick
+  // their own. Cleared by POST /api/auth/change-password.
+  mustChangePassword: boolean("must_change_password").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
 

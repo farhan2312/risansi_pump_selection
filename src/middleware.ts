@@ -7,6 +7,10 @@ import { jwtVerify } from "jose";
  * which only ran after the page had already mounted). */
 const AUTH_COOKIE_NAME = "auth_token";
 
+/** Forced-password-change screen — reachable only by a flagged user, and the
+ * only protected page they can reach. */
+const CHANGE_PASSWORD_PATH = "/change-password";
+
 const PROTECTED_PREFIXES = [
   "/dashboard",
   "/projects",
@@ -41,12 +45,30 @@ export async function middleware(req: NextRequest) {
   if (pathname === "/") {
     const session = await verifySession(req);
     if (session) {
-      return NextResponse.redirect(new URL("/dashboard", req.url));
+      return NextResponse.redirect(
+        new URL(
+          session.mustChangePassword === true ? CHANGE_PASSWORD_PATH : "/dashboard",
+          req.url,
+        ),
+      );
     }
     if (req.cookies.get(AUTH_COOKIE_NAME)) {
       const res = NextResponse.next();
       res.cookies.delete(AUTH_COOKIE_NAME);
       return res;
+    }
+    return NextResponse.next();
+  }
+
+  // Forced password change: a user with an admin-issued password can't reach
+  // any protected page until they've set their own. Checked before the
+  // role gates below so it can't be side-stepped by deep-linking.
+  if (pathname === CHANGE_PASSWORD_PATH) {
+    const session = await verifySession(req);
+    if (!session) return NextResponse.redirect(new URL("/", req.url));
+    // Already changed it — no reason to sit on this screen.
+    if (session.mustChangePassword !== true) {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
     }
     return NextResponse.next();
   }
@@ -63,6 +85,10 @@ export async function middleware(req: NextRequest) {
     const res = NextResponse.redirect(new URL("/", req.url));
     if (req.cookies.get(AUTH_COOKIE_NAME)) res.cookies.delete(AUTH_COOKIE_NAME);
     return res;
+  }
+
+  if (payload.mustChangePassword === true) {
+    return NextResponse.redirect(new URL(CHANGE_PASSWORD_PATH, req.url));
   }
 
   // Users & Access (formerly "access requests") and Bug Tracker are
@@ -83,6 +109,7 @@ export async function middleware(req: NextRequest) {
 export const config = {
   matcher: [
     "/",
+    "/change-password",
     "/dashboard/:path*",
     "/projects/:path*",
     "/pump-selection/:path*",

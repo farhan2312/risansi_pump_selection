@@ -2,7 +2,13 @@ import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
-import { AuthError, decodeToken } from "@/lib/auth";
+import {
+  AUTH_COOKIE_MAX_AGE,
+  AUTH_COOKIE_NAME,
+  AuthError,
+  createToken,
+  decodeToken,
+} from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 
@@ -38,7 +44,35 @@ export async function POST(req: Request) {
     return error("Current password is incorrect.", 401);
   }
 
+  // Block re-setting the same password — otherwise a forced change can be
+  // satisfied by re-entering the admin-issued one, defeating the point.
+  if (await bcrypt.compare(newPassword, user.passwordHash)) {
+    return error("New password must be different from your current password.", 400);
+  }
+
   const newHash = await bcrypt.hash(newPassword, 12);
-  await db.update(users).set({ passwordHash: newHash }).where(eq(users.id, user.id));
-  return json({ success: true });
+  await db
+    .update(users)
+    .set({ passwordHash: newHash, mustChangePassword: false })
+    .where(eq(users.id, user.id));
+
+  // Re-issue the session cookie so the cleared flag takes effect immediately —
+  // the old token still carries mustChangePassword and middleware reads the
+  // token, so without this the user would stay trapped on the change screen.
+  const token = createToken({
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    mustChangePassword: false,
+  });
+  const response = json({ success: true });
+  response.cookies.set(AUTH_COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: AUTH_COOKIE_MAX_AGE,
+  });
+  return response;
 }

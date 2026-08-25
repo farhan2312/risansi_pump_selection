@@ -37,9 +37,23 @@ export async function POST(req: Request) {
     return error("Your account has been deactivated. Contact an administrator.", 403);
   }
 
-  const token = createToken({ id: user.id, name: user.name, email: user.email, role: user.role });
+  const token = createToken({
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    mustChangePassword: user.mustChangePassword,
+  });
   const response = json({
-    user: { id: String(user.id), name: user.name, email: user.email, role: user.role },
+    user: {
+      id: String(user.id),
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      // Lets the client route straight to the change-password screen; the
+      // middleware enforces it regardless.
+      mustChangePassword: user.mustChangePassword === true,
+    },
   });
   response.cookies.set(AUTH_COOKIE_NAME, token, {
     httpOnly: true,

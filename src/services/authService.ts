@@ -5,6 +5,9 @@ export interface AuthUser {
   name: string | null;
   email: string;
   role: "user" | "admin" | "system_admin";
+  /** True while the user still has an admin-issued password — they're routed
+   * to /change-password until they set their own. */
+  mustChangePassword?: boolean;
 }
 
 export interface LoginResult {

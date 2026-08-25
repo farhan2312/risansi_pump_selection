@@ -188,8 +188,10 @@ const LoginPage = () => {
     try {
       // The session cookie is set by the server response itself (httpOnly,
       // can't be read/stored from here) — just navigate once login succeeds.
-      await login(trimmedEmail, password);
-      router.push("/dashboard");
+      const res = await login(trimmedEmail, password);
+      // Admin-issued password: straight to the forced change screen (the
+      // middleware would redirect there anyway — this just avoids a bounce).
+      router.push(res?.user?.mustChangePassword ? "/change-password" : "/dashboard");
     } catch (err) {
       setFormError(errorMessage(err, "Unable to sign in. Please try again."));
     } finally {

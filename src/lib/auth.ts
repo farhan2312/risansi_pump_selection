@@ -37,6 +37,10 @@ export interface TokenClaims {
   name: string | null;
   email: string;
   role: string;
+  /** True while the user still has an admin-issued password. Carried in the
+   * token so middleware can gate the whole app without a DB round-trip;
+   * change-password re-issues the cookie with it cleared. */
+  mustChangePassword?: boolean;
   iat: number;
   exp: number;
 }
@@ -55,6 +59,7 @@ export interface TokenUser {
   name: string | null;
   email: string;
   role: string | null;
+  mustChangePassword?: boolean;
 }
 
 export function createToken(user: TokenUser): string {
@@ -64,6 +69,7 @@ export function createToken(user: TokenUser): string {
     name: user.name ?? null,
     email: user.email,
     role: user.role ?? "user",
+    mustChangePassword: user.mustChangePassword === true,
     iat: now,
     exp: now + JWT_EXPIRY_SECONDS,
   };
