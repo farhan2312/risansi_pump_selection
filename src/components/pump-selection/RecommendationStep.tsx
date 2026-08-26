@@ -6,7 +6,6 @@ import PumpDetailsCard from "../../components/recommendation/PumpDetailsCard";
 import { useEffect, useState } from "react";
 import { getRecommendations } from "../../services/recommendationService";
 import { SIZE_COLUMN_BY_RANGE, sizeForViscosityRange } from "../../lib/suction-discharge-size";
-import { sealingShort } from "../../lib/sealing";
 import {
   downloadSelectionSummaryPdf,
   type SelectionSummaryPdfSection,
@@ -161,24 +160,40 @@ const RecommendationStep = ({
 
   // --- Field groups, one per wizard step, in wizard order ------------------
 
+  // These two lists mirror what each wizard step actually collects — see
+  // GeneralInformationStep / FluidPropertiesStep. Temperature and pH belong to
+  // the Fluid step (they were moved there), not General Information.
   const generalInfoItems: FieldItem[] = [
     ["Media / Application", formData.media],
     ["Capacity", formData.capacity ? `${formData.capacity} ${formData.capacityUnit || ""}`.trim() : ""],
     ["Head", formData.head ? `${formData.head} ${formData.headUnit || ""}`.trim() : ""],
-    ["Temperature", formData.temperature ? `${formData.temperature} °C` : ""],
-    ["pH", formData.ph],
     ["Specific Gravity", formData.sg],
     ["RPM Range", formData.rpmRange ? RPM_RANGE_LABELS[formData.rpmRange] ?? formData.rpmRange : ""],
   ];
 
   const fluidPropertiesItems: FieldItem[] = [
     ["Viscosity", formData.viscosity ? `${formData.viscosity} ${formData.viscosityUnit || ""}`.trim() : ""],
+    ["Viscosity Range", formData.viscosityRange ? `${formData.viscosityRange} cP` : ""],
     ["Solids", formData.solidPercentage ? `${formData.solidPercentage}%` : ""],
     [
       "Particle Size",
       formData.solidSize
         ? `${formData.solidSize} mm${formData.solidType ? ` (${formData.solidType})` : ""}`
         : "",
+    ],
+    ["pH", formData.ph],
+    [
+      "Temperature",
+      // temperatureRaw + unit is what the user typed; temperature is the
+      // canonical °C. Show the entered value, noting the °C when it differs.
+      formData.temperatureRaw
+        ? `${formData.temperatureRaw} °${formData.temperatureUnit || "C"}` +
+          (formData.temperatureUnit && formData.temperatureUnit !== "C" && formData.temperature
+            ? ` (${formData.temperature} °C)`
+            : "")
+        : formData.temperature
+          ? `${formData.temperature} °C`
+          : "",
     ],
   ];
 
@@ -321,16 +336,17 @@ const RecommendationStep = ({
   // shows exactly the same "Pump Selection" facts.
   const pumpFields: FieldItem[] = confirmedPump
     ? [
+        // Pump Type / Sealing Type / Nearest Charted Head are deliberately
+        // omitted — they're already shown under Operating Conditions, Sealing
+        // Details, and General Information respectively, so repeating them
+        // here just duplicates the summary.
         ["Pump Model", confirmedPump.model],
         ["Stage", confirmedPump.stage != null ? String(confirmedPump.stage) : ""],
-        ["Pump Type", formData.pumpType],
         ["AG / BK", formData.agBk],
         ["Pump RPM (VOLE max–min)", confirmedPump.rpmRange],
-        ["Nearest Charted Head", `${confirmedPump.headMwc} MWC`],
         ["VOLE Min–Max", `${confirmedPump.voleMin}–${confirmedPump.voleMax}%`],
         ["Mechanical Efficiency", `${confirmedPump.mechEff}%`],
         ["Suction & Discharge Size", cardSize !== null ? String(cardSize) : ""],
-        ["Sealing Type", sealingShort(formData.sealingType) || ""],
         ["Testing Status", confirmedPump.isTested ? "Tested" : "Not Tested"],
         ["Testing Remarks", confirmedPump.testingRemarks || ""],
       ]
@@ -424,9 +440,7 @@ const RecommendationStep = ({
             <PumpDetailsCard
               pump={confirmedPump}
               size={cardSize}
-              pumpType={formData.pumpType}
               agBk={formData.agBk}
-              sealingType={formData.sealingType}
               stage={confirmedPump.stage}
             />
 

@@ -1,16 +1,14 @@
 import "./PumpDetailsCard.css";
-import { sealingShort } from "../../lib/sealing";
 
+// Pump Type, Sealing Type and Nearest Charted Head are intentionally NOT shown
+// here — the summary already reports them under Operating Conditions, Sealing
+// Details and General Information, so repeating them on this card is noise.
 type Props = {
   pump: any;
   /** Step-5 Suction & Discharge Size (from viscosity range), or null if not set. */
   size?: number | null;
-  /** Pump Type chosen on the Specifications step. */
-  pumpType?: string;
   /** AG / BK feed option chosen for very thick media (>10 000 cP). */
   agBk?: string;
-  /** Sealing type chosen on the Sealing Details step (shown short: MS / GP). */
-  sealingType?: string;
   /** Pump stage count (1/2/4/8), from the confirmed pump's model. */
   stage?: number | null;
 };
@@ -18,14 +16,10 @@ type Props = {
 const PumpDetailsCard = ({
   pump,
   size = null,
-  pumpType = "",
   agBk = "",
-  sealingType = "",
   stage = null,
 }: Props) => {
   if (!pump) return null;
-
-  const seal = sealingShort(sealingType);
 
   return (
     <div className="pump-card">
@@ -44,11 +38,6 @@ const PumpDetailsCard = ({
           <strong>{stage ?? "—"}</strong>
         </div>
 
-        <div>
-          <span>Pump Type</span>
-          <strong>{pumpType || "—"}</strong>
-        </div>
-
         {agBk && (
           <div>
             <span>AG / BK</span>
@@ -59,11 +48,6 @@ const PumpDetailsCard = ({
         <div>
           <span>Pump RPM (VOLE max–min)</span>
           <strong>{pump.rpmRange}</strong>
-        </div>
-
-        <div>
-          <span>Nearest Charted Head</span>
-          <strong>{pump.headMwc} MWC</strong>
         </div>
 
         <div>
@@ -81,11 +65,6 @@ const PumpDetailsCard = ({
         <div>
           <span>Suction &amp; Discharge Size</span>
           <strong>{size !== null ? size : "—"}</strong>
-        </div>
-
-        <div>
-          <span>Sealing Type</span>
-          <strong>{seal || "—"}</strong>
         </div>
 
         <div>
