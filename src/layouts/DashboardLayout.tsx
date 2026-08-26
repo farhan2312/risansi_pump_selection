@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import Sidebar from "../components/layout/Sidebar";
+import TopBar from "../components/layout/TopBar";
 import BottomNav from "../components/layout/BottomNav";
 import "./DashboardLayout.css";
 
@@ -14,6 +15,7 @@ const DashboardLayout = ({ children }: { children: ReactNode }) => {
       <Sidebar />
 
       <div className="dashboard-content">
+        <TopBar />
         <main className="dashboard-main">{children}</main>
       </div>
 

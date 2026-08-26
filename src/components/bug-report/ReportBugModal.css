@@ -80,7 +80,11 @@
   color: var(--neg, #dc2626);
 }
 
-.bug-field input,
+/* Excludes the visually-hidden file input — this selector (0,1,1) outranks
+   Tailwind's .sr-only utility (0,1,0), so without the :not() it would stretch
+   that absolutely-positioned input to full width and push it past the modal's
+   right edge, giving the whole dialog a horizontal scrollbar. */
+.bug-field input:not([type="file"]),
 .bug-field textarea,
 .bug-field select {
   width: 100%;
@@ -94,6 +98,20 @@
   resize: vertical;
   transition: border-color 120ms, box-shadow 120ms, background-color 120ms;
 }
+/* Belt-and-braces: pin the hidden file input to a 1px box regardless of what
+   else matches it. It's never shown — the visible "Attach a screenshot" button
+   triggers it via ref.click(). */
+.bug-field input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
 .bug-field input:focus,
 .bug-field textarea:focus,
 .bug-field select:focus {
