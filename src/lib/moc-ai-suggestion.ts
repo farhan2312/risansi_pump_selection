@@ -136,7 +136,7 @@ function buildPrompt(context: MocAiContext, processData: string): string {
       : "";
   return (
     `PCP pump. Media: ${context.media}. Head: ${head}. Capacity: ${capacity}.\n` +
-    `Recommend lowest-cost reliable MOC (per component), stator elastomer, shaft seal.\n` +
+    `Recommend lowest-cost reliable MOC (per component), stator elastomer, shaft seal. Prefer most economical: ${MOC_AI_MATERIALS.join(", ")}.\n` +
     `${missingClause}` +
     `summary: detailed markdown engineering note — start with an Operating Parameters section listing Media, Head, Capacity, pH, Temperature, Viscosity (with (estimated) for any not provided); then use ## headers, **bold**, bullet lists AND | pipe tables |, e.g. a Component/Material/Why table and a Mechanical Seal vs Gland Packing comparison table. ` +
     `alternatives: markdown with a | pipe table | of alternative materials and trade-offs. ` +
