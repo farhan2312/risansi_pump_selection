@@ -255,3 +255,30 @@ export async function PUT(
 
   return json(row);
 }
+
+// DELETE the entire per-project row for one wizard-input table. Used by the
+// Drive Details step's Clear button so a wrong drive-system choice can be
+// wiped without leaving stale rows in motor-drive / drive-vbelt /
+// drive-geared. Idempotent - deleting a row that's already gone returns ok.
+export async function DELETE(
+  req: Request,
+  { params }: { params: Promise<{ table: string }> },
+) {
+  const { table: tableParam } = await params;
+  const tableKey = resolveTableKey(tableParam);
+  if (!tableKey) return error(`Unknown wizard-input table "${tableParam}"`, 400);
+  const table = TABLES[tableKey];
+
+  const projectId = new URL(req.url).searchParams.get("projectId");
+  if (!projectId) {
+    return error("'projectId' query param is required", 400);
+  }
+
+  await db
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .delete(table as any)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .where(eq((table as any).projectId, projectId));
+
+  return json({ ok: true });
+}

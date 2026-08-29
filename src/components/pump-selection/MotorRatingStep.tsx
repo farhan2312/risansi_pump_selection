@@ -55,6 +55,19 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
 
   const hasKwOptions = (rating?.kwOptions.length ?? 0) > 0;
 
+  // Trim the raw kwOptions list so the dropdown carries at most two sub-
+  // recommended sizes (the ones closest to `recommendedKw`) plus every size at
+  // or above the recommendation. Full list is preserved on `rating.kwOptions`
+  // for anything else that consumes it; only the dropdown is trimmed.
+  const kwOptionsForDisplay = (() => {
+    if (!rating) return [] as number[];
+    const rec = rating.recommendedKw;
+    if (rec == null) return rating.kwOptions;
+    const below = rating.kwOptions.filter((k) => k < rec).slice(-2);
+    const atOrAbove = rating.kwOptions.filter((k) => k >= rec);
+    return [...below, ...atOrAbove];
+  })();
+
   return (
     <div className="step-container">
       <Stepper currentStep={6} maxStep={formData.wizardMaxStep} onStepClick={onStepClick} />
@@ -144,14 +157,10 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
                     }
                   >
                     <option value="">Select KW</option>
-                    {rating.kwOptions.map((kw) => (
+                    {kwOptionsForDisplay.map((kw) => (
                       <option key={kw} value={String(kw)}>
                         {kw}
-                        {rating.recommendedKw === kw
-                          ? " (recommended)"
-                          : rating.motorKw !== null && kw < rating.motorKw
-                            ? " (below required KW)"
-                            : ""}
+                        {rating.recommendedKw === kw ? " (recommended)" : ""}
                       </option>
                     ))}
                   </select>
@@ -169,7 +178,7 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
                 )}
                 <span className={hint}>
                   {hasKwOptions
-                    ? "Final selection is manual — every standard KW rating is listed. Ratings under Motor KW are flagged; they don't carry the 1.2× safety margin."
+                    ? "Final selection is manual. Only the closest two smaller sizes are offered below the recommended rating; every larger standard rating is above."
                     : "No standard KW ratings available — enter the motor KW manually."}
                 </span>
               </div>

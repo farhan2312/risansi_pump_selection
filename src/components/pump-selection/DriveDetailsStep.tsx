@@ -15,7 +15,7 @@ import {
   listMotorOptions,
   type MotorMasterRow,
 } from "../../services/motorMasterService";
-import { saveWizardInput } from "../../services/wizardInputService";
+import { clearWizardInput, saveWizardInput } from "../../services/wizardInputService";
 import type { PumpRecommendation } from "../../data/Recommendations";
 import { toM3PerHr, toMwc } from "../../utils/units";
 
@@ -202,6 +202,52 @@ const DriveDetailsStep = ({
       saveWizardInput("drive-geared", projectId, pick(DRIVE_GEARED_FIELDS)).catch(() => {});
     } else if (formData.driveSystem === "Direct Drive") {
       saveWizardInput("drive-direct", projectId, {}).catch(() => {});
+    }
+  };
+
+  // Wipes every drive + motor input for this project - both the in-memory
+  // formData and the three persisted tables (motor-drive, drive-vbelt,
+  // drive-geared). Meant for recovering from a wrong initial drive-system
+  // pick (V-Belt when the enquiry actually wants Geared Motor, or vice
+  // versa) so no stale row lingers in the DB after switching. Destructive,
+  // so it's confirm-guarded before the wipe runs.
+  const [clearing, setClearing] = useState(false);
+  const [clearError, setClearError] = useState<string | null>(null);
+  const [cleared, setCleared] = useState(false);
+  const handleClearDriveInputs = async () => {
+    if (!projectId) return;
+    const ok = window.confirm(
+      "Clear all drive + motor inputs for this project? This wipes the choice, the rating fields and any selected V-belt / gearbox / motor card. This action cannot be undone.",
+    );
+    if (!ok) return;
+    setClearError(null);
+    setCleared(false);
+    setClearing(true);
+    // Local wipe: every field this step controls is set to "" / undefined so
+    // the UI reflects the reset immediately, without waiting for the network.
+    const wipe: Record<string, unknown> = {};
+    for (const k of MOTOR_DRIVE_FIELDS) wipe[k] = "";
+    for (const k of DRIVE_VBELT_FIELDS) wipe[k] = "";
+    for (const k of DRIVE_GEARED_FIELDS) wipe[k] = "";
+    wipe.driveSystem = "";
+    wipe.driveMotorConfirmed = false;
+    wipe.vbeltConfirmed = false;
+    wipe.gearboxConfirmed = false;
+    setFormData({ ...formData, ...wipe });
+    // Server wipe: delete the row in each of the three drive tables. Best-
+    // effort - if one fails we still report the failure so the user can
+    // retry, but the in-memory state is already reset either way.
+    try {
+      await Promise.all([
+        clearWizardInput("motor-drive", projectId),
+        clearWizardInput("drive-vbelt", projectId),
+        clearWizardInput("drive-geared", projectId),
+      ]);
+      setCleared(true);
+    } catch {
+      setClearError("Server couldn't clear all rows - try Clear again.");
+    } finally {
+      setClearing(false);
     }
   };
 
@@ -559,6 +605,47 @@ const DriveDetailsStep = ({
       <div className="step-card">
         <h2>Drive Details</h2>
         <p>Select the drive system and motor specification.</p>
+
+        {/* clear-drive-top-bar: escape hatch for a wrong drive-system pick.
+            Sits above the Drive System dropdown so the user finds it BEFORE
+            re-picking - clicking it wipes every drive + motor field (both the
+            form and the database) so the next choice starts clean. */}
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-line bg-elev px-3 py-2">
+          <div className="min-w-0">
+            <div className="text-[12px] font-semibold text-fg">
+              Picked the wrong drive system?
+            </div>
+            <div className="text-[11px] text-fg-3">
+              Clear the drive + motor inputs (form and database) before switching.
+            </div>
+          </div>
+          <button
+            type="button"
+            className={btnGhost}
+            onClick={handleClearDriveInputs}
+            disabled={!projectId || clearing}
+            title={
+              !projectId
+                ? "No project open"
+                : "Wipe drive + motor inputs (both the form and the database)"
+            }
+          >
+            {clearing ? "Clearing…" : "Clear"}
+          </button>
+        </div>
+        {(clearError || cleared) && (
+          <p
+            className={
+              cleared
+                ? "mt-2 text-[12px] text-pos"
+                : "mt-2 text-[12px] text-warn"
+            }
+          >
+            {cleared
+              ? "Drive and motor inputs cleared - pick a drive system to start fresh."
+              : clearError}
+          </p>
+        )}
 
         <div className={grid}>
           <div className={fieldWrap}>
@@ -1521,6 +1608,7 @@ const DriveDetailsStep = ({
           </div>
         )}
 
+        {/* BOTTOM-ROW-REMOVED: Clear now lives in the top bar. */}
         <div className={actions}>
           <button className={btnGhost} onClick={onPrevious}>
             Previous

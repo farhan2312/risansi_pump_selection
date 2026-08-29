@@ -96,3 +96,14 @@ export const deleteClientRequirements = async (projectId: string): Promise<void>
     params: { projectId },
   });
 };
+
+/** Deletes the entire per-project row for one wizard-input table. Used by the
+ * Drive Details step's Clear button so a wrong drive-system choice can be
+ * wiped without leaving stale rows behind. Idempotent - clearing a table that
+ * already has no row is a no-op on the server. */
+export const clearWizardInput = async (
+  table: WizardInputTable,
+  projectId: string,
+): Promise<void> => {
+  await apiClient.delete(`/wizard-input/${table}`, { params: { projectId } });
+};
