@@ -1,22 +1,57 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 
 import { error, isUniqueViolation, json, projectToDict } from "@/lib/api";
 import { tryDecodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { projects, users } from "@/lib/db/schema";
+import { enquiryTags, projects, users } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  // Left-join users so the list can show a real "Created By" name — created_by
+  // Left-join users so the list can show a real "Created By" name - created_by
   // on the project row is just a user id, not a display name.
+  //
+  // Status is now DERIVED from the enquiry's tags rather than read straight
+  // from projects.status: an enquiry rolls up to Completed only when EVERY
+  // tag under it is Completed, Pending only when every tag is Pending, and
+  // In Progress otherwise (any mix, or any tag in progress). Rolled up in
+  // SQL so the Dashboard, Projects list and Reports list all agree without
+  // an extra client round-trip. projects.status is left in place but no
+  // longer read by the app; the wizard writes to enquiry_tags.status now.
+  const rollup = sql<string>`(
+    SELECT CASE
+      WHEN COUNT(*) FILTER (WHERE t.status = 'Completed') = COUNT(*)
+           AND COUNT(*) > 0
+        THEN 'Completed'
+      WHEN COUNT(*) FILTER (WHERE t.status = 'Pending') = COUNT(*)
+           AND COUNT(*) > 0
+        THEN 'Pending'
+      WHEN COUNT(*) = 0
+        THEN ${projects.status}
+      ELSE 'In Progress'
+    END
+    FROM ${enquiryTags} t
+    WHERE t.project_id = ${projects.id}
+  )`;
+
   const rows = await db
-    .select({ project: projects, createdByName: users.name })
+    .select({
+      project: projects,
+      derivedStatus: rollup,
+      createdByName: users.name,
+    })
     .from(projects)
     .leftJoin(users, eq(projects.createdBy, users.id))
     .orderBy(desc(projects.createdAt));
 
-  return json(rows.map((r) => projectToDict(r.project, r.createdByName)));
+  return json(
+    rows.map((r) => ({
+      ...projectToDict(r.project, r.createdByName),
+      // Overwrite status with the rollup so the Dashboard's status column and
+      // stat cards read the tag-aware value automatically.
+      status: r.derivedStatus,
+    })),
+  );
 }
 
 export async function POST(req: Request) {
@@ -70,6 +105,13 @@ export async function POST(req: Request) {
     }
     throw e;
   }
+
+  // Every new project starts with one "Default" tag so the wizard has
+  // something to key its rows against - the tag_id column on the wizard
+  // tables is NOT NULL, so a project with no tag can't hold any wizard
+  // data. Without this, the Open button on a tag row would 404 because
+  // no tag exists yet.
+  await db.insert(enquiryTags).values({ projectId: project.id, name: "Default" });
 
   let createdByName: string | null = null;
   if (createdBy) {
