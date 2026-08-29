@@ -180,3 +180,12 @@
 @media (max-width: 560px) {
   .modal { max-width: 100%; }
 }
+
+/* Small helper text under the enquiry-no. input - explains the prefilled
+   prefix without making it look like an error message. */
+.modal-hint {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--fg-3, #6e7781);
+  line-height: 1.4;
+}
