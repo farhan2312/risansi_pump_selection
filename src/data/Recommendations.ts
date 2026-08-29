@@ -97,10 +97,14 @@ export interface PumpSelectionFormData {
   sealingType: string;
   sealingSubType?: string; // MSA / SCG / DCG / MSK — Mechanical Seal only
   glandPackingType?: string; // GAGP / Teflon-PTFE / Carbon Fiber / Asbestos-Free — Gland Packing only
-  /** Free-text extras the client supplied that no wizard field covers
-   * (chemical composition, special service notes). Appended to the MOC AI
-   * prompt as a "Client requirements" block. */
+  // Client-requirements file (image or PDF) uploaded on the MOC step. Bytes
+  // live on the server; only the metadata is carried in formData so the
+  // wizard can show/preserve "attached" state. `clientRequirements` (the
+  // old free-text field) is kept for reading legacy drafts only.
   clientRequirements?: string;
+  clientRequirementsFilename?: string;
+  clientRequirementsMime?: string;
+  clientRequirementsUploadedAt?: string;
   /** Wizard progress: last step visited, and the furthest step ever reached
    * (steps below it stay ticked in the stepper). Persisted on general_info. */
   wizardStep?: number;

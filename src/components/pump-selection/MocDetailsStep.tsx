@@ -14,7 +14,12 @@ import {
 } from "../../services/mocRecommendationService";
 import { downloadMocReportPdf } from "../../lib/moc-pdf-report";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
-import { saveWizardInput, uploadMocDocument } from "../../services/wizardInputService";
+import {
+  deleteClientRequirements,
+  saveWizardInput,
+  uploadClientRequirements,
+  uploadMocDocument,
+} from "../../services/wizardInputService";
 import { phDisplay, temperatureCDisplay, viscosityCpDisplay } from "../../lib/fluid-inputs";
 
 // Renders the AI's markdown-formatted summary/alternatives/seal-rationale
@@ -296,13 +301,24 @@ const MocDetailsStep = ({
   const componentGroups = componentGroupsFor(formData.pumpType as string | undefined);
   const { user } = useCurrentUser();
 
-  // Free-text client extras fed into the AI prompt. The panel starts open when
-  // a restored draft already has text, so saved requirements aren't hidden
-  // behind a collapsed button.
-  const clientRequirements = (formData.clientRequirements as string) ?? "";
-  const [showClientReq, setShowClientReq] = useState(
-    () => clientRequirements.trim() !== "",
-  );
+  // Client requirements is now an uploaded file (image or PDF), not free text.
+  // Bytes live on the server; only the metadata is in formData so the panel
+  // can show "attached" state on reload. The legacy `clientRequirements` text
+  // field still restores from old drafts and is shown read-only below when it
+  // is present, so nothing is lost from previously-saved projects.
+  const clientRequirementsFilename =
+    (formData.clientRequirementsFilename as string) ?? "";
+  const clientRequirementsMime = (formData.clientRequirementsMime as string) ?? "";
+  const clientRequirementsUploadedAt =
+    (formData.clientRequirementsUploadedAt as string) ?? "";
+  const clientRequirementsLegacyText =
+    (formData.clientRequirements as string) ?? "";
+  const hasClientRequirements =
+    clientRequirementsFilename.trim() !== "" ||
+    clientRequirementsLegacyText.trim() !== "";
+  const [showClientReq, setShowClientReq] = useState(() => hasClientRequirements);
+  const [clientReqUploading, setClientReqUploading] = useState(false);
+  const [clientReqError, setClientReqError] = useState<string | null>(null);
 
   // AI-assisted per-component suggestion — advisory only, opt-in via button
   // click (not fetched automatically). Reset whenever the media changes so a
@@ -362,6 +378,57 @@ const MocDetailsStep = ({
     return () => clearInterval(id);
   }, [aiStatus]);
 
+  // File-picker handlers for the client requirements upload. The server
+  // enforces mime + size limits authoritatively; the client checks first so a
+  // bad drop shows an inline error instead of a rejected upload.
+  const CLIENT_REQ_ACCEPT = ".png,.jpg,.jpeg,.gif,.webp,.pdf";
+  const CLIENT_REQ_MAX_MB = 5;
+  const handleClientReqUpload = async (file: File) => {
+    if (!projectId) {
+      setClientReqError("Save this project first before attaching a file.");
+      return;
+    }
+    if (file.size > CLIENT_REQ_MAX_MB * 1024 * 1024) {
+      setClientReqError(`File is larger than ${CLIENT_REQ_MAX_MB} MB.`);
+      return;
+    }
+    setClientReqError(null);
+    setClientReqUploading(true);
+    try {
+      const meta = await uploadClientRequirements(projectId, file);
+      setFormData((f: typeof formData) => ({
+        ...f,
+        clientRequirementsFilename: meta.clientRequirementsFilename,
+        clientRequirementsMime: meta.clientRequirementsMime,
+        clientRequirementsUploadedAt: meta.clientRequirementsUploadedAt,
+      }));
+    } catch {
+      setClientReqError("Upload failed. Check the file type and try again.");
+    } finally {
+      setClientReqUploading(false);
+    }
+  };
+  const handleClientReqRemove = async () => {
+    if (!projectId) return;
+    setClientReqError(null);
+    try {
+      await deleteClientRequirements(projectId);
+    } catch {
+      // Best-effort: still clear locally so the UI reflects the intent.
+    }
+    setFormData((f: typeof formData) => ({
+      ...f,
+      clientRequirementsFilename: "",
+      clientRequirementsMime: "",
+      clientRequirementsUploadedAt: "",
+    }));
+  };
+  // Direct download link for the currently-attached file - lets the user see
+  // what they uploaded without going back to the source.
+  const clientReqDownloadHref = projectId && clientRequirementsFilename
+    ? `/api/wizard-input/moc-sealing/client-requirements?projectId=${encodeURIComponent(projectId)}`
+    : null;
+
   const requestAiSuggestion = () => {
     if (!media) return;
     setAiStatus("loading");
@@ -371,16 +438,22 @@ const MocDetailsStep = ({
       pumpType: formData.pumpType || undefined,
       head: formData.head || undefined,
       headUnit: formData.headUnit || undefined,
-      ph: formData.ph || undefined,
-      temperatureC: formData.temperature || undefined,
-      viscosityCp: formData.viscosityCp || undefined,
+      // Single value or Min-Max range, rendered as "6.5" / "4-9" - see
+      // fluid-inputs.ts. Sending the raw formData.ph / .temperature /
+      // .viscosityCp here would drop the *Max side of a range and quietly
+      // spec the model against only the least aggressive corner.
+      ph: phDisplay(formData) || undefined,
+      temperatureC: temperatureCDisplay(formData) || undefined,
+      viscosityCp: viscosityCpDisplay(formData) || undefined,
       sg: formData.sg || undefined,
       capacity: formData.capacity || undefined,
       capacityUnit: formData.capacityUnit || undefined,
       solidPct: formData.solidPercentage || undefined,
       solidSize: formData.solidSize || undefined,
       solidType: formData.solidType || undefined,
-      clientRequirements: clientRequirements.trim() || undefined,
+      // The server reads the uploaded file straight from the DB by projectId
+      // rather than having the browser round-trip base64 bytes through JSON.
+      projectId: projectId || undefined,
       provider: aiProvider,
     })
       .then((res) => {
@@ -449,7 +522,9 @@ const MocDetailsStep = ({
         solidPct: formData.solidPercentage || undefined,
         solidSize: formData.solidSize || undefined,
         solidType: formData.solidType || undefined,
-        clientRequirements: clientRequirements.trim() || undefined,
+        // PDF shows the uploaded filename (legacy rows still get their text).
+        clientRequirementsFilename: clientRequirementsFilename || undefined,
+        clientRequirements: clientRequirementsLegacyText.trim() || undefined,
         suggestion: aiSuggestion,
         generatedBy: user?.name || user?.email || undefined,
       });
@@ -493,7 +568,7 @@ const MocDetailsStep = ({
           >
             <span className="text-base">📋</span>
             {showClientReq ? "Hide" : "Add"} Client Requirements
-            {!showClientReq && clientRequirements.trim() !== "" && (
+            {!showClientReq && hasClientRequirements && (
               <span className="rounded-full bg-[var(--pos-soft)] px-2 py-0.5 text-[10px] font-semibold text-pos">
                 Added
               </span>
@@ -502,27 +577,99 @@ const MocDetailsStep = ({
 
           {showClientReq && (
             <div className="mt-2 rounded-md border border-line bg-elev p-4">
-              <label className="section-label" htmlFor="client-requirements">
-                Additional Client Requirements
+              <label className="section-label" htmlFor="client-requirements-file">
+                Client Requirements File
               </label>
               <p className="mt-1 text-[12px] text-fg-3">
-                Chemical composition, service conditions, or any other detail the
-                client supplied that isn&apos;t captured by the fields above. This
-                text is added to the AI recommendation prompt.
+                Upload the enquiry document, MOC spec, chemical analysis, or any
+                other file the client supplied (PDF or image, max {CLIENT_REQ_MAX_MB} MB).
+                The AI recommendation reads the file directly.
               </p>
-              <textarea
-                id="client-requirements"
-                rows={5}
-                className={`${control} mt-2 resize-y`}
-                placeholder="e.g. Media contains 12% H2SO4 and traces of chlorides; client requires all wetted parts to be certified for food contact…"
-                value={clientRequirements}
-                onChange={(e) =>
-                  setFormData({ ...formData, clientRequirements: e.target.value })
-                }
-              />
-              {clientRequirements.trim() !== "" && (
-                <p className="mt-1 text-[12px] text-fg-3">
-                  Regenerate the AI recommendation below to take this into account.
+
+              {clientRequirementsFilename ? (
+                <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md border border-line-strong bg-paper p-3">
+                  <span className="text-lg">
+                    {clientRequirementsMime === "application/pdf" ? "📄" : "🖼️"}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[13px] font-semibold text-fg">
+                      {clientRequirementsFilename}
+                    </div>
+                    {clientRequirementsUploadedAt && (
+                      <div className="text-[11px] text-fg-3">
+                        Uploaded{" "}
+                        {new Date(clientRequirementsUploadedAt).toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+                  {clientReqDownloadHref && (
+                    <a
+                      href={clientReqDownloadHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-md border border-line-strong bg-paper px-3 py-1 text-[12px] font-semibold text-fg hover:bg-elev"
+                    >
+                      View
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleClientReqRemove}
+                    className="rounded-md border border-warn bg-paper px-3 py-1 text-[12px] font-semibold text-warn hover:bg-warn/10"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-3">
+                  <input
+                    id="client-requirements-file"
+                    type="file"
+                    accept={CLIENT_REQ_ACCEPT}
+                    disabled={!projectId || clientReqUploading}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      // Reset the input value so re-selecting the same file
+                      // still fires onChange (browsers otherwise skip it).
+                      e.target.value = "";
+                      if (f) handleClientReqUpload(f);
+                    }}
+                    className="block w-full text-[13px] text-fg file:mr-3 file:cursor-pointer file:rounded-md file:border file:border-line-strong file:bg-paper file:px-3 file:py-1.5 file:text-[12px] file:font-semibold file:text-fg hover:file:bg-elev"
+                  />
+                  {!projectId && (
+                    <p className="mt-1 text-[12px] text-warn">
+                      Save the project first to enable uploads.
+                    </p>
+                  )}
+                  {clientReqUploading && (
+                    <p className="mt-1 text-[12px] text-fg-3">Uploading…</p>
+                  )}
+                </div>
+              )}
+
+              {clientReqError && (
+                <p className="mt-2 text-[12px] text-warn">{clientReqError}</p>
+              )}
+
+              {clientRequirementsLegacyText.trim() !== "" && (
+                <div className="mt-3 rounded-md border border-dashed border-line bg-paper p-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-fg-3">
+                    Legacy text (from an older draft)
+                  </div>
+                  <p className="mt-1 whitespace-pre-wrap text-[12px] text-fg-3">
+                    {clientRequirementsLegacyText}
+                  </p>
+                  <p className="mt-2 text-[11px] text-fg-3">
+                    Still sent to the AI. Upload a file above to add today&apos;s
+                    updated version.
+                  </p>
+                </div>
+              )}
+
+              {hasClientRequirements && (
+                <p className="mt-2 text-[12px] text-fg-3">
+                  Regenerate the AI recommendation below to include this
+                  attachment.
                 </p>
               )}
             </div>

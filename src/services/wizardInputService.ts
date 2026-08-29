@@ -61,3 +61,38 @@ export const uploadMocDocument = async (
     headers: { "Content-Type": "application/pdf" },
   });
 };
+
+/** Uploads the client-requirements file (image or PDF) so the AI recommendation
+ * request can attach it directly to the model call. Raw binary body — see
+ * /api/wizard-input/[table]/client-requirements/route.ts. Resolves to the
+ * server's stored metadata so the caller can persist filename/mime/uploadedAt
+ * into formData for restore. */
+export const uploadClientRequirements = async (
+  projectId: string,
+  file: File,
+): Promise<{
+  clientRequirementsFilename: string;
+  clientRequirementsMime: string;
+  clientRequirementsUploadedAt: string;
+}> => {
+  const bytes = await file.arrayBuffer();
+  const { data } = await apiClient.post(
+    "/wizard-input/moc-sealing/client-requirements",
+    bytes,
+    {
+      params: { projectId, filename: file.name, mime: file.type },
+      // Server ignores this - the mime the DB stores comes from the query
+      // param above - but a real content-type keeps proxies from stripping the
+      // body as unknown.
+      headers: { "Content-Type": "application/octet-stream" },
+    },
+  );
+  return data;
+};
+
+/** Removes the client-requirements file from moc_sealing_input. */
+export const deleteClientRequirements = async (projectId: string): Promise<void> => {
+  await apiClient.delete("/wizard-input/moc-sealing/client-requirements", {
+    params: { projectId },
+  });
+};

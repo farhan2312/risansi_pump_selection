@@ -60,7 +60,13 @@ const FIELDS: Record<TableKey, readonly string[]> = {
   ],
   "moc-sealing": [
     "sealingType", "sealingSubType", "glandPackingType",
-    "clientRequirements",
+    // Legacy text field is intentionally omitted from the writable list:
+    // the form no longer produces free text (client requirements are now an
+    // uploaded file). It still returns from GET on legacy rows since the
+    // pickFields whitelist is write-only.
+    "clientRequirementsFilename",
+    "clientRequirementsMime",
+    "clientRequirementsUploadedAt",
     "mocAiBearingHousing", "mocAiBearingHousingRemarks",
     "mocAiBasePlate", "mocAiBasePlateRemarks",
     "mocAiMountingPlate", "mocAiMountingPlateRemarks",
@@ -112,7 +118,7 @@ const FIELDS: Record<TableKey, readonly string[]> = {
 // as JSON strings (an ISO string, or "" for "not set"). Coerce string -> Date
 // (and ""/invalid -> null) so the write doesn't 500 with
 // "value.toISOString is not a function".
-const TIMESTAMP_FIELDS = new Set<string>(["mocAiGeneratedAt"]);
+const TIMESTAMP_FIELDS = new Set<string>(["mocAiGeneratedAt", "clientRequirementsUploadedAt"]);
 
 function coerceTimestamp(v: unknown): Date | null {
   if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v;
@@ -170,8 +176,14 @@ export async function GET(
   // restore endpoint — it can be hundreds of KB and the wizard doesn't use it
   // here (the blob has its own /document route). Stripping it keeps every
   // page-load restore small.
-  if ("document" in (row as Record<string, unknown>)) {
-    delete (row as Record<string, unknown>).document;
+  // Bytea columns must never travel through this JSON restore path - they
+  // have their own binary endpoints. Keeps page loads small and avoids
+  // base64-inside-JSON overhead. The metadata columns (filename, mime,
+  // uploadedAt) come through unchanged.
+  for (const k of ["document", "clientRequirementsFile"] as const) {
+    if (k in (row as Record<string, unknown>)) {
+      delete (row as Record<string, unknown>)[k];
+    }
   }
   return json(row);
 }

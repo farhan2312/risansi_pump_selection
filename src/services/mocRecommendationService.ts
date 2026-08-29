@@ -89,9 +89,12 @@ export const getMocAiSuggestion = async (input: {
   solidPct?: string;
   solidSize?: string;
   solidType?: string;
-  /** Free-text client extras appended to the prompt (chemical composition,
-   * special service notes — anything the wizard has no field for). */
+  /** Legacy free-text client requirements (kept for old drafts saved before
+   * the field became a file upload). */
   clientRequirements?: string;
+  /** Project id, used by the server to fetch any uploaded client-
+   * requirements file (image or PDF) and attach it to the model call. */
+  projectId?: string;
   /** Which LLM to use — defaults server-side to "anthropic" if omitted. */
   provider?: MocAiProvider;
 }): Promise<MocComponentSuggestions | MocAiUnavailable> => {

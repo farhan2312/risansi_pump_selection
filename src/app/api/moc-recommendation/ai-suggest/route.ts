@@ -1,4 +1,8 @@
+import { eq } from "drizzle-orm";
+
 import { error, json } from "@/lib/api";
+import { db } from "@/lib/db";
+import { mocSealingInput } from "@/lib/db/schema";
 import {
   getMocAiSuggestion,
   isMocAiProviderConfigured,
@@ -13,6 +17,12 @@ const str = (v: unknown): string | null =>
 
 const isProvider = (v: unknown): v is MocAiProvider =>
   typeof v === "string" && (MOC_AI_PROVIDERS as readonly string[]).includes(v);
+
+// MIME strings the model can actually consume as an inline attachment. We do
+// not attempt any conversion here — anything else is silently skipped so the
+// AI still runs on the text context alone.
+const CLAUDE_IMAGE_MIMES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
+const CLAUDE_DOC_MIME = "application/pdf";
 
 // AI-assisted, per-component MOC/elastomer/sealing suggestion — advisory
 // only, scoped to whatever process data the wizard has actually collected so
@@ -39,6 +49,37 @@ export async function POST(req: Request) {
     return json({ unavailable: "not_configured" });
   }
 
+  // Pull the client-requirements file (if any) from the DB so the model gets
+  // it as a first-class attachment. Also carries the legacy free-text field
+  // through, so drafts saved before the field became a file still contribute
+  // their text to the prompt. Fetched here (not passed by the client) because
+  // the browser never holds the bytes — only the server owns them.
+  const projectId = str(body.projectId);
+  let clientRequirementsFile: { mediaType: string; base64: string } | null = null;
+  let clientRequirementsLegacyText: string | null = null;
+  if (projectId) {
+    const [row] = await db
+      .select({
+        file: mocSealingInput.clientRequirementsFile,
+        mime: mocSealingInput.clientRequirementsMime,
+        text: mocSealingInput.clientRequirements,
+      })
+      .from(mocSealingInput)
+      .where(eq(mocSealingInput.projectId, projectId))
+      .limit(1);
+    if (row?.file && row.mime) {
+      const isImage = CLAUDE_IMAGE_MIMES.has(row.mime);
+      const isPdf = row.mime === CLAUDE_DOC_MIME;
+      if (isImage || isPdf) {
+        clientRequirementsFile = {
+          mediaType: row.mime,
+          base64: Buffer.from(row.file).toString("base64"),
+        };
+      }
+    }
+    clientRequirementsLegacyText = str(row?.text ?? null);
+  }
+
   const suggestion = await getMocAiSuggestion(
     {
       media,
@@ -54,7 +95,8 @@ export async function POST(req: Request) {
       solidPct: str(body.solidPct),
       solidSize: str(body.solidSize),
       solidType: str(body.solidType),
-      clientRequirements: str(body.clientRequirements),
+      clientRequirements: clientRequirementsLegacyText,
+      clientRequirementsFile,
     },
     provider,
   );

@@ -209,7 +209,19 @@ export const mocSealingInput = pgTable("moc_sealing_input", {
   // Free-text extras the client supplied that the wizard has no field for
   // (chemical composition, special service notes, ...). Appended verbatim to
   // the MOC AI prompt as a "Client requirements" block.
+  // Legacy free-text client requirements. Kept for backward compatibility with
+  // rows saved before the field became a file upload; new rows leave this NULL
+  // and use the file columns below instead.
   clientRequirements: text("client_requirements"),
+  // Client-supplied requirements as an uploaded file (image or PDF). Bytes
+  // never travel through the JSON /api/wizard-input path; the file has its
+  // own binary endpoint under /wizard-input/moc-sealing/client-requirements.
+  // Only the metadata (filename/mime/uploadedAt) is exposed through JSON so
+  // the wizard can show "attached" state on reload without pulling the bytes.
+  clientRequirementsFile: bytea("client_requirements_file"),
+  clientRequirementsFilename: varchar("client_requirements_filename", { length: 255 }),
+  clientRequirementsMime: varchar("client_requirements_mime", { length: 100 }),
+  clientRequirementsUploadedAt: timestamp("client_requirements_uploaded_at", { withTimezone: true }),
   // Manual per-component MOC picks + open remarks (optionally eyeballed
   // against the AI suggestion below, entered independently — never
   // auto-filled from it, per the app's firm "advisory only" convention).

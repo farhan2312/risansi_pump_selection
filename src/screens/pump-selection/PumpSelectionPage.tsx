@@ -51,7 +51,7 @@ const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
   ],
   "moc-sealing": [
     "sealingType", "sealingSubType",
-    "clientRequirements",
+    "clientRequirementsFilename", "clientRequirementsMime", "clientRequirementsUploadedAt",
     "mocAiBearingHousing", "mocAiBearingHousingRemarks",
     "mocAiBasePlate", "mocAiBasePlateRemarks",
     "mocAiMountingPlate", "mocAiMountingPlateRemarks",
