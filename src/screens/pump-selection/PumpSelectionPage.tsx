@@ -54,16 +54,20 @@ const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
     "clientRequirements",
     "mocAiBearingHousing", "mocAiBearingHousingRemarks",
     "mocAiBasePlate", "mocAiBasePlateRemarks",
+    "mocAiMountingPlate", "mocAiMountingPlateRemarks",
     "mocAiTieRod", "mocAiTieRodRemarks",
     "mocAiNutBolt", "mocAiNutBoltRemarks",
     "mocAiPumpHousing", "mocAiPumpHousingRemarks",
     "mocAiRotor", "mocAiRotorRemarks",
     "mocAiShaft", "mocAiShaftRemarks",
     "mocAiStatorRubber", "mocAiStatorRubberRemarks",
+    "mocAiStatorSleeve", "mocAiStatorSleeveRemarks",
     "mocAiProvider",
     "mocAiSuggestedBearingHousing", "mocAiSuggestedBasePlate",
+    "mocAiSuggestedMountingPlate",
     "mocAiSuggestedTieRod", "mocAiSuggestedNutBolt", "mocAiSuggestedPumpHousing",
     "mocAiSuggestedRotor", "mocAiSuggestedShaft", "mocAiSuggestedStatorRubber",
+    "mocAiSuggestedStatorSleeve",
     "mocAiSuggestedSummary", "mocAiSuggestedAlternatives",
     "mocAiSuggestedSealRecommendation", "mocAiSuggestedSealRationale",
     "mocAiGeneratedAt",
@@ -263,6 +267,8 @@ const PumpSelectionPage = () => {
     mocAiBearingHousingRemarks: "",
     mocAiBasePlate: "",
     mocAiBasePlateRemarks: "",
+    mocAiMountingPlate: "",
+    mocAiMountingPlateRemarks: "",
     mocAiTieRod: "",
     mocAiTieRodRemarks: "",
     mocAiNutBolt: "",
@@ -275,6 +281,8 @@ const PumpSelectionPage = () => {
     mocAiShaftRemarks: "",
     mocAiStatorRubber: "",
     mocAiStatorRubberRemarks: "",
+    mocAiStatorSleeve: "",
+    mocAiStatorSleeveRemarks: "",
 
     // The AI's own recommendation, persisted in full to moc_sealing_input so
     // the whole post-generation panel rebuilds on reload — distinct from the
@@ -283,12 +291,14 @@ const PumpSelectionPage = () => {
     mocAiProvider: "",
     mocAiSuggestedBearingHousing: "",
     mocAiSuggestedBasePlate: "",
+    mocAiSuggestedMountingPlate: "",
     mocAiSuggestedTieRod: "",
     mocAiSuggestedNutBolt: "",
     mocAiSuggestedPumpHousing: "",
     mocAiSuggestedRotor: "",
     mocAiSuggestedShaft: "",
     mocAiSuggestedStatorRubber: "",
+    mocAiSuggestedStatorSleeve: "",
     mocAiSuggestedSummary: "",
     mocAiSuggestedAlternatives: "",
     mocAiSuggestedSealRecommendation: "",
@@ -581,14 +591,17 @@ const PumpSelectionPage = () => {
       <ProjectHeader project={project} />
       {renderStep()}
       {/* Live recommendation that refines as the user fills each step. Sits at
-          the bottom of the page; hidden on the final (read-only summary) step. */}
-      {step < 8 && (
-        <LivePumpRecommendation
-          formData={formData}
-          setFormData={setFormData}
-          projectId={project?.id}
-        />
-      )}
+          the bottom of the page. Through Sealing (step 5) it is interactive:
+          pick and confirm a model. From Motor Rating (6) on it stays visible
+          as a read-only reference card (locked) - those steps configure the
+          chosen pump, so the model can no longer be swapped there, which would
+          silently invalidate the motor/drive selections built on it. */}
+      <LivePumpRecommendation
+        formData={formData}
+        setFormData={setFormData}
+        projectId={project?.id}
+        locked={step > 5}
+      />
     </>
   );
 };

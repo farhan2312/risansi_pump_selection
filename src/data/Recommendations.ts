@@ -70,6 +70,18 @@ export interface PumpSelectionFormData {
   viscosityUnit: string;
   viscosityRange: string;
   viscosityCp?: string; // canonical cP value (cP = cSt × SG when entered in cSt)
+  // pH / viscosity / temperature can each be a single value OR a Min–Max
+  // range. `<field>Mode` is "single" (default when absent) or "range"; the
+  // base fields above hold the single/min value, these hold the upper bound.
+  // See src/lib/fluid-inputs.ts for the display formatting.
+  phMax?: string;
+  phMode?: string;
+  viscosityMax?: string;
+  viscosityCpMax?: string;
+  viscosityMode?: string;
+  temperatureMax?: string; // canonical Celsius (max)
+  temperatureMaxRaw?: string; // as-entered (max)
+  temperatureMode?: string;
   rpmRange?: string; // manual RPM band filter: low/medium/high/vhigh
   selectedModel?: string; // pump picked by the user; persists across steps
   modelConfirmed?: boolean; // true once the picked model is confirmed (gates advancing past Fluid)
@@ -83,7 +95,8 @@ export interface PumpSelectionFormData {
   jointType: string;
   driveSystem: string;
   sealingType: string;
-  sealingSubType?: string; // MSA / SCG / DCG — Mechanical Seal only
+  sealingSubType?: string; // MSA / SCG / DCG / MSK — Mechanical Seal only
+  glandPackingType?: string; // GAGP / Teflon-PTFE / Carbon Fiber / Asbestos-Free — Gland Packing only
   /** Free-text extras the client supplied that no wizard field covers
    * (chemical composition, special service notes). Appended to the MOC AI
    * prompt as a "Client requirements" block. */
@@ -114,8 +127,13 @@ export interface PumpSelectionFormData {
   // recommendation panel) — non-wettable components
   mocAiBearingHousing?: string;
   mocAiBearingHousingRemarks?: string;
+  // Base Plate (Horizontal) and Mounting Plate (Vertical) are different
+  // components with their own fields - only the one matching the chosen pump
+  // type is shown and filled.
   mocAiBasePlate?: string;
   mocAiBasePlateRemarks?: string;
+  mocAiMountingPlate?: string;
+  mocAiMountingPlateRemarks?: string;
   mocAiTieRod?: string;
   mocAiTieRodRemarks?: string;
   mocAiNutBolt?: string;
@@ -130,18 +148,24 @@ export interface PumpSelectionFormData {
   // Elastomer
   mocAiStatorRubber?: string;
   mocAiStatorRubberRemarks?: string;
+  // Stator Sleeve - grouped as non-wettable for the Horizontal pump types
+  // and as wettable for Vertical (see COMPONENT_GROUPS in MocDetailsStep).
+  mocAiStatorSleeve?: string;
+  mocAiStatorSleeveRemarks?: string;
   // The AI's own recommendation, persisted in full so the whole post-
   // generation panel rebuilds on reload — distinct from the manual
   // mocAi<Component> picks above, which are never auto-filled from these.
   mocAiProvider?: string; // "anthropic" (legacy rows may hold "gemini")
   mocAiSuggestedBearingHousing?: string;
   mocAiSuggestedBasePlate?: string;
+  mocAiSuggestedMountingPlate?: string;
   mocAiSuggestedTieRod?: string;
   mocAiSuggestedNutBolt?: string;
   mocAiSuggestedPumpHousing?: string;
   mocAiSuggestedRotor?: string;
   mocAiSuggestedShaft?: string;
   mocAiSuggestedStatorRubber?: string;
+  mocAiSuggestedStatorSleeve?: string;
   mocAiSuggestedSummary?: string;
   mocAiSuggestedAlternatives?: string;
   mocAiSuggestedSealRecommendation?: string;
@@ -194,17 +218,19 @@ export interface PumpRecommendation {
   model: string;
   /** Nearest charted head point (in pump_model_master) to the input duty head. */
   headMwc: number;
-  voleMin: number;
-  voleMax: number;
-  mechEff: number;
-  qth: number;
+  /** NULL when the model has no charted VOLE/QTH at the matched head — the
+   * model is still listed (stage-only inclusion), shown with blanks. */
+  voleMin: number | null;
+  voleMax: number | null;
+  mechEff: number | null;
+  qth: number | null;
   isTested: boolean;
   testingRemarks: string | null;
-  rpmAtVoleMin: number;
-  rpmAtVoleMax: number;
-  rpmClassAtVoleMin: string;
-  rpmClassAtVoleMax: string;
-  /** "VOLE MAX rpm–VOLE MIN rpm", e.g. "249–302". Falls back to a single value. */
+  rpmAtVoleMin: number | null;
+  rpmAtVoleMax: number | null;
+  rpmClassAtVoleMin: string | null;
+  rpmClassAtVoleMax: string | null;
+  /** "VOLE MAX rpm–VOLE MIN rpm", e.g. "249–302". "—" when no computable RPM. */
   rpmRange: string;
   /** True if this is the model the user pinned on an earlier step. */
   isSelected?: boolean;

@@ -15,6 +15,7 @@ import {
 import { downloadMocReportPdf } from "../../lib/moc-pdf-report";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import { saveWizardInput, uploadMocDocument } from "../../services/wizardInputService";
+import { phDisplay, temperatureCDisplay, viscosityCpDisplay } from "../../lib/fluid-inputs";
 
 // Renders the AI's markdown-formatted summary/alternatives/seal-rationale
 // text (headers, "-"/"1." lists, **bold**) in the UI panel — a small,
@@ -128,34 +129,63 @@ type ComponentRow = {
   options: readonly string[];
 };
 
-const NON_WETTABLE_ROWS: ComponentRow[] = [
-  {
-    key: "mocAiBearingHousing",
-    label: "Bearing Housing",
-    aiKey: "bearingHousing",
-    options: MOC_AI_MATERIALS,
-  },
-  {
-    key: "mocAiBasePlate",
-    label: "Base Plate",
-    aiKey: "basePlate",
-    options: MOC_AI_MATERIALS,
-  },
-  {
-    key: "mocAiTieRod",
-    label: "Tie Rod",
-    aiKey: "tieRod",
-    options: MOC_AI_MATERIALS,
-  },
-  {
-    key: "mocAiNutBolt",
-    label: "Nut & Bolt",
-    aiKey: "nutBolt",
-    options: MOC_AI_MATERIALS,
-  },
-];
+// Component rows. Which group the Stator Sleeve lands in - and what the base
+// plate is called - depends on the pump type chosen on Operating Conditions:
+//
+//   Horizontal* : Base Plate,     Stator Sleeve is NON-wettable (dry structural)
+//   Vertical    : Mounting Plate, Stator Sleeve is WETTABLE (sits in the media)
+//
+// Both variants write the SAME formData keys (mocAiBasePlate /
+// mocAiStatorSleeve), so switching pump type re-labels and re-groups the rows
+// without stranding an already-entered material under an orphaned key.
+const isVerticalPump = (pumpType: string | undefined): boolean =>
+  pumpType === "Vertical";
 
-const WETTABLE_ROWS: ComponentRow[] = [
+const BEARING_HOUSING_ROW: ComponentRow = {
+  key: "mocAiBearingHousing",
+  label: "Bearing Housing",
+  aiKey: "bearingHousing",
+  options: MOC_AI_MATERIALS,
+};
+
+const BASE_PLATE_ROW: ComponentRow = {
+  key: "mocAiBasePlate",
+  label: "Base Plate",
+  aiKey: "basePlate",
+  options: MOC_AI_MATERIALS,
+};
+
+// A mounting plate is its OWN component, not a renamed base plate - separate
+// field, separate AI answer. Only one of the two ever appears.
+const MOUNTING_PLATE_ROW: ComponentRow = {
+  key: "mocAiMountingPlate",
+  label: "Mounting Plate",
+  aiKey: "mountingPlate",
+  options: MOC_AI_MATERIALS,
+};
+
+const TIE_ROD_ROW: ComponentRow = {
+  key: "mocAiTieRod",
+  label: "Tie Rod",
+  aiKey: "tieRod",
+  options: MOC_AI_MATERIALS,
+};
+
+const NUT_BOLT_ROW: ComponentRow = {
+  key: "mocAiNutBolt",
+  label: "Nut & Bolt",
+  aiKey: "nutBolt",
+  options: MOC_AI_MATERIALS,
+};
+
+const STATOR_SLEEVE_ROW: ComponentRow = {
+  key: "mocAiStatorSleeve",
+  label: "Stator Sleeve",
+  aiKey: "statorSleeve",
+  options: MOC_AI_MATERIALS,
+};
+
+const WETTABLE_BASE_ROWS: ComponentRow[] = [
   {
     key: "mocAiPumpHousing",
     label: "Pump Housing",
@@ -176,6 +206,25 @@ const WETTABLE_ROWS: ComponentRow[] = [
   },
 ];
 
+/** Non-wettable + wettable rows for a pump type. Stator Sleeve appears in
+ *  exactly one of the two, never both. */
+const componentGroupsFor = (pumpType: string | undefined) => {
+  const vertical = isVerticalPump(pumpType);
+  return {
+    nonWettable: [
+      BEARING_HOUSING_ROW,
+      vertical ? MOUNTING_PLATE_ROW : BASE_PLATE_ROW,
+      TIE_ROD_ROW,
+      NUT_BOLT_ROW,
+      ...(vertical ? [] : [STATOR_SLEEVE_ROW]),
+    ],
+    wettable: [
+      ...WETTABLE_BASE_ROWS,
+      ...(vertical ? [STATOR_SLEEVE_ROW] : []),
+    ],
+  };
+};
+
 const ELASTOMER_ROWS: ComponentRow[] = [
   {
     key: "mocAiStatorRubber",
@@ -195,12 +244,14 @@ const reconstructAiSuggestion = (f: any): MocComponentSuggestions | null => {
   return {
     bearingHousing: f.mocAiSuggestedBearingHousing || "",
     basePlate: f.mocAiSuggestedBasePlate || "",
+    mountingPlate: f.mocAiSuggestedMountingPlate || "",
     tieRod: f.mocAiSuggestedTieRod || "",
     nutBolt: f.mocAiSuggestedNutBolt || "",
     pumpHousing: f.mocAiSuggestedPumpHousing || "",
     rotor: f.mocAiSuggestedRotor || "",
     shaft: f.mocAiSuggestedShaft || "",
     statorRubber: f.mocAiSuggestedStatorRubber || "",
+    statorSleeve: f.mocAiSuggestedStatorSleeve || "",
     sealRecommendation: f.mocAiSuggestedSealRecommendation || "",
     sealRationale: f.mocAiSuggestedSealRationale || "",
     summary: f.mocAiSuggestedSummary || "",
@@ -215,12 +266,14 @@ const CLEARED_AI_FIELDS = {
   mocAiProvider: "",
   mocAiSuggestedBearingHousing: "",
   mocAiSuggestedBasePlate: "",
+  mocAiSuggestedMountingPlate: "",
   mocAiSuggestedTieRod: "",
   mocAiSuggestedNutBolt: "",
   mocAiSuggestedPumpHousing: "",
   mocAiSuggestedRotor: "",
   mocAiSuggestedShaft: "",
   mocAiSuggestedStatorRubber: "",
+  mocAiSuggestedStatorSleeve: "",
   mocAiSuggestedSummary: "",
   mocAiSuggestedAlternatives: "",
   mocAiSuggestedSealRecommendation: "",
@@ -237,6 +290,10 @@ const MocDetailsStep = ({
   projectId,
 }: Props) => {
   const media = formData.media as string;
+  // Non-wettable / wettable split, recomputed from the pump type: Vertical
+  // moves the Stator Sleeve into the wettable group and renames Base Plate to
+  // Mounting Plate. Cheap enough to derive on every render.
+  const componentGroups = componentGroupsFor(formData.pumpType as string | undefined);
   const { user } = useCurrentUser();
 
   // Free-text client extras fed into the AI prompt. The panel starts open when
@@ -311,6 +368,7 @@ const MocDetailsStep = ({
     const providerAtRequest = aiProvider;
     getMocAiSuggestion({
       media,
+      pumpType: formData.pumpType || undefined,
       head: formData.head || undefined,
       headUnit: formData.headUnit || undefined,
       ph: formData.ph || undefined,
@@ -345,12 +403,14 @@ const MocDetailsStep = ({
             mocAiProvider: providerAtRequest,
             mocAiSuggestedBearingHousing: suggestion.bearingHousing,
             mocAiSuggestedBasePlate: suggestion.basePlate,
+            mocAiSuggestedMountingPlate: suggestion.mountingPlate,
             mocAiSuggestedTieRod: suggestion.tieRod,
             mocAiSuggestedNutBolt: suggestion.nutBolt,
             mocAiSuggestedPumpHousing: suggestion.pumpHousing,
             mocAiSuggestedRotor: suggestion.rotor,
             mocAiSuggestedShaft: suggestion.shaft,
             mocAiSuggestedStatorRubber: suggestion.statorRubber,
+            mocAiSuggestedStatorSleeve: suggestion.statorSleeve,
             mocAiSuggestedSummary: suggestion.summary,
             mocAiSuggestedAlternatives: suggestion.alternatives,
             mocAiSuggestedSealRecommendation: suggestion.sealRecommendation,
@@ -378,9 +438,11 @@ const MocDetailsStep = ({
         media,
         head: formData.head || undefined,
         headUnit: formData.headUnit || undefined,
-        ph: formData.ph || undefined,
-        temperatureC: formData.temperature || undefined,
-        viscosityCp: formData.viscosityCp || undefined,
+        // Single value or Min–Max range, rendered as "6.5" / "4–9" — see
+        // fluid-inputs.ts.
+        ph: phDisplay(formData) || undefined,
+        temperatureC: temperatureCDisplay(formData) || undefined,
+        viscosityCp: viscosityCpDisplay(formData) || undefined,
         sg: formData.sg || undefined,
         capacity: formData.capacity || undefined,
         capacityUnit: formData.capacityUnit || undefined,
@@ -639,14 +701,14 @@ const MocDetailsStep = ({
 
             <MocComponentTable
               title="Non-Wettable Components"
-              rows={NON_WETTABLE_ROWS}
+              rows={componentGroups.nonWettable}
               ai={aiSuggestion}
               formData={formData}
               setFormData={setFormData}
             />
             <MocComponentTable
               title="Wettable Casting Components"
-              rows={WETTABLE_ROWS}
+              rows={componentGroups.wettable}
               ai={aiSuggestion}
               formData={formData}
               setFormData={setFormData}

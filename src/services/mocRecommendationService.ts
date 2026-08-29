@@ -41,13 +41,18 @@ export type MocAiProvider = (typeof MOC_AI_PROVIDERS)[number]["value"];
 
 export interface MocComponentSuggestions {
   bearingHousing: string;
+  /** Horizontal pump types. */
   basePlate: string;
+  /** Vertical pump types - a different component, not a renamed base plate. */
+  mountingPlate: string;
   tieRod: string;
   nutBolt: string;
   pumpHousing: string;
   rotor: string;
   shaft: string;
   statorRubber: string;
+  /** Stator sleeve - wetted on Vertical pumps, structural on Horizontal. */
+  statorSleeve: string;
   sealRecommendation: string;
   /** Short (1-2 sentence) reason for the seal pick specifically. */
   sealRationale: string;
@@ -71,6 +76,8 @@ export type MocAiUnavailable = { unavailable: "not_configured" | "failed" };
  * treats as a failed request. Uses Anthropic (Claude Haiku) server-side. */
 export const getMocAiSuggestion = async (input: {
   media: string;
+  /** Operating-Conditions pump type - decides the stator sleeve wetted status. */
+  pumpType?: string;
   head?: string;
   headUnit?: string;
   ph?: string;

@@ -6,6 +6,7 @@ import PumpDetailsCard from "../../components/recommendation/PumpDetailsCard";
 import { useEffect, useState } from "react";
 import { getRecommendations } from "../../services/recommendationService";
 import { SIZE_COLUMN_BY_RANGE, sizeForViscosityRange } from "../../lib/suction-discharge-size";
+import { phDisplay, temperatureDisplay, viscosityDisplay } from "../../lib/fluid-inputs";
 import {
   downloadSelectionSummaryPdf,
   type SelectionSummaryPdfSection,
@@ -171,8 +172,10 @@ const RecommendationStep = ({
     ["RPM Range", formData.rpmRange ? RPM_RANGE_LABELS[formData.rpmRange] ?? formData.rpmRange : ""],
   ];
 
+  // pH / viscosity / temperature may each be a single value or a Min–Max
+  // range — the shared helpers render "6.5" or "4–9" from the same fields.
   const fluidPropertiesItems: FieldItem[] = [
-    ["Viscosity", formData.viscosity ? `${formData.viscosity} ${formData.viscosityUnit || ""}`.trim() : ""],
+    ["Viscosity", viscosityDisplay(formData)],
     ["Viscosity Range", formData.viscosityRange ? `${formData.viscosityRange} cP` : ""],
     ["Solids", formData.solidPercentage ? `${formData.solidPercentage}%` : ""],
     [
@@ -181,20 +184,8 @@ const RecommendationStep = ({
         ? `${formData.solidSize} mm${formData.solidType ? ` (${formData.solidType})` : ""}`
         : "",
     ],
-    ["pH", formData.ph],
-    [
-      "Temperature",
-      // temperatureRaw + unit is what the user typed; temperature is the
-      // canonical °C. Show the entered value, noting the °C when it differs.
-      formData.temperatureRaw
-        ? `${formData.temperatureRaw} °${formData.temperatureUnit || "C"}` +
-          (formData.temperatureUnit && formData.temperatureUnit !== "C" && formData.temperature
-            ? ` (${formData.temperature} °C)`
-            : "")
-        : formData.temperature
-          ? `${formData.temperature} °C`
-          : "",
-    ],
+    ["pH", phDisplay(formData)],
+    ["Temperature", temperatureDisplay(formData)],
   ];
 
   const operatingConditionsItems: FieldItem[] = [
@@ -207,18 +198,30 @@ const RecommendationStep = ({
 
   const mocItems: FieldItem[] = [
     ["Bearing Housing MOC", withRemarks(formData.mocAiBearingHousing, formData.mocAiBearingHousingRemarks)],
+    // Base Plate (Horizontal) and Mounting Plate (Vertical) are separate
+    // components with separate fields. Both are listed; FieldGrid drops the
+    // empty one, so only the plate that applies to this pump type shows.
     ["Base Plate MOC", withRemarks(formData.mocAiBasePlate, formData.mocAiBasePlateRemarks)],
+    [
+      "Mounting Plate MOC",
+      withRemarks(formData.mocAiMountingPlate, formData.mocAiMountingPlateRemarks),
+    ],
     ["Tie Rod MOC", withRemarks(formData.mocAiTieRod, formData.mocAiTieRodRemarks)],
     ["Nut & Bolt MOC", withRemarks(formData.mocAiNutBolt, formData.mocAiNutBoltRemarks)],
     ["Pump Housing MOC", withRemarks(formData.mocAiPumpHousing, formData.mocAiPumpHousingRemarks)],
     ["Rotor MOC", withRemarks(formData.mocAiRotor, formData.mocAiRotorRemarks)],
     ["Shaft MOC", withRemarks(formData.mocAiShaft, formData.mocAiShaftRemarks)],
     ["Stator Rubber", withRemarks(formData.mocAiStatorRubber, formData.mocAiStatorRubberRemarks)],
+    [
+      "Stator Sleeve MOC",
+      withRemarks(formData.mocAiStatorSleeve, formData.mocAiStatorSleeveRemarks),
+    ],
   ];
 
   const sealingItems: FieldItem[] = [
     ["Sealing Type", formData.sealingType],
     ["Mechanical Seal Type", formData.sealingSubType],
+    ["Gland Packing Type", formData.glandPackingType],
   ];
 
   const motorRatingItems: FieldItem[] = [
@@ -344,8 +347,13 @@ const RecommendationStep = ({
         ["Stage", confirmedPump.stage != null ? String(confirmedPump.stage) : ""],
         ["AG / BK", formData.agBk],
         ["Pump RPM (VOLE max–min)", confirmedPump.rpmRange],
-        ["VOLE Min–Max", `${confirmedPump.voleMin}–${confirmedPump.voleMax}%`],
-        ["Mechanical Efficiency", `${confirmedPump.mechEff}%`],
+        [
+          "VOLE Min–Max",
+          confirmedPump.voleMin != null && confirmedPump.voleMax != null
+            ? `${confirmedPump.voleMin}–${confirmedPump.voleMax}%`
+            : "",
+        ],
+        ["Mechanical Efficiency", confirmedPump.mechEff != null ? `${confirmedPump.mechEff}%` : ""],
         ["Suction & Discharge Size", cardSize !== null ? String(cardSize) : ""],
         ["Testing Status", confirmedPump.isTested ? "Tested" : "Not Tested"],
         ["Testing Remarks", confirmedPump.testingRemarks || ""],

@@ -147,7 +147,11 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
                     {rating.kwOptions.map((kw) => (
                       <option key={kw} value={String(kw)}>
                         {kw}
-                        {rating.recommendedKw === kw ? " (recommended)" : ""}
+                        {rating.recommendedKw === kw
+                          ? " (recommended)"
+                          : rating.motorKw !== null && kw < rating.motorKw
+                            ? " (below required KW)"
+                            : ""}
                       </option>
                     ))}
                   </select>
@@ -165,8 +169,8 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
                 )}
                 <span className={hint}>
                   {hasKwOptions
-                    ? "Final selection is manual — every standard KW rating above Motor KW."
-                    : "No standard KW rating above Motor KW for this duty — enter the motor KW manually."}
+                    ? "Final selection is manual — every standard KW rating is listed. Ratings under Motor KW are flagged; they don't carry the 1.2× safety margin."
+                    : "No standard KW ratings available — enter the motor KW manually."}
                 </span>
               </div>
             </div>

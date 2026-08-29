@@ -26,7 +26,7 @@ const TestReportModal = ({ isOpen, onClose, pump }: Props) => {
 
           <p><strong>Nearest Charted Head:</strong> {pump.headMwc} MWC</p>
 
-          <p><strong>VOLE Min–Max:</strong> {pump.voleMin}–{pump.voleMax}%</p>
+          <p><strong>VOLE Min–Max:</strong> {pump.voleMin != null && pump.voleMax != null ? `${pump.voleMin}–${pump.voleMax}%` : "—"}</p>
 
           <p><strong>Testing Status:</strong> {pump.isTested ? "Tested" : "Not Tested"}</p>
 

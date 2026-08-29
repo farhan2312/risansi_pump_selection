@@ -51,7 +51,11 @@ export async function POST(req: Request) {
   // system will scan the pump model master for model suggestions"). Bands
   // classify on rpmAtVoleMax (the best-case, lowest-speed output).
   const rpmBand = (body.rpmRange as string) || "";
-  const inBand = (rpm: number): boolean => {
+  const inBand = (rpm: number | null): boolean => {
+    // No band chosen ⇒ every stage model passes (including ones with no
+    // computable RPM). When a band IS chosen, a model with no RPM can't be
+    // classified, so it's excluded for that filtered view only.
+    if (rpm === null) return rpmBand === "";
     switch (rpmBand) {
       case "low":
         return rpm < 200;
@@ -70,8 +74,8 @@ export async function POST(req: Request) {
   const selectedModel = typeof body.selectedModel === "string" ? body.selectedModel : null;
 
   const recommendations = candidates.map((c, i) => {
-    const rpmLow = Math.round(c.rpmAtVoleMax);
-    const rpmHigh = Math.round(c.rpmAtVoleMin);
+    const rpmLow = c.rpmAtVoleMax !== null ? Math.round(c.rpmAtVoleMax) : null;
+    const rpmHigh = c.rpmAtVoleMin !== null ? Math.round(c.rpmAtVoleMin) : null;
     return {
       id: i,
       model: c.model,
@@ -86,8 +90,14 @@ export async function POST(req: Request) {
       rpmAtVoleMax: rpmLow,
       rpmClassAtVoleMin: c.rpmClassAtVoleMin,
       rpmClassAtVoleMax: c.rpmClassAtVoleMax,
-      // "2 output RPMs as per VE": VOLE MAX speed (low) .. VOLE MIN speed (high).
-      rpmRange: rpmHigh > rpmLow ? `${rpmLow}–${rpmHigh}` : `${rpmLow}`,
+      // "2 output RPMs as per VE": VOLE MAX speed (low) .. VOLE MIN speed
+      // (high). Blank when the model has no computable RPM (missing VOLE/QTH).
+      rpmRange:
+        rpmLow === null
+          ? "—"
+          : rpmHigh !== null && rpmHigh > rpmLow
+            ? `${rpmLow}–${rpmHigh}`
+            : `${rpmLow}`,
       isSelected: selectedModel !== null && c.model === selectedModel,
       hardSolidMm: c.hardSolidMm,
       softSolidMm: c.softSolidMm,

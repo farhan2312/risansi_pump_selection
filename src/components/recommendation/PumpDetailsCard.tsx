@@ -53,13 +53,15 @@ const PumpDetailsCard = ({
         <div>
           <span>VOLE Min–Max</span>
           <strong>
-            {pump.voleMin}–{pump.voleMax}%
+            {pump.voleMin != null && pump.voleMax != null
+              ? `${pump.voleMin}–${pump.voleMax}%`
+              : "—"}
           </strong>
         </div>
 
         <div>
           <span>Mechanical Efficiency</span>
-          <strong>{pump.mechEff}%</strong>
+          <strong>{pump.mechEff != null ? `${pump.mechEff}%` : "—"}</strong>
         </div>
 
         <div>

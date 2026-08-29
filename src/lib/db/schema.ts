@@ -152,6 +152,19 @@ export const fluidPropertiesInput = pgTable("fluid_properties_input", {
   temperature: varchar("temperature", { length: 50 }), // canonical °C
   temperatureRaw: varchar("temperature_raw", { length: 50 }), // as-entered value
   temperatureUnit: varchar("temperature_unit", { length: 5 }), // C / F / K
+  // pH / viscosity / temperature can each be a single value OR a Min–Max
+  // range. `<field>Mode` = "single" | "range"; the base columns above hold the
+  // single/min value and the `*Max` columns hold the range's upper bound. The
+  // viscosity band (viscosityRange) is derived from the MAX (worst case) when
+  // a range is entered. See src/lib/fluid-inputs.ts.
+  phMax: varchar("ph_max", { length: 50 }),
+  phMode: varchar("ph_mode", { length: 10 }),
+  viscosityMax: varchar("viscosity_max", { length: 50 }),
+  viscosityCpMax: varchar("viscosity_cp_max", { length: 50 }),
+  viscosityMode: varchar("viscosity_mode", { length: 10 }),
+  temperatureMax: varchar("temperature_max", { length: 50 }), // canonical °C (max)
+  temperatureMaxRaw: varchar("temperature_max_raw", { length: 50 }), // as-entered (max)
+  temperatureMode: varchar("temperature_mode", { length: 10 }),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
@@ -188,6 +201,11 @@ export const mocSealingInput = pgTable("moc_sealing_input", {
     .references(() => projects.id, { onDelete: "cascade" }),
   sealingType: varchar("sealing_type", { length: 30 }),
   sealingSubType: varchar("sealing_sub_type", { length: 10 }),
+  // Gland Packing Type (GAGP / Teflon-PTFE / Carbon Fiber / Asbestos-Free) —
+  // the Gland-Packing counterpart to sealingSubType (which is the Mechanical
+  // Seal sub-type). Only one of the two is ever set, since the two sealing
+  // types are mutually exclusive.
+  glandPackingType: varchar("gland_packing_type", { length: 50 }),
   // Free-text extras the client supplied that the wizard has no field for
   // (chemical composition, special service notes, ...). Appended verbatim to
   // the MOC AI prompt as a "Client requirements" block.
@@ -197,8 +215,14 @@ export const mocSealingInput = pgTable("moc_sealing_input", {
   // auto-filled from it, per the app's firm "advisory only" convention).
   mocAiBearingHousing: varchar("moc_ai_bearing_housing", { length: 50 }),
   mocAiBearingHousingRemarks: text("moc_ai_bearing_housing_remarks"),
+  // Base Plate (Horizontal pump types) and Mounting Plate (Vertical) are
+  // DIFFERENT components, not two names for one part - each keeps its own
+  // column so a pump-type switch never reinterprets the other one's material.
+  // Only the one matching the chosen pump type is shown/filled.
   mocAiBasePlate: varchar("moc_ai_base_plate", { length: 50 }),
   mocAiBasePlateRemarks: text("moc_ai_base_plate_remarks"),
+  mocAiMountingPlate: varchar("moc_ai_mounting_plate", { length: 50 }),
+  mocAiMountingPlateRemarks: text("moc_ai_mounting_plate_remarks"),
   mocAiTieRod: varchar("moc_ai_tie_rod", { length: 50 }),
   mocAiTieRodRemarks: text("moc_ai_tie_rod_remarks"),
   mocAiNutBolt: varchar("moc_ai_nut_bolt", { length: 50 }),
@@ -211,17 +235,27 @@ export const mocSealingInput = pgTable("moc_sealing_input", {
   mocAiShaftRemarks: text("moc_ai_shaft_remarks"),
   mocAiStatorRubber: varchar("moc_ai_stator_rubber", { length: 50 }),
   mocAiStatorRubberRemarks: text("moc_ai_stator_rubber_remarks"),
+  // Stator Sleeve. Which group it belongs to depends on the pump type chosen
+  // on Operating Conditions: non-wettable for the Horizontal variants, but
+  // WETTABLE for Vertical (the sleeve sits in the pumped media there). Unlike
+  // the base/mounting plate pair above, this IS one component that simply
+  // changes group, so it keeps a single column.
+  // See COMPONENT_GROUPS in MocDetailsStep.tsx.
+  mocAiStatorSleeve: varchar("moc_ai_stator_sleeve", { length: 50 }),
+  mocAiStatorSleeveRemarks: text("moc_ai_stator_sleeve_remarks"),
   // The AI's own per-component recommendation, as generated — "Suggested"
   // distinguishes these from the mocAi<Component> manual picks above.
   mocAiProvider: varchar("ai_provider", { length: 20 }), // "anthropic" (legacy rows may hold "gemini")
   mocAiSuggestedBearingHousing: text("ai_bearing_housing"),
   mocAiSuggestedBasePlate: text("ai_base_plate"),
+  mocAiSuggestedMountingPlate: text("ai_mounting_plate"),
   mocAiSuggestedTieRod: text("ai_tie_rod"),
   mocAiSuggestedNutBolt: text("ai_nut_bolt"),
   mocAiSuggestedPumpHousing: text("ai_pump_housing"),
   mocAiSuggestedRotor: text("ai_rotor"),
   mocAiSuggestedShaft: text("ai_shaft"),
   mocAiSuggestedStatorRubber: text("ai_stator_rubber"),
+  mocAiSuggestedStatorSleeve: text("ai_stator_sleeve"),
   // The rest of the AI panel — summary, alternatives, and the sealing
   // recommendation + its rationale. Persisted (previously session-only) so the
   // whole post-generation panel rebuilds on reload once AI has run for a

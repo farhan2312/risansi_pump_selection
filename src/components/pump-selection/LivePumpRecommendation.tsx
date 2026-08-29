@@ -16,6 +16,11 @@ type Props = {
   /** Open project's id — lets a model confirmation persist to general_info
    * immediately, from whichever step the panel is shown on. */
   projectId?: string;
+  /** Read-only mode (steps past Sealing): the confirmed pump stays visible as
+   * a reference card, but it can no longer be re-picked or unconfirmed — from
+   * Motor Rating on, the wizard is configuring the chosen pump, and swapping
+   * it there would silently invalidate the motor/drive work already done. */
+  locked?: boolean;
 };
 
 type Status = "idle" | "loading" | "ready" | "empty" | "error";
@@ -36,7 +41,7 @@ const engineKey = (f: any) =>
     solidType: f.solidType,
   });
 
-const LivePumpRecommendation = ({ formData, setFormData, projectId }: Props) => {
+const LivePumpRecommendation = ({ formData, setFormData, projectId, locked = false }: Props) => {
   const [recs, setRecs] = useState<PumpRecommendation[]>([]);
   const [status, setStatus] = useState<Status>("idle");
   // Local "re-pick" mode: after a model is confirmed, "Change model" re-opens
@@ -85,15 +90,19 @@ const LivePumpRecommendation = ({ formData, setFormData, projectId }: Props) => 
   // on a later visit to step 1), drop the confirmation so the user must pick
   // again — this also re-locks step navigation past the Fluid step.
   useEffect(() => {
-    if (confirmed && status === "ready" && formData.selectedModel && !hasConfirmedRec) {
+    // Never while locked: past Sealing the motor/drive steps are already built
+    // on this pump, so silently dropping the confirmation there would unlock
+    // navigation and invalidate that work rather than helping.
+    if (!locked && confirmed && status === "ready" && formData.selectedModel && !hasConfirmedRec) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setFormData((f: any) => ({ ...f, modelConfirmed: false }));
       setEditing(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [confirmed, status, formData.selectedModel, hasConfirmedRec]);
+  }, [locked, confirmed, status, formData.selectedModel, hasConfirmedRec]);
 
   const selectPump = (model: string) => {
+    if (locked) return;
     // Clicking the already-selected card deselects it.
     setFormData({
       ...formData,
@@ -157,12 +166,14 @@ const LivePumpRecommendation = ({ formData, setFormData, projectId }: Props) => 
           <div>
             <span>VOLE</span>
             <b className="mono">
-              {r.voleMin}–{r.voleMax}%
+              {r.voleMin !== null && r.voleMax !== null
+                ? `${r.voleMin}–${r.voleMax}%`
+                : "—"}
             </b>
           </div>
           <div>
             <span>Mech Eff</span>
-            <b className="mono">{r.mechEff}%</b>
+            <b className="mono">{r.mechEff !== null ? `${r.mechEff}%` : "—"}</b>
           </div>
           <div>
             <span>Size</span>
@@ -188,7 +199,7 @@ const LivePumpRecommendation = ({ formData, setFormData, projectId }: Props) => 
     );
   };
 
-  const confirmedView = confirmed && !editing && hasConfirmedRec;
+  const confirmedView = confirmed && (locked || !editing) && hasConfirmedRec;
 
   return (
     <div className="live-rec">
@@ -200,7 +211,7 @@ const LivePumpRecommendation = ({ formData, setFormData, projectId }: Props) => 
         {status === "ready" && <span className="live-dot" title="Live" />}
       </div>
 
-      {status === "idle" && !confirmedView && (
+      {status === "idle" && !confirmedView && !locked && (
         <p className="live-rec-hint">
           Enter <strong>capacity</strong> and <strong>head</strong> to see live pump
           matches. After the Fluid step you&apos;ll pick one and confirm it to continue.
@@ -211,7 +222,7 @@ const LivePumpRecommendation = ({ formData, setFormData, projectId }: Props) => 
         <p className="live-rec-hint">Couldn&apos;t update — check your connection.</p>
       )}
 
-      {status === "empty" && !confirmedView && (
+      {status === "empty" && !confirmedView && !locked && (
         <p className="live-rec-hint">
           No model in the master data can reach this head at this capacity. Try
           adjusting capacity or head.
@@ -221,17 +232,38 @@ const LivePumpRecommendation = ({ formData, setFormData, projectId }: Props) => 
       {confirmedView && confirmedRec ? (
         <>
           <p className="live-rec-hint">
-            Model confirmed — the rest of the wizard is configured for this pump.
+            {locked
+              ? "Locked in — the motor and drive steps are configured for this pump. Go back to Sealing or earlier to change it."
+              : "Model confirmed — the rest of the wizard is configured for this pump."}
           </p>
           <div className="live-rec-cards live-rec-cards--single">
             <div className="live-rec-card is-locked">
               {cardInner(confirmedRec, false, true)}
             </div>
           </div>
-          <button type="button" className="live-rec-change" onClick={changeModel}>
-            Change model
-          </button>
+          {!locked && (
+            <button type="button" className="live-rec-change" onClick={changeModel}>
+              Change model
+            </button>
+          )}
         </>
+      ) : locked ? (
+        /* Locked, but the confirmed card isn't resolved yet (still fetching)
+           or the saved model isn't in the current result set. Either way the
+           pickable list below must not render here — show the saved pick as
+           plain text instead. */
+        <p className="live-rec-hint">
+          {status === "loading" ? (
+            "Loading the selected pump…"
+          ) : formData.selectedModel ? (
+            <>
+              Selected pump: <strong>{formData.selectedModel}</strong>. Go back to
+              Sealing or earlier to change it.
+            </>
+          ) : (
+            "No pump model was confirmed for this enquiry."
+          )}
+        </p>
       ) : (
         <>
           {recs.length > 0 && (

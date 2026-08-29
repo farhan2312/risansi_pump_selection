@@ -107,19 +107,23 @@ export interface Candidate {
   stage: number | null;
   /** Nearest charted head point (in pump_model_master) to the input duty head. */
   headMwc: number;
-  voleMin: number;
-  voleMax: number;
-  mechEff: number;
-  qth: number;
+  /** NULL when this model has no charted VOLE/QTH at the matched head — the
+   * model is still listed (stage-only inclusion), just with blank performance
+   * figures and no computable RPM. */
+  voleMin: number | null;
+  voleMax: number | null;
+  mechEff: number | null;
+  qth: number | null;
   /** True if this model has no "NOT TESTED" remark at the matched head. */
   isTested: boolean;
   testingRemarks: string | null;
-  /** RPM computed using VOLE MIN (lower efficiency ⇒ the higher-speed case). */
-  rpmAtVoleMin: number;
+  /** RPM computed using VOLE MIN (lower efficiency ⇒ the higher-speed case).
+   * NULL when QTH/VOLE data is missing (can't compute). */
+  rpmAtVoleMin: number | null;
   /** RPM computed using VOLE MAX (higher efficiency ⇒ the lower, best-case speed). */
-  rpmAtVoleMax: number;
-  rpmClassAtVoleMin: string;
-  rpmClassAtVoleMax: string;
+  rpmAtVoleMax: number | null;
+  rpmClassAtVoleMin: string | null;
+  rpmClassAtVoleMax: string | null;
   /** Max hard-solid particle size this model can pass (mm), or null if unrecorded. */
   hardSolidMm: number | null;
   /** Max soft-solid particle size this model can pass (mm), or null if unrecorded. */
@@ -184,20 +188,22 @@ export async function findCandidates(
       Math.abs(toNum(p.headMwc) - headMwc) < Math.abs(toNum(best.headMwc) - headMwc) ? p : best,
     );
 
+    // VOLE/QTH may be absent for a model at the matched head. Stage-only
+    // inclusion (per product decision): a model is NOT dropped for missing
+    // performance data — it's still listed with blank figures and no
+    // computable RPM. Only the stage band (and the optional solid filter
+    // below) decide membership.
     const qth = toNumOrNull(nearest.qth);
-    if (qth === null || qth <= 0) continue; // no theoretical-flow data — RPM not calculable
-
     const voleMinPct = toNumOrNull(nearest.voleMin);
     const voleMaxPct = toNumOrNull(nearest.voleMax);
-    if (voleMinPct === null || voleMaxPct === null || voleMinPct <= 0 || voleMaxPct <= 0) continue;
 
     // Stage-tier constraint: PCP models come in non-overlapping head bands by
     // stage count (backend spec Step-4): <=60 MWC = single, 60-120 = 2-stage,
-    // 120-240 = 4-stage, 240-480 = 8-stage. A single-stage model can't be
-    // recommended for a 90 MWC duty just because 90 is "close" to 60 — this
-    // is a hard catalog limit ("RPM within Model Limit? NO -> Reject Model"),
-    // not a preference. Uses the model's own `stage` column (name-derived —
-    // see schema.ts) rather than inferring a tier from charted head data.
+    // 120-240 = 4-stage, 240-480 = 8-stage. The head alone picks the band, and
+    // EVERY model in that band is shown — capacity/RPM never remove a model
+    // from the list (they only feed the informational RPM figures below and
+    // the optional manual RPM-range filter in the route). Uses the model's own
+    // `stage` column (name-derived — see schema.ts).
     const requiredStage = headMwc <= 60 ? 1 : headMwc <= 120 ? 2 : headMwc <= 240 ? 4 : 8;
     const stage = nearest.stage;
     if (stage !== requiredStage) continue; // Reject Model / Try Next Model
@@ -233,13 +239,17 @@ export async function findCandidates(
       if (!ok) continue;
     }
 
-    // RPM = 100 x Capacity / (QTH x VE). See formula note above.
-    const rpmAtVoleMax = (100 * capacityM3hr) / (qth * (voleMaxPct / 100));
-    const rpmAtVoleMin = (100 * capacityM3hr) / (qth * (voleMinPct / 100));
-
-    // Wide sanity ceiling for physically-impossible values only — not a
-    // preference filter, a genuine "this can't be right" guard.
-    if (rpmAtVoleMax > 5000 || rpmAtVoleMax < 20) continue;
+    // RPM = 100 x Capacity / (QTH x VE). See formula note above. Only
+    // computable when the model has valid QTH + VOLE at this head; left NULL
+    // (blank in the UI) otherwise. No sanity cutoff — an out-of-range RPM no
+    // longer removes the model from its stage list; it's an informational
+    // figure only.
+    const canComputeRpm =
+      qth !== null && qth > 0 &&
+      voleMinPct !== null && voleMinPct > 0 &&
+      voleMaxPct !== null && voleMaxPct > 0;
+    const rpmAtVoleMax = canComputeRpm ? (100 * capacityM3hr) / (qth! * (voleMaxPct! / 100)) : null;
+    const rpmAtVoleMin = canComputeRpm ? (100 * capacityM3hr) / (qth! * (voleMinPct! / 100)) : null;
 
     candidates.push({
       model: modelName,
@@ -247,14 +257,14 @@ export async function findCandidates(
       headMwc: toNum(nearest.headMwc),
       voleMin: voleMinPct,
       voleMax: voleMaxPct,
-      mechEff: toNum(nearest.mechEff),
+      mechEff: toNumOrNull(nearest.mechEff),
       qth,
       isTested: nearest.testingRemarks === null,
       testingRemarks: nearest.testingRemarks,
       rpmAtVoleMin,
       rpmAtVoleMax,
-      rpmClassAtVoleMin: classifyRpm(rpmAtVoleMin),
-      rpmClassAtVoleMax: classifyRpm(rpmAtVoleMax),
+      rpmClassAtVoleMin: rpmAtVoleMin !== null ? classifyRpm(rpmAtVoleMin) : null,
+      rpmClassAtVoleMax: rpmAtVoleMax !== null ? classifyRpm(rpmAtVoleMax) : null,
       hardSolidMm,
       softSolidMm,
       sizeVisc0To1000In,
@@ -267,8 +277,13 @@ export async function findCandidates(
 
   // Informational ordering only (lowest best-case speed first — PCP pumps
   // run best slow) — NOT a cutoff. Every eligible model above is returned;
-  // the caller does no top-N slicing, since selection is manual.
-  candidates.sort((a, b) => a.rpmAtVoleMax - b.rpmAtVoleMax);
+  // the caller does no top-N slicing, since selection is manual. Models with
+  // no computable RPM (missing VOLE/QTH) sort to the end.
+  candidates.sort((a, b) => {
+    if (a.rpmAtVoleMax === null) return b.rpmAtVoleMax === null ? 0 : 1;
+    if (b.rpmAtVoleMax === null) return -1;
+    return a.rpmAtVoleMax - b.rpmAtVoleMax;
+  });
 
   return candidates;
 }
@@ -287,9 +302,9 @@ export interface MotorRating {
   motorKw: number | null;
   /** Cap: the model's "Min KW so far tested". Null if not recorded. */
   minKwTested: number | null;
-  /** Standard motor KW ratings (from motor_rating) that exceed Motor KW
-   *  (BKW × 1.2) — every size actually adequate for the load with its safety
-   *  margin, for manual override. */
+  /** EVERY standard motor KW rating (from motor_rating), for manual override —
+   *  not just the ones above Motor KW. `recommendedKw` still marks the
+   *  adequate-with-margin size. */
   kwOptions: number[];
   /** Nearest standard KW (from kwOptions) >= Motor KW (or the largest
    *  available if none reach it). */
@@ -307,9 +322,10 @@ export interface MotorRating {
  *     motor_rating) that is >= Motor KW; normally within "Min KW so far
  *     tested", but if the load needs more than that cap the recommendation is
  *     shown anyway and flagged (exceedsMinTested). The dropdown offered for
- *     manual override shows every standard KW rating above Motor KW (the
- *     1.2x-padded figure, not raw BKW), so every option offered already
- *     carries the safety margin.
+ *     manual override lists EVERY standard KW rating — including sizes at or
+ *     below Motor KW — since the final call is the engineer's; the
+ *     recommendation is marked in the list rather than enforced by hiding the
+ *     alternatives.
  * Final KW selection is manual, from the dropdown.
  */
 export async function computeMotorRating(
@@ -341,9 +357,11 @@ export async function computeMotorRating(
   const allKw = [...new Set(ratingRows.map((r) => toNum(r.kw)).filter((k) => k > 0))].sort(
     (a, b) => a - b,
   );
-  // Only standard sizes that exceed Motor KW (BKW × 1.2) are offered —
-  // anything at or below that already lacks the required safety margin.
-  const kwOptions = motorKw !== null ? allKw.filter((k) => k > motorKw) : allKw;
+  // EVERY standard rating is offered (per user decision) — the dropdown is a
+  // manual override, so the engineer can also pick a size at or below Motor KW
+  // when they have a reason to. The adequate-with-margin size is still marked
+  // as `recommendedKw` below, so the guidance survives without the hard cut.
+  const kwOptions = allKw;
 
   let recommendedKw: number | null = null;
   let exceedsMinTested = false;

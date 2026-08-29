@@ -337,16 +337,13 @@ const DriveDetailsStep = ({
   const [motorStatus, setMotorStatus] = useState<MotorStatus>("idle");
   const [motorOptions, setMotorOptions] = useState<MotorMasterRow[]>([]);
 
-  // A "Geared Motor" is an integrated unit — the motor is built onto the
-  // gearbox and isn't specified or sourced separately, so the whole "Drive
-  // System Inputs" block (rating-plate details AND the motor recommendation)
-  // is hidden for it. ("Gear Box + Motor" is the opposite: two separate units,
-  // so that config still specifies and picks a motor.)
-  const skipMotorSelection =
-    isGeared && formData.gearedConfigType === "Geared Motor";
-
+  // Motor selection applies to EVERY drive system, including the "Geared
+  // Motor" config. It used to be hidden there on the reasoning that an
+  // integrated geared motor isn't sourced separately, but per user decision
+  // that config specifies and picks its motor the same way "Gear Box + Motor"
+  // does — the motor still has to be rated, priced and quoted either way.
   useEffect(() => {
-    if (!formData.driveSystem || !formData.driveMotorKw || skipMotorSelection) {
+    if (!formData.driveSystem || !formData.driveMotorKw) {
       setMotorStatus("idle");
       setMotorOptions([]);
       return;
@@ -380,7 +377,6 @@ const DriveDetailsStep = ({
     formData.driveMotorMounting,
     formData.driveMotorMake,
     formData.driveMotorEfficiency,
-    skipMotorSelection,
   ]);
 
   const isNonStandard = formData.driveStdNonStd === "Non-Standard";
@@ -481,6 +477,60 @@ const DriveDetailsStep = ({
     formData.gbConstructionType,
   ]);
 
+  // Whether the confirmed belt / motor is still among the current candidates.
+  // Same concern as gearboxSelectionInList below: the confirmed-collapse must
+  // not hide every card when the pick has dropped out of a re-run screen.
+  const vbeltSelectionInList = Boolean(
+    vbelt?.candidates.some(
+      (o) =>
+        formData.driveVbeltGroove === (vbelt.grooves ?? "") &&
+        formData.driveVbeltRpm === (o.actualRpm != null ? String(o.actualRpm) : "") &&
+        formData.driveVbeltNo === (o.vBelt != null ? String(o.vBelt) : ""),
+    ),
+  );
+
+  const motorSelectionInList = motorOptions.some(
+    (m) =>
+      formData.driveMotorFrameSize === (m.frameSize ?? "") &&
+      formData.driveMotorMake === (m.brand ?? ""),
+  );
+
+  // Identifies the persisted pick among the fetched candidates. Shared by the
+  // card list and the out-of-list fallback below so both agree on what
+  // "selected" means.
+  const isGearboxSelected = (source: string, o: GearboxOption) =>
+    formData.gearboxSource === source &&
+    formData.gearboxModel === o.model &&
+    formData.gearboxOutputRpm === String(o.outputRpm);
+
+  // Whether the confirmed/selected gearbox still appears in the current
+  // candidate list. It can drop out whenever the screen is re-run against
+  // different inputs — ASF Range / GB Type narrowed, a new motor KW, or a
+  // shifted RPM window. When that happens the card list renders nothing, so
+  // the fallback card below is what keeps the selection visible (and
+  // clearable) instead of stranding the confirm bar with no card to click.
+  const gearboxSelectionInList = Boolean(
+    gearboxRec &&
+      (
+        [
+          ["PBL", gearboxRec.pbl],
+          ["PTL", gearboxRec.ptl],
+          ["Top Gear", gearboxRec.topGear],
+        ] as [string, GearboxOption[]][]
+      ).some(([source, opts]) => opts.some((o) => isGearboxSelected(source, o))),
+  );
+
+  const clearGearbox = () =>
+    setFormData({
+      ...formData,
+      gearboxSource: "",
+      gearboxModel: "",
+      gearboxOutputRpm: "",
+      gearboxServiceFactor: "",
+      gearboxRatePerNos: "",
+      gearboxConfirmed: false,
+    });
+
   // Same select/unselect + confirm cycle as the belt cards above.
   const selectGearbox = (
     source: "PBL" | "PTL" | "Top Gear",
@@ -488,15 +538,7 @@ const DriveDetailsStep = ({
     alreadySelected: boolean,
   ) => {
     if (alreadySelected) {
-      setFormData({
-        ...formData,
-        gearboxSource: "",
-        gearboxModel: "",
-        gearboxOutputRpm: "",
-        gearboxServiceFactor: "",
-        gearboxRatePerNos: "",
-        gearboxConfirmed: false,
-      });
+      clearGearbox();
       return;
     }
     setFormData({
@@ -787,13 +829,14 @@ const DriveDetailsStep = ({
                   // Once confirmed, collapse to just the chosen gearbox —
                   // same as the pump card, so the panel reads as a decision
                   // rather than an open list. Clicking it again reopens.
-                  const isSelectedOpt = (o: GearboxOption) =>
-                    formData.gearboxSource === source &&
-                    formData.gearboxModel === o.model &&
-                    formData.gearboxOutputRpm === String(o.outputRpm);
-                  const opts = formData.gearboxConfirmed
-                    ? allOpts.filter(isSelectedOpt)
-                    : allOpts;
+                  const isSelectedOpt = (o: GearboxOption) => isGearboxSelected(source, o);
+                  // Collapse to the confirmed pick only when it's actually in
+                  // this list — otherwise leave the list open, since the
+                  // fallback card below is carrying the selection instead.
+                  const opts =
+                    formData.gearboxConfirmed && gearboxSelectionInList
+                      ? allOpts.filter(isSelectedOpt)
+                      : allOpts;
                   return (
                     opts.length > 0 && (
                     <div key={source} className="mt-4">
@@ -856,6 +899,62 @@ const DriveDetailsStep = ({
                     )
                   );
                 })}
+
+                {/* The pick no longer matches anything in the current screen
+                    (inputs or ASF/GB-Type narrowing changed since it was
+                    chosen). Show it anyway, from the saved values, so it stays
+                    visible and clearable — without this the confirm bar tells
+                    you to "click the card" when no card is rendered. */}
+                {formData.gearboxModel && !gearboxSelectionInList && (
+                  <div className="mt-4">
+                    <span className="section-label text-orange-800">
+                      Current selection (outside the options below)
+                    </span>
+                    <div className="mt-2 rounded-xl border border-orange-300 bg-orange-50 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <strong className="mono text-[14px] font-bold text-orange-900">
+                          {formData.gearboxSource ? `${formData.gearboxSource} ` : ""}
+                          {formData.gearboxModel}
+                        </strong>
+                        <button
+                          type="button"
+                          onClick={clearGearbox}
+                          className="rounded-lg border border-orange-400 bg-white px-3 py-1 text-[12px] font-semibold text-orange-800 transition-colors hover:bg-orange-100"
+                        >
+                          Clear selection
+                        </button>
+                      </div>
+                      <div className="mt-3 rounded-lg bg-white/70 p-2">
+                        <div className="flex justify-between text-[12px]">
+                          <span className="text-slate-500">Output RPM</span>
+                          <b className="mono text-slate-800">
+                            {formData.gearboxOutputRpm || "—"}
+                          </b>
+                        </div>
+                        <div className="mt-1 flex justify-between text-[12px]">
+                          <span className="text-slate-500">Service Factor</span>
+                          <b className="mono text-slate-800">
+                            {formData.gearboxServiceFactor || "—"}
+                          </b>
+                        </div>
+                        <div className="mt-2 border-t border-orange-200 pt-2">
+                          <div className="flex justify-between text-[12px]">
+                            <span className="text-slate-500">Rate</span>
+                            <b className="mono text-slate-800">
+                              {formData.gearboxRatePerNos || "—"}
+                            </b>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="mt-2 text-[12px] text-orange-900">
+                        This gearbox isn&apos;t in the current recommendation —
+                        the duty inputs or the ASF Range / GB Type narrowing
+                        have changed since it was picked. Keep it, or clear it
+                        and choose from the options above.
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {formData.gearboxModel && (
                   <ConfirmBar
@@ -920,10 +1019,15 @@ const DriveDetailsStep = ({
 
                 <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
   {/* Once confirmed, collapse to just the chosen belt — same as the pump
-      card. Clicking it again reopens the full list. */}
+      card. Clicking it again reopens the full list. Guarded by
+      vbeltSelectionInList: if the confirmed belt isn't in the current
+      candidates (inputs changed since it was picked), collapsing would
+      render NOTHING and strand the confirm bar with no card to click, so
+      the full list stays open instead. */}
   {vbelt.candidates
     .filter((o) =>
       !formData.vbeltConfirmed ||
+      !vbeltSelectionInList ||
       (formData.driveVbeltGroove === (vbelt.grooves ?? "") &&
         formData.driveVbeltRpm === (o.actualRpm != null ? String(o.actualRpm) : "") &&
         formData.driveVbeltNo === (o.vBelt != null ? String(o.vBelt) : "")),
@@ -1009,7 +1113,7 @@ const DriveDetailsStep = ({
           </div>
         )}
 
-        {formData.driveSystem && !skipMotorSelection && (
+        {formData.driveSystem && (
           <div className="mt-4 rounded-md border border-line bg-elev p-4">
             <span className="section-label">Drive System Inputs</span>
             <div className={`${grid} mt-2`}>
@@ -1311,11 +1415,16 @@ const DriveDetailsStep = ({
                   {motorStatus === "ready" && motorOptions.length > 0 && (
                     <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
                       {/* Once confirmed, collapse to just the chosen motor —
-                          same as the pump card. Clicking it reopens the list. */}
+                          same as the pump card. Clicking it reopens the list.
+                          Guarded by motorSelectionInList for the same reason
+                          as the belt list above: a confirmed motor that's no
+                          longer among the candidates would otherwise collapse
+                          the list to nothing. */}
                       {motorOptions
                         .filter(
                           (m) =>
                             !formData.driveMotorConfirmed ||
+                            !motorSelectionInList ||
                             (formData.driveMotorFrameSize === (m.frameSize ?? "") &&
                               formData.driveMotorMake === (m.brand ?? "")),
                         )
@@ -1487,6 +1596,10 @@ const RecheckModal = ({
 
   const canCompute =
     pumpSpecs !== null &&
+    pumpSpecs.qth != null &&
+    pumpSpecs.voleMax != null &&
+    pumpSpecs.voleMin != null &&
+    pumpSpecs.mechEff != null &&
     Number.isFinite(finalRpmNum) &&
     finalRpmNum > 0 &&
     Number.isFinite(headMwc);
@@ -1500,7 +1613,14 @@ const RecheckModal = ({
     bkwAtMin: number;
   } | null = null;
 
-  if (canCompute && pumpSpecs) {
+  if (
+    canCompute &&
+    pumpSpecs &&
+    pumpSpecs.qth != null &&
+    pumpSpecs.voleMax != null &&
+    pumpSpecs.voleMin != null &&
+    pumpSpecs.mechEff != null
+  ) {
     const qth = pumpSpecs.qth;
     const veMax = pumpSpecs.voleMax;
     const veMin = pumpSpecs.voleMin;
@@ -1579,7 +1699,7 @@ const RecheckModal = ({
                     />
                     <RecheckRow label="VE min / max (%)" value={`${pumpSpecs.voleMin} / ${pumpSpecs.voleMax}`} />
                     <RecheckRow label="ME (%)" value={String(pumpSpecs.mechEff)} note="Depends on the head" />
-                    <RecheckRow label="Q th" value={fmtNum(pumpSpecs.qth, 2)} />
+                    <RecheckRow label="Q th" value={pumpSpecs.qth != null ? fmtNum(pumpSpecs.qth, 2) : "—"} />
                   </tbody>
                 </table>
               </div>

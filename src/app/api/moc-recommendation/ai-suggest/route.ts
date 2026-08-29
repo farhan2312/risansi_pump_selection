@@ -42,6 +42,7 @@ export async function POST(req: Request) {
   const suggestion = await getMocAiSuggestion(
     {
       media,
+      pumpType: str(body.pumpType),
       head: str(body.head),
       headUnit: str(body.headUnit),
       ph: str(body.ph),

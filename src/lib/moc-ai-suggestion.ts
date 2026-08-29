@@ -11,8 +11,12 @@
  * Gemini provider used to be selectable here too; it was removed.)
  *
  * Component breakdown is per the user's spec sheet: non-wettable components
- * (Bearing Housing, Base Plate, Tie Rod, Nut & Bolt) and wettable-casting
- * components (Pump Housing, Rotor, Shaft), plus the stator rubber elastomer.
+ * (Bearing Housing, Base Plate or Mounting Plate, Tie Rod, Nut & Bolt) and
+ * wettable-casting components (Pump Housing, Rotor, Shaft), plus the stator
+ * rubber elastomer. The Stator Sleeve joins the non-wettable group on a
+ * Horizontal pump and the wettable group on a Vertical one, and the plate is a
+ * base plate on Horizontal / a mounting plate on Vertical - both are resolved
+ * per request (see schemaPropertiesFor / buildPrompt).
  * MOC_AI_MATERIALS / MOC_AI_ELASTOMERS below are the options offered in the
  * UI's *manual* dropdowns — they are NOT a hard constraint on the AI's own
  * answer. The AI is free to recommend something outside those lists (e.g. an
@@ -54,6 +58,10 @@ export type MocAiProvider = (typeof MOC_AI_PROVIDERS)[number];
 
 export interface MocAiContext {
   media: string;
+  /** Operating-Conditions pump type. Decides whether the stator sleeve is a
+   * wetted part (Vertical) or a dry structural one (the Horizontal
+   * variants), which changes the material it needs. */
+  pumpType: string | null;
   head: string | null;
   headUnit: string | null;
   capacity: string | null;
@@ -74,7 +82,11 @@ export interface MocAiContext {
 export interface MocComponentSuggestions {
   // Non-wettable components
   bearingHousing: string;
+  /** Horizontal pump types only - a Vertical pump has a mounting plate
+   *  instead, which is a different component (see mountingPlate). */
   basePlate: string;
+  /** Vertical pump types only. */
+  mountingPlate: string;
   tieRod: string;
   nutBolt: string;
   // Wettable casting components
@@ -83,6 +95,8 @@ export interface MocComponentSuggestions {
   shaft: string;
   // Elastomer
   statorRubber: string;
+  // Stator sleeve (wetted on Vertical pumps, structural on Horizontal)
+  statorSleeve: string;
   // Sealing
   sealRecommendation: string;
   sealRationale: string;
@@ -92,27 +106,72 @@ export interface MocComponentSuggestions {
 }
 
 const REQUIRED_FIELDS: (keyof MocComponentSuggestions)[] = [
-  "bearingHousing", "basePlate", "tieRod", "nutBolt",
-  "pumpHousing", "rotor", "shaft", "statorRubber",
+  "bearingHousing", "basePlate", "mountingPlate", "tieRod", "nutBolt",
+  "pumpHousing", "rotor", "shaft", "statorRubber", "statorSleeve",
   "sealRecommendation", "sealRationale", "summary", "alternatives",
 ];
 
 // JSON-Schema property map driving Anthropic's tool input_schema (structured
 // output).
-const SCHEMA_PROPERTIES = {
-  bearingHousing: { type: "string" },
-  basePlate: { type: "string" },
-  tieRod: { type: "string" },
-  nutBolt: { type: "string" },
-  pumpHousing: { type: "string" },
-  rotor: { type: "string" },
-  shaft: { type: "string" },
-  statorRubber: { type: "string" },
-  sealRecommendation: { type: "string", enum: [...MOC_AI_SEAL_TYPES] },
-  sealRationale: { type: "string" },
-  summary: { type: "string", description: "Detailed markdown: ## headers, **bold**, bullet lists, and | pipe tables |." },
-  alternatives: { type: "string", description: "Markdown including a | pipe table | of alternatives and trade-offs." },
-} as const;
+// Wetted status is THE main driver of material choice, so it is stated on
+// every component rather than left for the model to infer from the name: a
+// wetted part is picked for resistance to the media, a dry one for strength
+// and cost. These strings mirror the two groups the MOC step renders on
+// screen (see componentGroupsFor in MocDetailsStep.tsx), so the AI answer and
+// the UI grouping agree.
+const WETTED =
+  "WETTED - in direct contact with the pumped media. Material must resist the media (corrosion/abrasion) at the stated pH, temperature and solids.";
+const DRY =
+  "NON-WETTED structural part - no media contact. Choose for strength and cost; media resistance does not apply, so do not over-specify an expensive alloy here.";
+
+// JSON-Schema property map driving Anthropic's tool input_schema (structured
+// output). Built per request because two components change meaning with the
+// pump type: the stator sleeve is wetted only on a Vertical pump, and the
+// base plate (Horizontal) / mounting plate (Vertical) are different parts of
+// which only one actually exists on a given pump.
+function schemaPropertiesFor(pumpType: string | null) {
+  const vertical = pumpType === "Vertical";
+  return {
+    bearingHousing: { type: "string", description: DRY },
+    basePlate: {
+      type: "string",
+      description: vertical
+        ? "NOT PRESENT on this pump - a Vertical pump uses a mounting plate instead. Repeat the mountingPlate value here."
+        : DRY,
+    },
+    mountingPlate: {
+      type: "string",
+      description: vertical
+        ? DRY
+        : "NOT PRESENT on this pump - a Horizontal pump uses a base plate instead. Repeat the basePlate value here.",
+    },
+    tieRod: { type: "string", description: DRY },
+    nutBolt: { type: "string", description: DRY },
+    pumpHousing: { type: "string", description: WETTED },
+    rotor: { type: "string", description: WETTED },
+    shaft: { type: "string", description: WETTED },
+    statorRubber: {
+      type: "string",
+      // Its own group in the UI with its own option list - a metal answer
+      // here cannot be shown in the elastomer dropdown at all.
+      description:
+        "Stator elastomer. " + WETTED +
+        " Answer an elastomer, not a metal. Preferred (not mandatory): " +
+        MOC_AI_ELASTOMERS.join(", ") +
+        " - another elastomer is fine when the media calls for it; say so explicitly.",
+    },
+    statorSleeve: {
+      type: "string",
+      description: vertical
+        ? "On this VERTICAL pump the stator sleeve is " + WETTED
+        : "On this HORIZONTAL pump the stator sleeve is " + DRY,
+    },
+    sealRecommendation: { type: "string", enum: [...MOC_AI_SEAL_TYPES] },
+    sealRationale: { type: "string" },
+    summary: { type: "string", description: "Detailed markdown: ## headers, **bold**, bullet lists, and | pipe tables |." },
+    alternatives: { type: "string", description: "Markdown including a | pipe table | of alternatives and trade-offs." },
+  };
+}
 
 // Kept short on purpose (token cost) — media/head/capacity are the 3
 // parameters that most determine the answer, so they're stated directly in
@@ -134,9 +193,38 @@ function buildPrompt(context: MocAiContext, processData: string): string {
     missing.length > 0
       ? `Not provided: ${missing.join(", ")}. In the summary's Operating Parameters section, include a typical value for each missing one for this media, labeled (estimated). `
       : "";
+  // The stator sleeve is wetted on a Vertical pump but a dry structural
+  // part on the Horizontal variants, so the pump type has to reach the model
+  // for it to recommend the right material.
+  const pumpType = context.pumpType ? context.pumpType : "not specified";
+  const vertical = context.pumpType === "Vertical";
+  // Spell out which components touch the media. Wetted status drives the
+  // material choice more than anything else, and two of these components
+  // change status with the pump type, so it is stated rather than implied.
+  // Mirrors the on-screen grouping in MocDetailsStep.
+  // These three groups mirror the three tables the MOC step renders, INCLUDING
+  // their separate option lists: the two metal groups pick from
+  // MOC_AI_MATERIALS, the elastomer group from MOC_AI_ELASTOMERS. Stator
+  // Rubber is deliberately NOT folded into the wetted castings - it is wetted,
+  // but it is a rubber, and answering a metal for it is useless to the UI.
+  const sleeveClause = context.pumpType
+    ? `This is a ${vertical ? "VERTICAL" : "HORIZONTAL"} pump. Components fall into three groups:\n` +
+      `1. WETTABLE CASTING COMPONENTS (in media contact - spec metal for media resistance): ` +
+      `Pump Housing, Rotor, Shaft${vertical ? ", Stator Sleeve" : ""}.\n` +
+      `2. NON-WETTABLE COMPONENTS (structural, no media contact - spec metal for strength/cost, ` +
+      `do not over-alloy): Bearing Housing, ${vertical ? "Mounting Plate" : "Base Plate"}, Tie Rod, ` +
+      `Nut & Bolt${vertical ? "" : ", Stator Sleeve"}.\n` +
+      `3. ELASTOMER (wetted; answer an elastomer, not a metal): Stator Rubber. ` +
+      `Not necessary to pick from ${MOC_AI_ELASTOMERS.join(", ")} but preferred - recommend ` +
+      `another elastomer when the media genuinely calls for it, and say so explicitly.\n` +
+      `This pump has a ${vertical ? "MOUNTING PLATE, not a base plate" : "BASE PLATE, not a mounting plate"} - ` +
+      `answer ${vertical ? "mountingPlate" : "basePlate"} for the real part and repeat that same value in ` +
+      `${vertical ? "basePlate" : "mountingPlate"}.\n`
+    : "";
   return (
-    `PCP pump. Media: ${context.media}. Head: ${head}. Capacity: ${capacity}.\n` +
-    `Recommend lowest-cost reliable MOC (per component), stator elastomer, shaft seal. Prefer most economical: ${MOC_AI_MATERIALS.join(", ")}.\n` +
+    `PCP pump. Media: ${context.media}. Pump type: ${pumpType}. Head: ${head}. Capacity: ${capacity}.\n` +
+    sleeveClause +
+    `Recommend lowest-cost reliable MOC (per component), stator elastomer, shaft seal. For the METAL components, not necessary to pick from ${MOC_AI_MATERIALS.join(", ")} but preferred (the stator rubber uses the elastomer list above instead). Also dont always recommend cheap even it is not suitable. eg pump housing cannot be cast iron. Recommend low cost only when suitable.\n` +
     `${missingClause}` +
     `summary: detailed markdown engineering note — start with an Operating Parameters section listing Media, Head, Capacity, pH, Temperature, Viscosity (with (estimated) for any not provided); then use ## headers, **bold**, bullet lists AND | pipe tables |, e.g. a Component/Material/Why table and a Mechanical Seal vs Gland Packing comparison table. ` +
     `alternatives: markdown with a | pipe table | of alternative materials and trade-offs. ` +
@@ -177,12 +265,14 @@ function coerceSuggestions(parsed: Partial<Record<string, unknown>>): MocCompone
   return {
     bearingHousing: get("bearingHousing"),
     basePlate: get("basePlate"),
+    mountingPlate: get("mountingPlate"),
     tieRod: get("tieRod"),
     nutBolt: get("nutBolt"),
     pumpHousing: get("pumpHousing"),
     rotor: get("rotor"),
     shaft: get("shaft"),
     statorRubber: get("statorRubber"),
+    statorSleeve: get("statorSleeve"),
     sealRecommendation: get("sealRecommendation"),
     sealRationale: get("sealRationale"),
     summary: get("summary"),
@@ -225,7 +315,7 @@ async function getMocAiSuggestionAnthropic(
             "Records the per-component MOC/elastomer/seal recommendation for a progressive cavity pump.",
           input_schema: {
             type: "object",
-            properties: SCHEMA_PROPERTIES,
+            properties: schemaPropertiesFor(context.pumpType),
             required: REQUIRED_FIELDS,
           },
         },

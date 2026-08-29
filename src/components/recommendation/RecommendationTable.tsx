@@ -45,9 +45,11 @@ const RecommendationTable = ({
             <td>{pump.rpmRange}</td>
             <td>{pump.headMwc}</td>
             <td>
-              {pump.voleMin}–{pump.voleMax}%
+              {pump.voleMin !== null && pump.voleMax !== null
+                ? `${pump.voleMin}–${pump.voleMax}%`
+                : "—"}
             </td>
-            <td>{pump.mechEff}%</td>
+            <td>{pump.mechEff !== null ? `${pump.mechEff}%` : "—"}</td>
 
             <td>
               <span className={pump.isTested ? "badge tested" : "badge pending"}>

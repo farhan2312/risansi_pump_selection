@@ -4,6 +4,15 @@ import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
 import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, label } from "./formStyles";
 
+// Packing materials offered when Sealing Type = Gland Packing — the
+// Gland-Packing counterpart to the Mechanical Seal sub-types below.
+const GLAND_PACKING_TYPES = [
+  "GAGP",
+  "Teflon/PTFE",
+  "Carbon Fiber",
+  "Asbestos-Free",
+] as const;
+
 type Props = {
   onNext: () => void;
   onPrevious: () => void;
@@ -39,9 +48,15 @@ const SealingDetailsStep = ({
                 setFormData({
                   ...formData,
                   sealingType: e.target.value,
+                  // The two sub-type fields are mutually exclusive — switching
+                  // sealing type clears whichever no longer applies.
                   sealingSubType:
                     e.target.value === "Mechanical Seal"
                       ? formData.sealingSubType
+                      : "",
+                  glandPackingType:
+                    e.target.value === "Gland Packing"
+                      ? formData.glandPackingType
                       : "",
                 })
               }
@@ -66,7 +81,27 @@ const SealingDetailsStep = ({
                 <option value="MSA">MSA</option>
                 <option value="SCG">SCG</option>
                 <option value="DCG">DCG</option>
-                <option value="DCG">MSK</option>
+                <option value="MSK">MSK</option>
+              </select>
+            </div>
+          )}
+
+          {formData.sealingType === "Gland Packing" && (
+            <div className={fieldWrap}>
+              <label className={label}>Gland Packing Type</label>
+              <select
+                className={control}
+                value={formData.glandPackingType ?? ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, glandPackingType: e.target.value })
+                }
+              >
+                <option value="">Select Packing Type</option>
+                {GLAND_PACKING_TYPES.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
               </select>
             </div>
           )}

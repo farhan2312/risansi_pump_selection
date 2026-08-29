@@ -3,6 +3,7 @@ import "./GeneralInformationStep.css";
 import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, hint, label } from "./formStyles";
 import { needsBkAg } from "../../lib/suction-discharge-size";
 import { toCp } from "../../utils/units";
+import type { FluidMode } from "../../lib/fluid-inputs";
 
 type Props = {
   onNext: () => void;
@@ -41,6 +42,56 @@ const round2 = (n: number): string => {
   return String(r);
 };
 
+// Small Single/Range switch shown next to pH, Viscosity and Temperature —
+// each of those can be entered as one value or as a Min-Max band. "single" is
+// the default whenever the stored mode is absent (every pre-existing draft).
+const ModeToggle = ({
+  mode,
+  onChange,
+}: {
+  mode: FluidMode;
+  onChange: (mode: FluidMode) => void;
+}) => (
+  <span className="inline-flex overflow-hidden rounded-md border border-line-strong">
+    {(["single", "range"] as const).map((m) => (
+      <button
+        key={m}
+        type="button"
+        onClick={() => onChange(m)}
+        aria-pressed={mode === m}
+        className={`px-2 py-0.5 text-[11px] font-semibold capitalize transition-colors ${
+          mode === m
+            ? "bg-accent text-white"
+            : "bg-paper text-fg-3 hover:text-fg"
+        }`}
+      >
+        {m}
+      </button>
+    ))}
+  </span>
+);
+
+// A field's label row: the label plus its Single/Range switch on the right.
+const RangeLabel = ({
+  text,
+  mode,
+  onModeChange,
+}: {
+  text: string;
+  mode: FluidMode;
+  onModeChange: (mode: FluidMode) => void;
+}) => (
+  <div className="flex items-center justify-between gap-2">
+    <label className={label}>{text}</label>
+    <ModeToggle mode={mode} onChange={onModeChange} />
+  </div>
+);
+
+// Absent/unrecognized mode = "single", so drafts saved before ranges existed
+// keep behaving exactly as they did.
+const modeOf = (value: unknown): FluidMode =>
+  value === "range" ? "range" : "single";
+
 
 const FluidPropertiesStep = ({
   onNext,
@@ -49,34 +100,97 @@ const FluidPropertiesStep = ({
   setFormData,
   onStepClick,
 }: Props) => {
+  // Single-vs-range mode per field (see fluid-inputs.ts). Absent = "single",
+  // so drafts saved before ranges existed behave exactly as before.
+  const phMode = modeOf(formData.phMode);
+  const viscosityMode = modeOf(formData.viscosityMode);
+  const temperatureMode = modeOf(formData.temperatureMode);
+
   // Re-derive the viscosity range whenever viscosity or its unit changes, so
   // the range is auto-selected (spec: "when enter viscosity it automatically
   // select viscosity range"). Still overridable via the dropdown afterward.
   // viscosityCp is the canonical converted value (cP = cSt × SG) — same shape
   // as temperature's canonical Celsius field — so anything downstream can
   // read the real cP value without re-parsing viscosity + viscosityUnit + sg.
-  const applyViscosity = (viscosity: string, viscosityUnit: string) => {
-    const num = parseFloat(viscosity);
+  // When a range is entered, the band comes from the MAX (worst case) — the
+  // most demanding end of the band drives sizing. In single mode there's only
+  // one value, so it decides on its own.
+  const applyViscosity = (
+    viscosity: string,
+    viscosityUnit: string,
+    viscosityMax: string = formData.viscosityMax ?? "",
+    mode: FluidMode = viscosityMode,
+  ) => {
     const sg = parseFloat(formData.sg) || 1;
-    const cp = toCp(num, viscosityUnit, sg);
-    const viscosityRange = Number.isNaN(cp) ? "" : viscosityRangeFor(cp);
-    const viscosityCp = Number.isNaN(cp) ? "" : round2(cp);
-    setFormData({ ...formData, viscosity, viscosityUnit, viscosityRange, viscosityCp });
+    const cpMin = toCp(parseFloat(viscosity), viscosityUnit, sg);
+    const cpMax = toCp(parseFloat(viscosityMax), viscosityUnit, sg);
+    const viscosityCp = Number.isNaN(cpMin) ? "" : round2(cpMin);
+    const viscosityCpMax =
+      mode === "range" && !Number.isNaN(cpMax) ? round2(cpMax) : "";
+    // Worst case: the max when ranged and set, else the single/min value.
+    const bandCp = mode === "range" && !Number.isNaN(cpMax) ? cpMax : cpMin;
+    const viscosityRange = Number.isNaN(bandCp) ? "" : viscosityRangeFor(bandCp);
+    setFormData({
+      ...formData,
+      viscosity,
+      viscosityUnit,
+      viscosityMax: mode === "range" ? viscosityMax : "",
+      viscosityMode: mode,
+      viscosityRange,
+      viscosityCp,
+      viscosityCpMax,
+    });
   };
 
-  // Store the as-entered value in temperatureRaw + temperatureUnit for display,
-  // and the canonical Celsius conversion in temperature (what everything else
-  // reads). Empty input clears the derived Celsius so downstream checks
-  // (formData.temperature ? …) still work.
-  const applyTemperature = (temperatureRaw: string, temperatureUnit: string) => {
-    const num = parseFloat(temperatureRaw);
-    const temperature = Number.isNaN(num) ? "" : round2(toCelsius(num, temperatureUnit));
-    setFormData({ ...formData, temperatureRaw, temperatureUnit, temperature });
+  // Store the as-entered values in temperatureRaw/temperatureMaxRaw +
+  // temperatureUnit for display, and the canonical Celsius conversions in
+  // temperature/temperatureMax (what everything else reads). Empty input
+  // clears the derived Celsius so downstream checks (formData.temperature ? …)
+  // still work.
+  const applyTemperature = (
+    temperatureRaw: string,
+    temperatureUnit: string,
+    temperatureMaxRaw: string = formData.temperatureMaxRaw ?? "",
+    mode: FluidMode = temperatureMode,
+  ) => {
+    const min = parseFloat(temperatureRaw);
+    const max = parseFloat(temperatureMaxRaw);
+    const temperature = Number.isNaN(min) ? "" : round2(toCelsius(min, temperatureUnit));
+    const temperatureMax =
+      mode === "range" && !Number.isNaN(max)
+        ? round2(toCelsius(max, temperatureUnit))
+        : "";
+    setFormData({
+      ...formData,
+      temperatureRaw,
+      temperatureUnit,
+      temperatureMaxRaw: mode === "range" ? temperatureMaxRaw : "",
+      temperatureMax,
+      temperatureMode: mode,
+      temperature,
+    });
+  };
+
+  const applyPh = (
+    ph: string,
+    phMax: string = formData.phMax ?? "",
+    mode: FluidMode = phMode,
+  ) => {
+    setFormData({
+      ...formData,
+      ph,
+      phMax: mode === "range" ? phMax : "",
+      phMode: mode,
+    });
   };
 
   const tempUnit = formData.temperatureUnit;
   const tempRawNum = parseFloat(formData.temperatureRaw ?? "");
   const tempCelsius = Number.isNaN(tempRawNum) ? null : toCelsius(tempRawNum, tempUnit);
+  const tempMaxRawNum = parseFloat(formData.temperatureMaxRaw ?? "");
+  const tempMaxCelsius = Number.isNaN(tempMaxRawNum)
+    ? null
+    : toCelsius(tempMaxRawNum, tempUnit);
 
   return (
     <div className="step-container">
@@ -88,17 +202,52 @@ const FluidPropertiesStep = ({
 
         <div className={grid}>
           <div className={fieldWrap}>
-            <label className={label}>Viscosity</label>
-            <input
-              type="number"
-              placeholder="Enter Viscosity"
-              className={control}
-              value={formData.viscosity}
-              onChange={(e) => applyViscosity(e.target.value, formData.viscosityUnit)}
+            <RangeLabel
+              text="Viscosity"
+              mode={viscosityMode}
+              onModeChange={(m) =>
+                applyViscosity(
+                  formData.viscosity,
+                  formData.viscosityUnit,
+                  formData.viscosityMax ?? "",
+                  m,
+                )
+              }
             />
+            <div className={viscosityMode === "range" ? "flex gap-2" : undefined}>
+              <input
+                type="number"
+                placeholder={viscosityMode === "range" ? "Min" : "Enter Viscosity"}
+                className={control}
+                value={formData.viscosity}
+                onChange={(e) => applyViscosity(e.target.value, formData.viscosityUnit)}
+              />
+              {viscosityMode === "range" && (
+                <input
+                  type="number"
+                  placeholder="Max"
+                  className={control}
+                  value={formData.viscosityMax ?? ""}
+                  onChange={(e) =>
+                    applyViscosity(
+                      formData.viscosity,
+                      formData.viscosityUnit,
+                      e.target.value,
+                    )
+                  }
+                />
+              )}
+            </div>
             {formData.viscosityCp && formData.viscosityUnit === "cSt" && (
               <span className={hint}>
-                = <b className="mono font-semibold text-fg">{formData.viscosityCp}</b> cP
+                ={" "}
+                <b className="mono font-semibold text-fg">
+                  {formData.viscosityCp}
+                  {viscosityMode === "range" && formData.viscosityCpMax
+                    ? `–${formData.viscosityCpMax}`
+                    : ""}
+                </b>{" "}
+                cP
               </span>
             )}
           </div>
@@ -133,7 +282,9 @@ const FluidPropertiesStep = ({
               <option value=">10000">10000 &amp; Above</option>
             </select>
             <span className={hint}>
-              Auto-selected from viscosity — override if needed.
+              {viscosityMode === "range"
+                ? "Auto-selected from the maximum viscosity — override if needed."
+                : "Auto-selected from viscosity — override if needed."}
             </span>
           </div>
 
@@ -179,28 +330,78 @@ const FluidPropertiesStep = ({
           </div>
 
           <div className={fieldWrap}>
-            <label className={label}>pH Value</label>
-            <input
-              type="number"
-              placeholder="Enter pH"
-              className={control}
-              value={formData.ph}
-              onChange={(e) => setFormData({ ...formData, ph: e.target.value })}
+            <RangeLabel
+              text="pH Value"
+              mode={phMode}
+              onModeChange={(m) => applyPh(formData.ph, formData.phMax ?? "", m)}
             />
+            <div className={phMode === "range" ? "flex gap-2" : undefined}>
+              <input
+                type="number"
+                placeholder={phMode === "range" ? "Min" : "Enter pH"}
+                className={control}
+                value={formData.ph}
+                onChange={(e) => applyPh(e.target.value)}
+              />
+              {phMode === "range" && (
+                <input
+                  type="number"
+                  placeholder="Max"
+                  className={control}
+                  value={formData.phMax ?? ""}
+                  onChange={(e) => applyPh(formData.ph, e.target.value)}
+                />
+              )}
+            </div>
           </div>
 
           <div className={fieldWrap}>
-            <label className={label}>Temperature</label>
-            <input
-              type="number"
-              placeholder="Enter Temperature"
-              className={control}
-              value={formData.temperatureRaw ?? ""}
-              onChange={(e) => applyTemperature(e.target.value, tempUnit)}
+            <RangeLabel
+              text="Temperature"
+              mode={temperatureMode}
+              onModeChange={(m) =>
+                applyTemperature(
+                  formData.temperatureRaw ?? "",
+                  tempUnit,
+                  formData.temperatureMaxRaw ?? "",
+                  m,
+                )
+              }
             />
+            <div className={temperatureMode === "range" ? "flex gap-2" : undefined}>
+              <input
+                type="number"
+                placeholder={temperatureMode === "range" ? "Min" : "Enter Temperature"}
+                className={control}
+                value={formData.temperatureRaw ?? ""}
+                onChange={(e) => applyTemperature(e.target.value, tempUnit)}
+              />
+              {temperatureMode === "range" && (
+                <input
+                  type="number"
+                  placeholder="Max"
+                  className={control}
+                  value={formData.temperatureMaxRaw ?? ""}
+                  onChange={(e) =>
+                    applyTemperature(
+                      formData.temperatureRaw ?? "",
+                      tempUnit,
+                      e.target.value,
+                    )
+                  }
+                />
+              )}
+            </div>
             {tempCelsius !== null && tempUnit !== "C" && (
               <span className={hint}>
-                = <b className="mono font-semibold text-fg">{round2(tempCelsius)}</b> °C
+                ={" "}
+                <b className="mono font-semibold text-fg">
+                  {round2(tempCelsius)}
+                  {temperatureMode === "range" && tempMaxCelsius !== null
+                    ? `–${round2(tempMaxCelsius)}`
+                    : ""}
+                </b>{" "}
+                °C
               </span>
             )}
           </div>
@@ -210,7 +411,13 @@ const FluidPropertiesStep = ({
             <select
               className={control}
               value={tempUnit}
-              onChange={(e) => applyTemperature(formData.temperatureRaw ?? "", e.target.value)}
+              onChange={(e) =>
+                applyTemperature(
+                  formData.temperatureRaw ?? "",
+                  e.target.value,
+                  formData.temperatureMaxRaw ?? "",
+                )
+              }
             >
               <option value="">Select</option>
               <option value="C">°C</option>
