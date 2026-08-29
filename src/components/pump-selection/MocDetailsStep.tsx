@@ -108,6 +108,8 @@ type Props = {
   /** Open project's id — needed to upload the generated PDF report so a
    * saved copy lives alongside the project (see handleDownloadPdf). */
   projectId?: string;
+  /** The tag being edited. See LivePumpRecommendation for the fallback. */
+  tagId?: string;
 };
 
 type AiStatus = "idle" | "loading" | "ready" | "unavailable" | "error";
@@ -293,6 +295,7 @@ const MocDetailsStep = ({
   setFormData,
   onStepClick,
   projectId,
+  tagId,
 }: Props) => {
   const media = formData.media as string;
   // Non-wettable / wettable split, recomputed from the pump type: Vertical
@@ -360,7 +363,7 @@ const MocDetailsStep = ({
     // Persist the clear immediately so a reload can't restore a stale panel
     // for the previous media.
     if (projectId) {
-      saveWizardInput("moc-sealing", projectId, { ...CLEARED_AI_FIELDS }).catch(() => {});
+      saveWizardInput("moc-sealing", projectId, { ...CLEARED_AI_FIELDS }, tagId).catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [media]);
@@ -395,7 +398,7 @@ const MocDetailsStep = ({
     setClientReqError(null);
     setClientReqUploading(true);
     try {
-      const meta = await uploadClientRequirements(projectId, file);
+      const meta = await uploadClientRequirements(projectId, file, tagId);
       setFormData((f: typeof formData) => ({
         ...f,
         clientRequirementsFilename: meta.clientRequirementsFilename,
@@ -412,7 +415,7 @@ const MocDetailsStep = ({
     if (!projectId) return;
     setClientReqError(null);
     try {
-      await deleteClientRequirements(projectId);
+      await deleteClientRequirements(projectId, tagId);
     } catch {
       // Best-effort: still clear locally so the UI reflects the intent.
     }
@@ -426,7 +429,7 @@ const MocDetailsStep = ({
   // Direct download link for the currently-attached file - lets the user see
   // what they uploaded without going back to the source.
   const clientReqDownloadHref = projectId && clientRequirementsFilename
-    ? `/api/wizard-input/moc-sealing/client-requirements?projectId=${encodeURIComponent(projectId)}`
+    ? `/api/wizard-input/moc-sealing/client-requirements?${tagId ? `tagId=${encodeURIComponent(tagId)}` : `projectId=${encodeURIComponent(projectId)}`}`
     : null;
 
   const requestAiSuggestion = () => {
@@ -454,6 +457,7 @@ const MocDetailsStep = ({
       // The server reads the uploaded file straight from the DB by projectId
       // rather than having the browser round-trip base64 bytes through JSON.
       projectId: projectId || undefined,
+      tagId: tagId || undefined,
       provider: aiProvider,
     })
       .then((res) => {
@@ -492,7 +496,7 @@ const MocDetailsStep = ({
           };
           setFormData((f: typeof formData) => ({ ...f, ...aiFields }));
           if (projectId) {
-            saveWizardInput("moc-sealing", projectId, aiFields).catch(() => {});
+            saveWizardInput("moc-sealing", projectId, aiFields, tagId).catch(() => {});
           }
         }
       })
@@ -531,7 +535,7 @@ const MocDetailsStep = ({
       // Best-effort — the browser download above already succeeded either
       // way, so a failed upload here shouldn't surface as a PDF error.
       if (projectId) {
-        uploadMocDocument(projectId, filename, bytes).catch(() => {});
+        uploadMocDocument(projectId, filename, bytes, tagId).catch(() => {});
       }
     } catch {
       setPdfError(true);

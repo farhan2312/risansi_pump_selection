@@ -1,8 +1,8 @@
-import { eq } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
 import { db } from "@/lib/db";
-import { mocSealingInput } from "@/lib/db/schema";
+import { asc, eq } from "drizzle-orm";
+import { enquiryTags, mocSealingInput } from "@/lib/db/schema";
 import {
   getMocAiSuggestion,
   isMocAiProviderConfigured,
@@ -54,10 +54,26 @@ export async function POST(req: Request) {
   // through, so drafts saved before the field became a file still contribute
   // their text to the prompt. Fetched here (not passed by the client) because
   // the browser never holds the bytes — only the server owns them.
-  const projectId = str(body.projectId);
+  const tagIdRaw = str(body.tagId);
+  const projectIdRaw = str(body.projectId);
+  // Resolve to a concrete tag_id: explicit tagId wins, else project's
+  // oldest tag (its backfilled Default). Every wizard row is keyed by tag,
+  // so the DB read below must match on that.
+  let resolvedTagId: string | null = null;
+  if (tagIdRaw) {
+    resolvedTagId = tagIdRaw;
+  } else if (projectIdRaw) {
+    const [t] = await db
+      .select({ id: enquiryTags.id })
+      .from(enquiryTags)
+      .where(eq(enquiryTags.projectId, projectIdRaw))
+      .orderBy(asc(enquiryTags.createdAt))
+      .limit(1);
+    resolvedTagId = t?.id ?? null;
+  }
   let clientRequirementsFile: { mediaType: string; base64: string } | null = null;
   let clientRequirementsLegacyText: string | null = null;
-  if (projectId) {
+  if (resolvedTagId) {
     const [row] = await db
       .select({
         file: mocSealingInput.clientRequirementsFile,
@@ -65,7 +81,7 @@ export async function POST(req: Request) {
         text: mocSealingInput.clientRequirements,
       })
       .from(mocSealingInput)
-      .where(eq(mocSealingInput.projectId, projectId))
+      .where(eq(mocSealingInput.tagId, resolvedTagId))
       .limit(1);
     if (row?.file && row.mime) {
       const isImage = CLAUDE_IMAGE_MIMES.has(row.mime);

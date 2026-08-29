@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import "./ProjectsPage.css";
 import CreateProjectModal from "../../components/projects/CreateProjectModal";
@@ -15,6 +15,13 @@ import {
   updateProject,
   type ProjectRecord,
 } from "../../services/projectService";
+import {
+  createTag,
+  deleteTag,
+  listTags,
+  renameTag,
+  type TagRecord,
+} from "../../services/tagsService";
 
 // Cross-page hand-off replacing react-router's location.state: the selected
 // project is stashed in sessionStorage for PumpSelectionPage to read on load.
@@ -34,6 +41,22 @@ const ProjectsPage = () => {
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Per-project tag state. Tags load lazily on first expansion so the projects
+  // list itself stays a single round-trip; once loaded, they're cached in this
+  // map for the life of the page. `expanded` tracks which rows are currently
+  // open. `pending` covers "loading tags" and "processing an add/rename/
+  // delete" so we can gray the row while the request is in flight.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [tagsByProject, setTagsByProject] = useState<Record<string, TagRecord[]>>({});
+  const [tagsLoadingFor, setTagsLoadingFor] = useState<Set<string>>(new Set());
+  const [tagsErrorFor, setTagsErrorFor] = useState<Record<string, string>>({});
+  const [addingTagFor, setAddingTagFor] = useState<string | null>(null);
+  const [newTagName, setNewTagName] = useState("");
+  const [renamingTagId, setRenamingTagId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [confirmingDeleteTag, setConfirmingDeleteTag] = useState<TagRecord | null>(null);
+  const [deletingTagId, setDeletingTagId] = useState<string | null>(null);
 
   // Filters — client name matches project.name (the "Client Name" column;
   // that's what the Create/Edit forms actually call this field), enquiry
@@ -81,7 +104,10 @@ const ProjectsPage = () => {
     }
   };
 
-  const openProject = (project: ProjectRecord) => {
+  // Open the wizard scoped to a specific tag. If no tag is passed (legacy
+  // "Open project" button) the server resolves to the project's Default tag
+  // via the projectId fallback - safe for enquiries that only have one tag.
+  const openProject = (project: ProjectRecord, tag?: TagRecord) => {
     sessionStorage.setItem(
       SELECTED_PROJECT_KEY,
       JSON.stringify({
@@ -90,9 +116,117 @@ const ProjectsPage = () => {
         name: project.name,
         customer: project.customer_name,
         status: project.status,
+        tagId: tag?.id,
+        tagName: tag?.name,
       })
     );
     router.push("/pump-selection");
+  };
+
+  // Toggle a project's nested tag list. First expansion also triggers a
+  // one-time tag fetch (cached in tagsByProject afterwards) so opening the
+  // same project again is instant. Deliberately doesn't refetch on re-expand -
+  // the create/rename/delete handlers keep the cache in sync themselves.
+  const toggleExpanded = (projectId: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(projectId)) {
+        next.delete(projectId);
+      } else {
+        next.add(projectId);
+        if (!tagsByProject[projectId] && !tagsLoadingFor.has(projectId)) {
+          setTagsLoadingFor((l) => new Set(l).add(projectId));
+          setTagsErrorFor((e) => {
+            const { [projectId]: _drop, ...rest } = e;
+            return rest;
+          });
+          listTags(projectId)
+            .then((tags) => setTagsByProject((m) => ({ ...m, [projectId]: tags })))
+            .catch(() => setTagsErrorFor((e) => ({ ...e, [projectId]: "Couldn't load tags." })))
+            .finally(() =>
+              setTagsLoadingFor((l) => {
+                const n = new Set(l);
+                n.delete(projectId);
+                return n;
+              }),
+            );
+        }
+      }
+      return next;
+    });
+  };
+
+  const startAddTag = (projectId: string) => {
+    setAddingTagFor(projectId);
+    setNewTagName("");
+  };
+  const cancelAddTag = () => {
+    setAddingTagFor(null);
+    setNewTagName("");
+  };
+  const handleAddTag = async (projectId: string) => {
+    const name = newTagName.trim();
+    if (!name) return;
+    try {
+      const created = await createTag(projectId, name);
+      setTagsByProject((m) => ({ ...m, [projectId]: [...(m[projectId] ?? []), created] }));
+      setAddingTagFor(null);
+      setNewTagName("");
+    } catch {
+      setTagsErrorFor((e) => ({ ...e, [projectId]: "Couldn't add the tag." }));
+    }
+  };
+
+  const startRenameTag = (tag: TagRecord) => {
+    setRenamingTagId(tag.id);
+    setRenameValue(tag.name);
+  };
+  const cancelRenameTag = () => {
+    setRenamingTagId(null);
+    setRenameValue("");
+  };
+  const handleRenameTag = async (tag: TagRecord) => {
+    const name = renameValue.trim();
+    if (!name || name === tag.name) {
+      cancelRenameTag();
+      return;
+    }
+    try {
+      const updated = await renameTag(tag.id, name);
+      setTagsByProject((m) => ({
+        ...m,
+        [tag.project_id]: (m[tag.project_id] ?? []).map((t) =>
+          t.id === tag.id ? { ...t, name: updated.name } : t,
+        ),
+      }));
+    } catch {
+      setTagsErrorFor((e) => ({ ...e, [tag.project_id]: "Couldn't rename the tag." }));
+    } finally {
+      cancelRenameTag();
+    }
+  };
+
+  const handleDeleteTag = async () => {
+    const target = confirmingDeleteTag;
+    if (!target) return;
+    setDeletingTagId(target.id);
+    try {
+      await deleteTag(target.id);
+      setTagsByProject((m) => ({
+        ...m,
+        [target.project_id]: (m[target.project_id] ?? []).filter((t) => t.id !== target.id),
+      }));
+      setConfirmingDeleteTag(null);
+    } catch (err) {
+      // Surface the server's specific reason (e.g. "last tag on enquiry")
+      const msg =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+        "Couldn't delete the tag.";
+      setTagsErrorFor((e) => ({ ...e, [target.project_id]: msg }));
+      setConfirmingDeleteTag(null);
+    } finally {
+      setDeletingTagId(null);
+    }
   };
 
   const handleEditSave = async (input: {
@@ -203,7 +337,7 @@ const ProjectsPage = () => {
       {isLoading && (
         <div className="projects-panel">
           <div className="projects-loading">
-            <SkeletonRows rows={5} cols={5} />
+            <SkeletonRows rows={5} cols={6} />
           </div>
         </div>
       )}
@@ -234,6 +368,7 @@ const ProjectsPage = () => {
           <table className="projects-table">
             <thead>
               <tr>
+                <th aria-label="Expand" className="projects-chevron-col" />
                 <th>Enquiry no.</th>
                 <th>Client Name</th>
                 <th>Client Code</th>
@@ -243,8 +378,28 @@ const ProjectsPage = () => {
             </thead>
 
             <tbody>
-              {filteredProjects.map((project) => (
-                <tr key={project.id}>
+              {filteredProjects.map((project) => {
+                const isOpen = expanded.has(project.id);
+                const tags = tagsByProject[project.id];
+                const isLoadingTags = tagsLoadingFor.has(project.id);
+                const tagError = tagsErrorFor[project.id];
+                return (
+                <React.Fragment key={project.id}>
+                <tr>
+                  {/* Chevron toggles the nested tag table below. Click target
+                      is the whole cell so it's easy to hit; aria-expanded ties
+                      the collapsed/expanded state to assistive tech. */}
+                  <td className="projects-chevron-col">
+                    <button
+                      type="button"
+                      className={`projects-chevron${isOpen ? " is-open" : ""}`}
+                      onClick={() => toggleExpanded(project.id)}
+                      aria-expanded={isOpen}
+                      aria-label={isOpen ? "Hide tags" : "Show tags"}
+                    >
+                      <ChevronIcon />
+                    </button>
+                  </td>
                   {/* data-label feeds the stacked mobile card view, where the
                       table header row is hidden (see ProjectsPage.css). */}
                   <td className="project-code" data-label="Enquiry no.">
@@ -284,7 +439,159 @@ const ProjectsPage = () => {
                     </div>
                   </td>
                 </tr>
-              ))}
+
+                {isOpen && (
+                  <tr className="projects-tags-row">
+                    <td />
+                    <td colSpan={5}>
+                      <div className="projects-tags-panel">
+                        <div className="projects-tags-heading">
+                          Tags on this enquiry
+                          <span className="projects-tags-hint">
+                            Each tag is its own pump-selection run (own wizard,
+                            own MOC, own drive). Liquid and Pump Type come from
+                            that tag&apos;s own inputs.
+                          </span>
+                        </div>
+
+                        {isLoadingTags && (
+                          <div className="projects-tags-empty">Loading tags…</div>
+                        )}
+
+                        {tagError && (
+                          <div className="projects-tags-error">{tagError}</div>
+                        )}
+
+                        {!isLoadingTags && tags && tags.length === 0 && (
+                          <div className="projects-tags-empty">
+                            No tags yet - add one below.
+                          </div>
+                        )}
+
+                        {!isLoadingTags && tags && tags.length > 0 && (
+                          <table className="projects-tags-table">
+                            <thead>
+                              <tr>
+                                <th>Tag</th>
+                                <th>Liquid</th>
+                                <th>Pump Type</th>
+                                <th className="projects-actions-col">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {tags.map((tag) => {
+                                const isRenaming = renamingTagId === tag.id;
+                                return (
+                                <tr key={tag.id}>
+                                  <td>
+                                    {isRenaming ? (
+                                      <input
+                                        type="text"
+                                        className="projects-tag-input"
+                                        value={renameValue}
+                                        autoFocus
+                                        onChange={(e) => setRenameValue(e.target.value)}
+                                        onBlur={() => handleRenameTag(tag)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === "Enter") handleRenameTag(tag);
+                                          if (e.key === "Escape") cancelRenameTag();
+                                        }}
+                                      />
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        className="projects-tag-name"
+                                        onClick={() => startRenameTag(tag)}
+                                        title="Click to rename"
+                                      >
+                                        {tag.name}
+                                      </button>
+                                    )}
+                                  </td>
+                                  <td>{tag.liquid || "—"}</td>
+                                  <td>{tag.pump_type || "—"}</td>
+                                  <td className="projects-actions-col">
+                                    <div className="projects-actions">
+                                      <button
+                                        className="project-btn project-btn-primary"
+                                        onClick={() => openProject(project, tag)}
+                                      >
+                                        <OpenIcon /> Open
+                                      </button>
+                                      <button
+                                        className="project-btn project-btn-danger"
+                                        onClick={() => setConfirmingDeleteTag(tag)}
+                                        disabled={
+                                          deletingTagId === tag.id ||
+                                          (tags?.length ?? 0) <= 1
+                                        }
+                                        title={
+                                          (tags?.length ?? 0) <= 1
+                                            ? "Can't delete the last tag on an enquiry"
+                                            : undefined
+                                        }
+                                        aria-label={`Delete tag ${tag.name}`}
+                                      >
+                                        <TrashIcon />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        )}
+
+                        {/* Add-tag inline form. Collapsed until the user clicks
+                            "+ Add tag" so the panel stays quiet by default. */}
+                        {addingTagFor === project.id ? (
+                          <div className="projects-tag-add">
+                            <input
+                              type="text"
+                              className="projects-tag-input"
+                              placeholder="Tag name (e.g. Pump 1, Site A)"
+                              value={newTagName}
+                              autoFocus
+                              maxLength={100}
+                              onChange={(e) => setNewTagName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleAddTag(project.id);
+                                if (e.key === "Escape") cancelAddTag();
+                              }}
+                            />
+                            <button
+                              type="button"
+                              className="project-btn project-btn-primary"
+                              onClick={() => handleAddTag(project.id)}
+                              disabled={!newTagName.trim()}
+                            >
+                              Add
+                            </button>
+                            <button
+                              type="button"
+                              className="project-btn"
+                              onClick={cancelAddTag}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            className="project-btn projects-tag-add-btn"
+                            onClick={() => startAddTag(project.id)}
+                          >
+                            <PlusIcon /> Add tag
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </React.Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -325,11 +632,38 @@ const ProjectsPage = () => {
         onConfirm={handleDelete}
         onClose={() => !deletingId && setConfirmingDelete(null)}
       />
+
+      <ConfirmModal
+        open={confirmingDeleteTag !== null}
+        title="Delete this tag?"
+        description={
+          confirmingDeleteTag ? (
+            <>
+              Tag <strong>{confirmingDeleteTag.name}</strong> and its saved
+              wizard inputs (media, MOC, drive, motor picks) will be permanently
+              removed. This can&apos;t be undone.
+            </>
+          ) : null
+        }
+        confirmLabel={deletingTagId ? "Deleting…" : "Delete tag"}
+        cancelLabel="Cancel"
+        tone="danger"
+        busy={deletingTagId !== null}
+        onConfirm={handleDeleteTag}
+        onClose={() => !deletingTagId && setConfirmingDeleteTag(null)}
+      />
     </div>
   );
 };
 
 // --- Inline icons (self-contained, no external asset dependency) -----------
+// The chevron ships as a right-arrow; the .projects-chevron.is-open class in
+// ProjectsPage.css rotates it 90 deg down when the row is expanded.
+const ChevronIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+    <path d="M4.5 3l3 3-3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
 const PlusIcon = () => (
   <svg viewBox="0 0 24 24" fill="none">
     <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />

@@ -27,6 +27,11 @@ type SelectedProject = {
   name?: string;
   customer?: string;
   status?: string;
+  // Tag the user opened from the projects page. Absent means the server
+  // resolves to the project's Default tag - safe for legacy links or an old
+  // session that predates the tags feature.
+  tagId?: string;
+  tagName?: string;
 };
 
 // Every wizard field autosaved to the DB, one table per step (two merges:
@@ -356,7 +361,7 @@ const PumpSelectionPage = () => {
   useEffect(() => {
     if (!project?.id) return;
     let cancelled = false;
-    Promise.all(RESTORABLE_TABLES.map((table) => getWizardInput(table, project.id)))
+    Promise.all(RESTORABLE_TABLES.map((table) => getWizardInput(table, project.id, project.tagId)))
       .then((rows) => {
         if (cancelled) return;
         const merged: Record<string, unknown> = {};
@@ -405,7 +410,7 @@ const PumpSelectionPage = () => {
   const saveStep = (fromStep: number, data: typeof formData = formData) => {
     if (!project?.id || !restored) return;
     for (const table of stepTablesToSave(fromStep)) {
-      saveWizardInput(table, project.id, pickTableFields(table, data)).catch(() => {
+      saveWizardInput(table, project.id, pickTableFields(table, data), project.tagId).catch(() => {
         // Best-effort — the wizard still works from in-memory state if a save fails.
       });
     }
@@ -431,6 +436,7 @@ const PumpSelectionPage = () => {
     // itself is persisted too (no-op duplicate when it *is* general-info).
     if (project?.id && restored) {
       saveWizardInput("general-info", project.id, {
+        tagId: project.tagId,
         wizardStep: clamped,
         wizardMaxStep: nextMax,
       }).catch(() => {});
@@ -481,6 +487,7 @@ const PumpSelectionPage = () => {
             setFormData={setFormData}
             onStepClick={goToStep}
             projectId={project?.id}
+            tagId={project?.tagId}
           />
         );
 
@@ -515,6 +522,7 @@ const PumpSelectionPage = () => {
             setFormData={setFormData}
             onStepClick={goToStep}
             projectId={project?.id}
+            tagId={project?.tagId}
           />
         );
 
@@ -527,6 +535,7 @@ const PumpSelectionPage = () => {
             setSelectedPump={setSelectedPump}
             onStepClick={goToStep}
             projectId={project?.id}
+            tagId={project?.tagId}
             projectCode={project?.code}
             projectName={project?.name}
             customerName={project?.customer}
@@ -600,6 +609,7 @@ const PumpSelectionPage = () => {
         formData={formData}
         setFormData={setFormData}
         projectId={project?.id}
+            tagId={project?.tagId}
         locked={step > 5}
       />
     </>

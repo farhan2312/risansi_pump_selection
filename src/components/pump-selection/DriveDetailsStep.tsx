@@ -30,6 +30,8 @@ type Props = {
   /** Open project's id — Recheck persists the drive + motor inputs against it
    * (see handleRecheck) rather than waiting for a Next/Previous navigation. */
   projectId?: string;
+  /** The tag being edited - drive rows are keyed by tag. */
+  tagId?: string;
 };
 
 type VbeltStatus = "idle" | "loading" | "ready" | "error";
@@ -155,6 +157,7 @@ const DriveDetailsStep = ({
   setFormData,
   onStepClick,
   projectId,
+  tagId,
 }: Props) => {
   const isVBelt = formData.driveSystem === "V-Belt Drive";
   const isGeared = formData.driveSystem === "Geared Motor Drive/Gear Box + Motor";
@@ -193,15 +196,15 @@ const DriveDetailsStep = ({
       for (const k of keys) out[k] = formData[k];
       return out;
     };
-    saveWizardInput("motor-drive", projectId, pick(MOTOR_DRIVE_FIELDS)).catch(() => {});
+    saveWizardInput("motor-drive", projectId, pick(MOTOR_DRIVE_FIELDS), tagId).catch(() => {});
     // Only the table matching the chosen drive system — the API clears the
     // other two on write, so an enquiry keeps exactly one drive row.
     if (isVBelt) {
-      saveWizardInput("drive-vbelt", projectId, pick(DRIVE_VBELT_FIELDS)).catch(() => {});
+      saveWizardInput("drive-vbelt", projectId, pick(DRIVE_VBELT_FIELDS), tagId).catch(() => {});
     } else if (isGeared) {
-      saveWizardInput("drive-geared", projectId, pick(DRIVE_GEARED_FIELDS)).catch(() => {});
+      saveWizardInput("drive-geared", projectId, pick(DRIVE_GEARED_FIELDS), tagId).catch(() => {});
     } else if (formData.driveSystem === "Direct Drive") {
-      saveWizardInput("drive-direct", projectId, {}).catch(() => {});
+      saveWizardInput("drive-direct", projectId, {}, tagId).catch(() => {});
     }
   };
 
@@ -239,9 +242,9 @@ const DriveDetailsStep = ({
     // retry, but the in-memory state is already reset either way.
     try {
       await Promise.all([
-        clearWizardInput("motor-drive", projectId),
-        clearWizardInput("drive-vbelt", projectId),
-        clearWizardInput("drive-geared", projectId),
+        clearWizardInput("motor-drive", projectId, tagId),
+        clearWizardInput("drive-vbelt", projectId, tagId),
+        clearWizardInput("drive-geared", projectId, tagId),
       ]);
       setCleared(true);
     } catch {

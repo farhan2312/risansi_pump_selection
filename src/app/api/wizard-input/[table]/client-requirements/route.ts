@@ -1,19 +1,16 @@
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
 import { db } from "@/lib/db";
-import { mocSealingInput } from "@/lib/db/schema";
+import { enquiryTags, mocSealingInput } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
 
-// Binary storage for the client-supplied requirements file (image or PDF) that
-// the MOC step used to accept as free text. Kept off the generic JSON [table]
-// endpoint for the same reason as /document: raw bytes don't belong in that
-// contract. Only "moc-sealing" has these columns; other table keys 404.
+// Binary storage for the client-supplied requirements file (image or PDF)
+// used by the MOC AI request. Kept off the generic JSON [table] endpoint for
+// the same reason as /document: raw bytes don't belong in that contract.
+// Only "moc-sealing" has these columns; other table keys 404. Keyed by tag.
 
-// Accepted upload types. Matches Claude's own supported image/document media
-// types (see Anthropic messages API) so whatever is stored can be forwarded to
-// the model as-is without any conversion step.
 const ALLOWED_MIMES = new Set([
   "image/png",
   "image/jpeg",
@@ -22,9 +19,6 @@ const ALLOWED_MIMES = new Set([
   "application/pdf",
 ]);
 
-// Hard cap so a stray upload can't blow the request body or the DB row. Claude
-// accepts documents up to ~5 MB base64-encoded; the raw ceiling here is well
-// under that.
 const MAX_BYTES = 5 * 1024 * 1024;
 
 function guardMocSealing(tableParam: string) {
@@ -33,9 +27,32 @@ function guardMocSealing(tableParam: string) {
     : error(`Table "${tableParam}" has no client-requirements file`, 400);
 }
 
-// Fetch the stored client-requirements file for direct download / preview.
-// Content-Type is served from the row's own mime so an image opens inline and
-// a PDF opens in the browser's viewer.
+async function resolveTagContext(
+  tagId: string | null,
+  projectId: string | null,
+): Promise<{ tagId: string; projectId: string } | null> {
+  if (tagId) {
+    const [row] = await db
+      .select({ id: enquiryTags.id, projectId: enquiryTags.projectId })
+      .from(enquiryTags)
+      .where(eq(enquiryTags.id, tagId))
+      .limit(1);
+    if (!row) return null;
+    return { tagId: row.id, projectId: row.projectId };
+  }
+  if (projectId) {
+    const [row] = await db
+      .select({ id: enquiryTags.id, projectId: enquiryTags.projectId })
+      .from(enquiryTags)
+      .where(eq(enquiryTags.projectId, projectId))
+      .orderBy(asc(enquiryTags.createdAt))
+      .limit(1);
+    if (!row) return null;
+    return { tagId: row.id, projectId: row.projectId };
+  }
+  return null;
+}
+
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ table: string }> },
@@ -44,8 +61,12 @@ export async function GET(
   const denied = guardMocSealing(tableParam);
   if (denied) return denied;
 
-  const projectId = new URL(req.url).searchParams.get("projectId");
-  if (!projectId) return error("'projectId' query param is required", 400);
+  const url = new URL(req.url);
+  const ctx = await resolveTagContext(
+    url.searchParams.get("tagId"),
+    url.searchParams.get("projectId"),
+  );
+  if (!ctx) return error("'tagId' (or 'projectId' as fallback) is required", 400);
 
   const [row] = await db
     .select({
@@ -54,11 +75,11 @@ export async function GET(
       mime: mocSealingInput.clientRequirementsMime,
     })
     .from(mocSealingInput)
-    .where(eq(mocSealingInput.projectId, projectId))
+    .where(eq(mocSealingInput.tagId, ctx.tagId))
     .limit(1);
 
   if (!row || !row.file) {
-    return error("No client-requirements file for this project", 404);
+    return error("No client-requirements file for this tag", 404);
   }
 
   const filename = (row.filename || "client-requirements").replace(/"/g, "");
@@ -73,10 +94,8 @@ export async function GET(
   });
 }
 
-// Upload/replace the client-requirements file. Body is the raw bytes with the
-// filename + mime supplied as query params (same shape as /document, which
-// established this pattern). Upserts into moc_sealing_input — the row may not
-// exist yet if the MOC step hasn't been opened before.
+// Upload/replace the client-requirements file. Body is the raw bytes with
+// filename + mime supplied as query params (same shape as /document).
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ table: string }> },
@@ -86,8 +105,11 @@ export async function POST(
   if (denied) return denied;
 
   const url = new URL(req.url);
-  const projectId = url.searchParams.get("projectId");
-  if (!projectId) return error("'projectId' query param is required", 400);
+  const ctx = await resolveTagContext(
+    url.searchParams.get("tagId"),
+    url.searchParams.get("projectId"),
+  );
+  if (!ctx) return error("'tagId' (or 'projectId' as fallback) is required", 400);
 
   const filename = url.searchParams.get("filename");
   if (!filename) return error("'filename' query param is required", 400);
@@ -110,14 +132,15 @@ export async function POST(
   const result = await db
     .insert(mocSealingInput)
     .values({
-      projectId,
+      projectId: ctx.projectId,
+      tagId: ctx.tagId,
       clientRequirementsFile: bytes,
       clientRequirementsFilename: filename,
       clientRequirementsMime: mime,
       clientRequirementsUploadedAt: uploadedAt,
     })
     .onConflictDoUpdate({
-      target: mocSealingInput.projectId,
+      target: mocSealingInput.tagId,
       set: {
         clientRequirementsFile: bytes,
         clientRequirementsFilename: filename,
@@ -136,8 +159,6 @@ export async function POST(
   return json(row, 201);
 }
 
-// Remove the file. Uses PUT/onConflictDoUpdate with NULLs rather than
-// requiring a row-exists check first; matches the upsert style of POST above.
 export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ table: string }> },
@@ -146,8 +167,12 @@ export async function DELETE(
   const denied = guardMocSealing(tableParam);
   if (denied) return denied;
 
-  const projectId = new URL(req.url).searchParams.get("projectId");
-  if (!projectId) return error("'projectId' query param is required", 400);
+  const url = new URL(req.url);
+  const ctx = await resolveTagContext(
+    url.searchParams.get("tagId"),
+    url.searchParams.get("projectId"),
+  );
+  if (!ctx) return error("'tagId' (or 'projectId' as fallback) is required", 400);
 
   await db
     .update(mocSealingInput)
@@ -158,7 +183,7 @@ export async function DELETE(
       clientRequirementsUploadedAt: null,
       updatedAt: new Date(),
     })
-    .where(eq(mocSealingInput.projectId, projectId));
+    .where(eq(mocSealingInput.tagId, ctx.tagId));
 
   return json({ ok: true });
 }

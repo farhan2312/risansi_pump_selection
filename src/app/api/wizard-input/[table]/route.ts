@@ -1,8 +1,9 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
 import { db } from "@/lib/db";
 import {
+  enquiryTags,
   generalInfoInput,
   fluidPropertiesInput,
   operatingConditionsInput,
@@ -17,9 +18,11 @@ import {
 export const dynamic = "force-dynamic";
 
 // One generic route family for all 8 wizard autosave tables, keyed by the
-// [table] URL segment — same pattern as /api/gearbox-master/[table]. Each
-// table has a unique projectId (one row per project), so GET/PUT are both
-// keyed by projectId, not a row id.
+// [table] URL segment - same pattern as /api/gearbox-master/[table]. Each
+// table now has a unique tagId (one row per tag; one project can hold N
+// tags), so GET/PUT/DELETE key by tagId. `projectId` is still accepted as a
+// fallback, resolving to the project's oldest tag (its backfilled "Default")
+// so legacy callers and bookmarks keep working while the client is migrated.
 const TABLES = {
   "general-info": generalInfoInput,
   "fluid-properties": fluidPropertiesInput,
@@ -33,8 +36,8 @@ const TABLES = {
 
 type TableKey = keyof typeof TABLES;
 
-// The three mutually-exclusive drive-system tables — an enquiry has one drive
-// system, so at most one of these ever holds a row for a given project.
+// The three mutually-exclusive drive-system tables — a tag has one drive
+// system, so at most one of these ever holds a row for a given tag.
 const DRIVE_TABLE_KEYS: TableKey[] = ["drive-direct", "drive-vbelt", "drive-geared"];
 
 // Fields the wizard actually sends per table — anything else in the request
@@ -60,10 +63,10 @@ const FIELDS: Record<TableKey, readonly string[]> = {
   ],
   "moc-sealing": [
     "sealingType", "sealingSubType", "glandPackingType",
-    // Legacy text field is intentionally omitted from the writable list:
-    // the form no longer produces free text (client requirements are now an
-    // uploaded file). It still returns from GET on legacy rows since the
-    // pickFields whitelist is write-only.
+    // Legacy free-text client-requirements is intentionally omitted from the
+    // writable list: the form now uploads a file. Metadata columns for that
+    // upload (filename/mime/uploadedAt) live here so restore can rebuild the
+    // "attached" state without pulling the bytes.
     "clientRequirementsFilename",
     "clientRequirementsMime",
     "clientRequirementsUploadedAt",
@@ -89,7 +92,6 @@ const FIELDS: Record<TableKey, readonly string[]> = {
   ],
   "motor-drive": [
     "driveMotorKw", "driveSystem", "motorRPM",
-    // Drive System Inputs — apply to every drive type (see schema.ts).
     "driveMotorSpeed", "driveMotorMake", "driveMotorMounting", "driveStdNonStd",
     "driveMotorEfficiency", "driveMotorProtection", "driveMotorFrequency",
     "driveMotorVoltage",
@@ -113,12 +115,12 @@ const FIELDS: Record<TableKey, readonly string[]> = {
   ],
 };
 
-// Columns backed by a Drizzle `timestamp` — these need a JS Date on
-// insert/update (Drizzle calls .toISOString() on the value), but arrive here
-// as JSON strings (an ISO string, or "" for "not set"). Coerce string -> Date
-// (and ""/invalid -> null) so the write doesn't 500 with
-// "value.toISOString is not a function".
-const TIMESTAMP_FIELDS = new Set<string>(["mocAiGeneratedAt", "clientRequirementsUploadedAt"]);
+// Columns backed by a Drizzle `timestamp` — Drizzle calls .toISOString() on the
+// value, but ISO strings from JSON need coercing back to a Date first.
+const TIMESTAMP_FIELDS = new Set<string>([
+  "mocAiGeneratedAt",
+  "clientRequirementsUploadedAt",
+]);
 
 function coerceTimestamp(v: unknown): Date | null {
   if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v;
@@ -143,10 +145,42 @@ function pickFields(tableKey: TableKey, body: Record<string, unknown>) {
   return out;
 }
 
-// Autosaved wizard state for a project, one table per wizard step (see
-// schema.ts for the full split rationale). No auth gate here — same as the
-// projects route, this is a small internal tool with no per-user ownership
-// concept; the /pump-selection page itself is already gated by middleware.
+// Resolve the tag_id + project_id the request refers to. Accepts `tagId` OR
+// `projectId` (the latter picks the project's oldest tag, which is the
+// backfilled "Default"). Callers post-migration always send tagId; the
+// projectId fallback exists so an older client that hasn't been updated yet
+// still hits its Default tag automatically. Returns null when either the
+// identifier is missing or it doesn't resolve to a tag.
+async function resolveTagContext(
+  tagId: string | null,
+  projectId: string | null,
+): Promise<{ tagId: string; projectId: string } | null> {
+  if (tagId) {
+    const [row] = await db
+      .select({ id: enquiryTags.id, projectId: enquiryTags.projectId })
+      .from(enquiryTags)
+      .where(eq(enquiryTags.id, tagId))
+      .limit(1);
+    if (!row) return null;
+    return { tagId: row.id, projectId: row.projectId };
+  }
+  if (projectId) {
+    const [row] = await db
+      .select({ id: enquiryTags.id, projectId: enquiryTags.projectId })
+      .from(enquiryTags)
+      .where(eq(enquiryTags.projectId, projectId))
+      .orderBy(asc(enquiryTags.createdAt))
+      .limit(1);
+    if (!row) return null;
+    return { tagId: row.id, projectId: row.projectId };
+  }
+  return null;
+}
+
+// Autosaved wizard state for a tag, one table per wizard step (see schema.ts
+// for the full split rationale). No auth gate here - same as the projects
+// route, this is a small internal tool with no per-user ownership concept;
+// the /pump-selection page itself is already gated by middleware.
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ table: string }> },
@@ -156,9 +190,16 @@ export async function GET(
   if (!tableKey) return error(`Unknown wizard-input table "${tableParam}"`, 400);
   const table = TABLES[tableKey];
 
-  const projectId = new URL(req.url).searchParams.get("projectId");
-  if (!projectId) {
-    return error("'projectId' query param is required", 400);
+  const url = new URL(req.url);
+  const ctx = await resolveTagContext(
+    url.searchParams.get("tagId"),
+    url.searchParams.get("projectId"),
+  );
+  if (!ctx) {
+    return error(
+      "'tagId' (or 'projectId' as fallback) is required and must resolve to a tag",
+      400,
+    );
   }
 
   const [row] = await db
@@ -166,16 +207,12 @@ export async function GET(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .from(table as any)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .where(eq((table as any).projectId, projectId))
+    .where(eq((table as any).tagId, ctx.tagId))
     .limit(1);
 
   if (!row) {
-    return error("No saved input found for this project", 404);
+    return error("No saved input found for this tag", 404);
   }
-  // Never ship the stored PDF blob (moc_sealing_input.document) through this
-  // restore endpoint — it can be hundreds of KB and the wizard doesn't use it
-  // here (the blob has its own /document route). Stripping it keeps every
-  // page-load restore small.
   // Bytea columns must never travel through this JSON restore path - they
   // have their own binary endpoints. Keeps page loads small and avoids
   // base64-inside-JSON overhead. The metadata columns (filename, mime,
@@ -204,9 +241,14 @@ export async function PUT(
     return error("Request body must be JSON", 400);
   }
 
-  const projectId = body.projectId;
-  if (!projectId || typeof projectId !== "string") {
-    return error("'projectId' is required", 400);
+  const tagIdIn = typeof body.tagId === "string" ? body.tagId : null;
+  const projectIdIn = typeof body.projectId === "string" ? body.projectId : null;
+  const ctx = await resolveTagContext(tagIdIn, projectIdIn);
+  if (!ctx) {
+    return error(
+      "'tagId' (or 'projectId' as fallback) is required and must resolve to a tag",
+      400,
+    );
   }
 
   const values = pickFields(tableKey, body);
@@ -215,22 +257,19 @@ export async function PUT(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .insert(table as any)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .values({ projectId, ...values } as any)
+    .values({ projectId: ctx.projectId, tagId: ctx.tagId, ...values } as any)
     .onConflictDoUpdate({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      target: (table as any).projectId,
+      target: (table as any).tagId,
       set: { ...values, updatedAt: new Date() },
     })
     .returning();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [row] = result as any[];
 
-  // An enquiry has exactly ONE drive system, so it must end up with exactly
-  // one drive-* row. Writing one drive table therefore clears the other two —
-  // otherwise switching drive type (e.g. V-Belt -> Geared) leaves the old
-  // row orphaned against the enquiry, and the restore path would rehydrate
-  // stale belt/gearbox picks that no longer apply. Enforced here rather than
-  // client-side so it holds no matter which caller does the write.
+  // Drive uniqueness holds PER TAG: a tag has exactly one drive system, so
+  // writing one drive-* table clears the other two FOR THIS TAG only. Other
+  // tags on the same project keep their own drive rows.
   if (DRIVE_TABLE_KEYS.includes(tableKey)) {
     for (const otherKey of DRIVE_TABLE_KEYS) {
       if (otherKey === tableKey) continue;
@@ -239,27 +278,29 @@ export async function PUT(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .delete(otherTable as any)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .where(eq((otherTable as any).projectId, projectId));
+        .where(eq((otherTable as any).tagId, ctx.tagId));
     }
   }
 
-  // Project lifecycle: the first time General Information is saved with any
-  // real content, flip a still-"Pending" project to "In Progress". Never
-  // downgrades a project that's already further along (e.g. "Completed").
-  if (tableKey === "general-info" && Object.values(values).some((v) => v !== "" && v != null)) {
+  // Project lifecycle: any tag's first general-info save with real content
+  // flips a still-Pending project to In Progress. Never downgrades a project
+  // that's already further along (e.g. "Completed").
+  if (
+    tableKey === "general-info" &&
+    Object.values(values).some((v) => v !== "" && v != null)
+  ) {
     await db
       .update(projects)
       .set({ status: "In Progress", updatedAt: new Date() })
-      .where(and(eq(projects.id, projectId), eq(projects.status, "Pending")));
+      .where(and(eq(projects.id, ctx.projectId), eq(projects.status, "Pending")));
   }
 
   return json(row);
 }
 
-// DELETE the entire per-project row for one wizard-input table. Used by the
-// Drive Details step's Clear button so a wrong drive-system choice can be
-// wiped without leaving stale rows in motor-drive / drive-vbelt /
-// drive-geared. Idempotent - deleting a row that's already gone returns ok.
+// DELETE the row for one wizard-input table, scoped to a tag. Idempotent -
+// deleting a row that's already gone returns ok. Used by the Drive Details
+// step's Clear button.
 export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ table: string }> },
@@ -269,16 +310,23 @@ export async function DELETE(
   if (!tableKey) return error(`Unknown wizard-input table "${tableParam}"`, 400);
   const table = TABLES[tableKey];
 
-  const projectId = new URL(req.url).searchParams.get("projectId");
-  if (!projectId) {
-    return error("'projectId' query param is required", 400);
+  const url = new URL(req.url);
+  const ctx = await resolveTagContext(
+    url.searchParams.get("tagId"),
+    url.searchParams.get("projectId"),
+  );
+  if (!ctx) {
+    return error(
+      "'tagId' (or 'projectId' as fallback) is required and must resolve to a tag",
+      400,
+    );
   }
 
   await db
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .delete(table as any)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .where(eq((table as any).projectId, projectId));
+    .where(eq((table as any).tagId, ctx.tagId));
 
   return json({ ok: true });
 }

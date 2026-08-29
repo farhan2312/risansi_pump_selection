@@ -95,6 +95,9 @@ export const getMocAiSuggestion = async (input: {
   /** Project id, used by the server to fetch any uploaded client-
    * requirements file (image or PDF) and attach it to the model call. */
   projectId?: string;
+  /** Tag id. Preferred over projectId; server falls back to the project's
+   * Default tag when only projectId is supplied. */
+  tagId?: string;
   /** Which LLM to use — defaults server-side to "anthropic" if omitted. */
   provider?: MocAiProvider;
 }): Promise<MocComponentSuggestions | MocAiUnavailable> => {

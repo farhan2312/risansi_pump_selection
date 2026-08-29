@@ -86,6 +86,22 @@ export const projects = pgTable("projects", {
   reportSummary: jsonb("report_summary"),
 });
 
+
+// One enquiry can carry multiple tags - a tag is a distinct pump-selection
+// run under the same enquiry (media, duty point, drive, MOC all live per-tag).
+// The 8 wizard-input tables below are keyed by tag_id, not by project_id, so
+// a single project can hold N independent wizards. Legacy rows were backfilled
+// onto a Default tag per project during the tag_id migration.
+export const enquiryTags = pgTable("enquiry_tags", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  projectId: uuid("project_id")
+    .notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 100 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
+});
+
 // Autosaved wizard state — one table per wizard step, each with a unique
 // projectId (one row per project), cascade-deleted with the project. Split
 // out of a single pump_selection_input table (which only covered steps 1-4)
@@ -111,8 +127,15 @@ export const generalInfoInput = pgTable("general_info_input", {
   id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   projectId: uuid("project_id")
     .notNull()
-    .unique()
     .references(() => projects.id, { onDelete: "cascade" }),
+  // Wizard rows are now keyed by tag, not by project: one project can carry
+  // multiple tags, and each tag has its own independent wizard. project_id is
+  // kept as a denormalised convenience + safety net for project-cascade
+  // deletes, but the app writes/reads through tag_id.
+  tagId: uuid("tag_id")
+    .notNull()
+    .unique()
+    .references(() => enquiryTags.id, { onDelete: "cascade" }),
   capacity: varchar("capacity", { length: 50 }),
   capacityUnit: varchar("capacity_unit", { length: 20 }),
   head: varchar("head", { length: 50 }),
@@ -139,8 +162,15 @@ export const fluidPropertiesInput = pgTable("fluid_properties_input", {
   id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   projectId: uuid("project_id")
     .notNull()
-    .unique()
     .references(() => projects.id, { onDelete: "cascade" }),
+  // Wizard rows are now keyed by tag, not by project: one project can carry
+  // multiple tags, and each tag has its own independent wizard. project_id is
+  // kept as a denormalised convenience + safety net for project-cascade
+  // deletes, but the app writes/reads through tag_id.
+  tagId: uuid("tag_id")
+    .notNull()
+    .unique()
+    .references(() => enquiryTags.id, { onDelete: "cascade" }),
   viscosity: varchar("viscosity", { length: 50 }),
   viscosityUnit: varchar("viscosity_unit", { length: 20 }),
   viscosityRange: varchar("viscosity_range", { length: 20 }),
@@ -174,8 +204,15 @@ export const operatingConditionsInput = pgTable("operating_conditions_input", {
   id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   projectId: uuid("project_id")
     .notNull()
-    .unique()
     .references(() => projects.id, { onDelete: "cascade" }),
+  // Wizard rows are now keyed by tag, not by project: one project can carry
+  // multiple tags, and each tag has its own independent wizard. project_id is
+  // kept as a denormalised convenience + safety net for project-cascade
+  // deletes, but the app writes/reads through tag_id.
+  tagId: uuid("tag_id")
+    .notNull()
+    .unique()
+    .references(() => enquiryTags.id, { onDelete: "cascade" }),
   pumpType: varchar("pump_type", { length: 50 }),
   agBk: varchar("ag_bk", { length: 20 }),
   bearingHousing: varchar("bearing_housing", { length: 50 }),
@@ -197,8 +234,15 @@ export const mocSealingInput = pgTable("moc_sealing_input", {
   id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   projectId: uuid("project_id")
     .notNull()
-    .unique()
     .references(() => projects.id, { onDelete: "cascade" }),
+  // Wizard rows are now keyed by tag, not by project: one project can carry
+  // multiple tags, and each tag has its own independent wizard. project_id is
+  // kept as a denormalised convenience + safety net for project-cascade
+  // deletes, but the app writes/reads through tag_id.
+  tagId: uuid("tag_id")
+    .notNull()
+    .unique()
+    .references(() => enquiryTags.id, { onDelete: "cascade" }),
   sealingType: varchar("sealing_type", { length: 30 }),
   sealingSubType: varchar("sealing_sub_type", { length: 10 }),
   // Gland Packing Type (GAGP / Teflon-PTFE / Carbon Fiber / Asbestos-Free) —
@@ -301,8 +345,15 @@ export const motorDriveInput = pgTable("motor_drive_input", {
   id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   projectId: uuid("project_id")
     .notNull()
-    .unique()
     .references(() => projects.id, { onDelete: "cascade" }),
+  // Wizard rows are now keyed by tag, not by project: one project can carry
+  // multiple tags, and each tag has its own independent wizard. project_id is
+  // kept as a denormalised convenience + safety net for project-cascade
+  // deletes, but the app writes/reads through tag_id.
+  tagId: uuid("tag_id")
+    .notNull()
+    .unique()
+    .references(() => enquiryTags.id, { onDelete: "cascade" }),
   driveMotorKw: varchar("drive_motor_kw", { length: 50 }),
   driveSystem: varchar("drive_system", { length: 50 }),
   // JS field name matches formData.motorRPM exactly (capital RPM) — not the
@@ -352,8 +403,15 @@ export const driveDirectInput = pgTable("drive_direct_input", {
   id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   projectId: uuid("project_id")
     .notNull()
-    .unique()
     .references(() => projects.id, { onDelete: "cascade" }),
+  // Wizard rows are now keyed by tag, not by project: one project can carry
+  // multiple tags, and each tag has its own independent wizard. project_id is
+  // kept as a denormalised convenience + safety net for project-cascade
+  // deletes, but the app writes/reads through tag_id.
+  tagId: uuid("tag_id")
+    .notNull()
+    .unique()
+    .references(() => enquiryTags.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
@@ -366,8 +424,15 @@ export const driveVbeltInput = pgTable("drive_vbelt_input", {
   id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   projectId: uuid("project_id")
     .notNull()
-    .unique()
     .references(() => projects.id, { onDelete: "cascade" }),
+  // Wizard rows are now keyed by tag, not by project: one project can carry
+  // multiple tags, and each tag has its own independent wizard. project_id is
+  // kept as a denormalised convenience + safety net for project-cascade
+  // deletes, but the app writes/reads through tag_id.
+  tagId: uuid("tag_id")
+    .notNull()
+    .unique()
+    .references(() => enquiryTags.id, { onDelete: "cascade" }),
   driveVbeltGroove: varchar("drive_vbelt_groove", { length: 20 }),
   drivePumpPulley: varchar("drive_pump_pulley", { length: 20 }),
   driveMotorPulley: varchar("drive_motor_pulley", { length: 20 }),
@@ -390,8 +455,15 @@ export const driveGearedInput = pgTable("drive_geared_input", {
   id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   projectId: uuid("project_id")
     .notNull()
-    .unique()
     .references(() => projects.id, { onDelete: "cascade" }),
+  // Wizard rows are now keyed by tag, not by project: one project can carry
+  // multiple tags, and each tag has its own independent wizard. project_id is
+  // kept as a denormalised convenience + safety net for project-cascade
+  // deletes, but the app writes/reads through tag_id.
+  tagId: uuid("tag_id")
+    .notNull()
+    .unique()
+    .references(() => enquiryTags.id, { onDelete: "cascade" }),
   gearBoxType: varchar("gear_box_type", { length: 20 }), // HISO / SISO
   gearedConfigType: varchar("geared_config_type", { length: 30 }),
   gbConstructionType: varchar("gb_construction_type", { length: 30 }), // IN LINE HELICAL / PLANTERY

@@ -334,3 +334,146 @@
     width: 100%;
   }
 }
+
+/* ---------- Enquiry tags: chevron + nested table ------------------------ */
+
+/* Fixed-width column for the chevron so the main columns don't jitter as the
+   list re-renders. */
+.projects-chevron-col {
+  width: 32px;
+  padding-left: 12px !important;
+  padding-right: 4px !important;
+}
+
+.projects-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--line, #d0d7de);
+  border-radius: 4px;
+  background: var(--paper, #fff);
+  color: var(--fg-2, #57606a);
+  cursor: pointer;
+  transition: transform 120ms ease, background-color 120ms ease;
+}
+.projects-chevron:hover {
+  background: var(--elev, #f6f8fa);
+  color: var(--fg, #1f2328);
+}
+.projects-chevron.is-open {
+  transform: rotate(90deg);
+  color: var(--accent, #0969da);
+}
+
+/* Nested tag panel sits inside its own <tr>; the panel div gives it padding
+   and a slight inset so it visually anchors to its parent enquiry. */
+.projects-tags-row > td {
+  background: var(--elev, #f6f8fa);
+  padding: 12px 16px 16px 40px !important;
+  border-top: 0 !important;
+}
+.projects-tags-panel {
+  border: 1px solid var(--line, #d0d7de);
+  border-radius: 6px;
+  background: var(--paper, #fff);
+  padding: 12px;
+}
+.projects-tags-heading {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--fg-3, #6e7781);
+  margin-bottom: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+.projects-tags-hint {
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--fg-3, #6e7781);
+}
+
+.projects-tags-empty,
+.projects-tags-error {
+  padding: 12px;
+  font-size: 13px;
+  color: var(--fg-3, #6e7781);
+  text-align: left;
+}
+.projects-tags-error {
+  color: var(--warn, #a16207);
+}
+
+.projects-tags-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 13px;
+}
+.projects-tags-table th {
+  text-align: left;
+  padding: 6px 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--fg-3, #6e7781);
+  border-bottom: 1px solid var(--line, #d0d7de);
+  background: transparent;
+}
+.projects-tags-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line, #d0d7de);
+  vertical-align: middle;
+}
+.projects-tags-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Tag name is a click-to-rename affordance - looks like a link, becomes an
+   input when clicked. Same size as the surrounding table text. */
+.projects-tag-name {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--fg, #1f2328);
+  font: inherit;
+  font-weight: 600;
+  cursor: text;
+  text-align: left;
+}
+.projects-tag-name:hover {
+  color: var(--accent, #0969da);
+  text-decoration: underline dotted;
+}
+.projects-tag-input {
+  width: 100%;
+  max-width: 240px;
+  padding: 4px 8px;
+  border: 1px solid var(--line-strong, #9ea7b3);
+  border-radius: 4px;
+  font: inherit;
+  background: var(--paper, #fff);
+  color: var(--fg, #1f2328);
+}
+
+/* Add-tag inline form / button placement. */
+.projects-tag-add {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.projects-tag-add .projects-tag-input {
+  max-width: 320px;
+}
+.projects-tag-add-btn {
+  margin-top: 12px;
+}

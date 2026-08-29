@@ -27,6 +27,8 @@ type Props = {
   /** Open project's id + display info — needed to upload the generated
    * report so it's saved on the project (see handleConfirmSelection). */
   projectId?: string;
+  /** The tag being edited. Kept for parity with other steps; not used yet. */
+  tagId?: string;
   projectCode?: string;
   projectName?: string;
   customerName?: string;
@@ -105,6 +107,8 @@ const RecommendationStep = ({
   formData,
   onStepClick,
   projectId,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  tagId: _tagId,
   projectCode,
   projectName,
   customerName,

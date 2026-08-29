@@ -16,6 +16,9 @@ type Props = {
   /** Open project's id — lets a model confirmation persist to general_info
    * immediately, from whichever step the panel is shown on. */
   projectId?: string;
+  /** The tag being edited. Wizard rows are keyed by tag; absent falls
+   *  back to the project's Default tag server-side. */
+  tagId?: string;
   /** Read-only mode (steps past Sealing): the confirmed pump stays visible as
    * a reference card, but it can no longer be re-picked or unconfirmed — from
    * Motor Rating on, the wizard is configuring the chosen pump, and swapping
@@ -41,7 +44,7 @@ const engineKey = (f: any) =>
     solidType: f.solidType,
   });
 
-const LivePumpRecommendation = ({ formData, setFormData, projectId, locked = false }: Props) => {
+const LivePumpRecommendation = ({ formData, setFormData, projectId, tagId, locked = false }: Props) => {
   const [recs, setRecs] = useState<PumpRecommendation[]>([]);
   const [status, setStatus] = useState<Status>("idle");
   // Local "re-pick" mode: after a model is confirmed, "Change model" re-opens
@@ -119,7 +122,7 @@ const LivePumpRecommendation = ({ formData, setFormData, projectId, locked = fal
       saveWizardInput("general-info", projectId, {
         selectedModel: formData.selectedModel,
         modelConfirmed: true,
-      }).catch(() => {
+      }, tagId).catch(() => {
         // Best-effort — the in-memory formData still gates navigation; the
         // step-1 save will pick it up as a fallback.
       });
