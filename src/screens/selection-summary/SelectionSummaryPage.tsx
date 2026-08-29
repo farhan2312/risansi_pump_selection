@@ -75,7 +75,8 @@ const SelectionSummaryPage = () => {
       (r) =>
         r.project_code.toLowerCase().includes(q) ||
         (r.project_name ?? "").toLowerCase().includes(q) ||
-        (r.client_code ?? "").toLowerCase().includes(q)
+        (r.client_code ?? "").toLowerCase().includes(q) ||
+        r.tag_name.toLowerCase().includes(q)
     );
   }, [reports, search]);
 
@@ -100,7 +101,7 @@ const SelectionSummaryPage = () => {
       {isLoading && (
         <div className="summary-panel">
           <div style={{ padding: 16 }}>
-            <SkeletonRows rows={5} cols={5} />
+            <SkeletonRows rows={5} cols={7} />
           </div>
         </div>
       )}
@@ -119,6 +120,7 @@ const SelectionSummaryPage = () => {
             <thead>
               <tr>
                 <th>Enquiry</th>
+                <th>Tag</th>
                 <th>Client</th>
                 <th>Status</th>
                 <th>Generated</th>
@@ -129,7 +131,7 @@ const SelectionSummaryPage = () => {
             <tbody>
               {filtered.map((r) => (
                 <tr
-                  key={r.project_id}
+                  key={r.tag_id}
                   className="summary-row-clickable"
                   onClick={() => setViewing(r)}
                 >
@@ -137,6 +139,7 @@ const SelectionSummaryPage = () => {
                     <span className="summary-project-code">{r.project_code}</span>
                     <span className="summary-project-name">{r.project_name || "—"}</span>
                   </td>
+                  <td className="mono">{r.tag_name}</td>
                   <td>{r.client_code || "—"}</td>
                   <td>
                     <span className={statusPillClass(r.status)}>{r.status || "—"}</span>
@@ -146,7 +149,7 @@ const SelectionSummaryPage = () => {
                   <td className="summary-actions-col">
                     <a
                       className="summary-download-btn"
-                      href={reportDownloadUrl(r.project_id)}
+                      href={reportDownloadUrl(r.tag_id)}
                       onClick={(e) => e.stopPropagation()}
                     >
                       Download
@@ -156,7 +159,7 @@ const SelectionSummaryPage = () => {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="summary-empty-cell">
+                  <td colSpan={7} className="summary-empty-cell">
                     <EmptyState
                       compact
                       icon="search"
@@ -208,7 +211,7 @@ const ReportSummaryModal = ({
 
   useEffect(() => {
     let cancelled = false;
-    getReportSummary(report.project_id)
+    getReportSummary(report.tag_id)
       .then((data) => {
         if (!cancelled) setSummary(data);
       })
@@ -221,7 +224,7 @@ const ReportSummaryModal = ({
     return () => {
       cancelled = true;
     };
-  }, [report.project_id]);
+  }, [report.tag_id]);
 
   return (
     <div className="summary-modal-overlay" onClick={onClose}>
@@ -286,7 +289,7 @@ const ReportSummaryModal = ({
         </div>
 
         <div className="summary-modal-footer">
-          <a className="summary-download-btn" href={reportDownloadUrl(report.project_id)}>
+          <a className="summary-download-btn" href={reportDownloadUrl(report.tag_id)}>
             Download PDF
           </a>
           <button className="summary-modal-close-btn" onClick={onClose}>

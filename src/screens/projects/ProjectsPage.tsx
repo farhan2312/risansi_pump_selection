@@ -27,6 +27,27 @@ import {
 // project is stashed in sessionStorage for PumpSelectionPage to read on load.
 export const SELECTED_PROJECT_KEY = "selectedProject";
 
+// Tint the nested tag row and its status pill by lifecycle. Same three
+// values that come out of the tag CRUD list (Pending / In Progress /
+// Completed). Anything else falls through to the neutral pill so an
+// unrecognised value still reads as text rather than blowing away the row.
+function tagStatusRowClass(status: string | null | undefined): string {
+  switch ((status ?? "").trim().toLowerCase()) {
+    case "completed": return "projects-tag-row-completed";
+    case "in progress": return "projects-tag-row-in-progress";
+    case "pending": return "projects-tag-row-pending";
+    default: return "";
+  }
+}
+function tagStatusPillClass(status: string | null | undefined): string {
+  switch ((status ?? "").trim().toLowerCase()) {
+    case "completed": return "is-completed";
+    case "in progress": return "is-in-progress";
+    case "pending": return "is-pending";
+    default: return "is-neutral";
+  }
+}
+
 const ProjectsPage = () => {
   const router = useRouter();
 
@@ -412,14 +433,10 @@ const ProjectsPage = () => {
                   <td data-label="Created By">{project.created_by_name || "—"}</td>
 
                   <td className="projects-actions-col">
+                    {/* Enquiry-level Open button removed: the wizard is per-
+                        tag, so the way in is via the "Open" button on each
+                        tag row (expand the chevron to reach them). */}
                     <div className="projects-actions">
-                      <button
-                        className="project-btn project-btn-primary"
-                        onClick={() => openProject(project)}
-                      >
-                        <OpenIcon /> Open
-                      </button>
-
                       <button
                         className="project-btn"
                         onClick={() => setEditing(project)}
@@ -475,6 +492,7 @@ const ProjectsPage = () => {
                                 <th>Tag</th>
                                 <th>Liquid</th>
                                 <th>Pump Type</th>
+                                <th>Status</th>
                                 <th className="projects-actions-col">Actions</th>
                               </tr>
                             </thead>
@@ -482,7 +500,7 @@ const ProjectsPage = () => {
                               {tags.map((tag) => {
                                 const isRenaming = renamingTagId === tag.id;
                                 return (
-                                <tr key={tag.id}>
+                                <tr key={tag.id} className={tagStatusRowClass(tag.status)}>
                                   <td>
                                     {isRenaming ? (
                                       <input
@@ -510,6 +528,11 @@ const ProjectsPage = () => {
                                   </td>
                                   <td>{tag.liquid || "—"}</td>
                                   <td>{tag.pump_type || "—"}</td>
+                                  <td>
+                                    <span className={`projects-tag-status ${tagStatusPillClass(tag.status)}`}>
+                                      {tag.status}
+                                    </span>
+                                  </td>
                                   <td className="projects-actions-col">
                                     <div className="projects-actions">
                                       <button

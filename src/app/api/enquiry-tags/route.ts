@@ -21,6 +21,9 @@ interface TagRow {
   id: string;
   project_id: string;
   name: string;
+  /** Pending / In Progress / Completed - flipped by the wizard as the user
+   *  progresses through this tag's own steps. */
+  status: string;
   liquid: string | null;
   pump_type: string | null;
   created_at: string | null;
@@ -36,6 +39,7 @@ export async function GET(req: Request) {
       id: enquiryTags.id,
       projectId: enquiryTags.projectId,
       name: enquiryTags.name,
+      status: enquiryTags.status,
       liquid: generalInfoInput.media,
       pumpType: operatingConditionsInput.pumpType,
       createdAt: enquiryTags.createdAt,
@@ -51,6 +55,7 @@ export async function GET(req: Request) {
     id: r.id,
     project_id: r.projectId,
     name: r.name,
+    status: r.status,
     liquid: r.liquid ?? null,
     pump_type: r.pumpType ?? null,
     created_at: r.createdAt ? r.createdAt.toISOString() : null,
@@ -81,6 +86,7 @@ export async function POST(req: Request) {
       id: row.id,
       project_id: row.projectId,
       name: row.name,
+      status: row.status,
       liquid: null,
       pump_type: null,
       created_at: row.createdAt ? row.createdAt.toISOString() : null,

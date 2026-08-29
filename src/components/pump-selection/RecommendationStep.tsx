@@ -107,8 +107,7 @@ const RecommendationStep = ({
   formData,
   onStepClick,
   projectId,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  tagId: _tagId,
+  tagId,
   projectCode,
   projectName,
   customerName,
@@ -391,7 +390,11 @@ const RecommendationStep = ({
   const [confirmed, setConfirmed] = useState(false);
 
   const handleConfirmSelection = async () => {
-    if (!confirmedPump || !projectId) return;
+    // Reports live on the tag now (a project can carry N tags, each with its
+    // own final report). The Confirm button is gated on projectId AND tagId
+    // - if we have a project open but no tag id (legacy handoff), the server
+    // wouldn't know which tag's row to write.
+    if (!confirmedPump || !projectId || !tagId) return;
     setConfirming(true);
     setConfirmError(null);
     try {
@@ -403,11 +406,11 @@ const RecommendationStep = ({
         sections: pdfSections,
         generatedBy: user?.name || user?.email || undefined,
       });
-      await uploadFinalReport(projectId, filename, bytes);
+      await uploadFinalReport(tagId, filename, bytes);
       // Structured mirror of the same data, for the Reports list's
       // click-to-view summary — best-effort, doesn't block on the PDF
       // upload above having already succeeded.
-      await saveReportSummary(projectId, { pumpFields, sections: pdfSections }).catch(() => {});
+      await saveReportSummary(tagId, { pumpFields, sections: pdfSections }).catch(() => {});
       setConfirmed(true);
     } catch {
       setConfirmError("Couldn't generate/save the report. Please try again.");
@@ -511,9 +514,15 @@ const RecommendationStep = ({
           <button onClick={onPrevious}>Previous</button>
 
           <button
-            disabled={!confirmedPump || !projectId || confirming}
+            disabled={!confirmedPump || !projectId || !tagId || confirming}
             onClick={handleConfirmSelection}
-            title={!projectId ? "No project open" : undefined}
+            title={
+              !projectId
+                ? "No project open"
+                : !tagId
+                  ? "No tag open - reports are per-tag; open a tag from the Projects page"
+                  : undefined
+            }
           >
             {confirming
               ? "Generating report…"

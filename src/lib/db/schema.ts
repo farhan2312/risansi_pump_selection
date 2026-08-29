@@ -98,6 +98,20 @@ export const enquiryTags = pgTable("enquiry_tags", {
     .notNull()
     .references(() => projects.id, { onDelete: "cascade" }),
   name: varchar("name", { length: 100 }).notNull(),
+  // Lifecycle for THIS tag (each pump-selection run has its own status):
+  // "Pending" on creation, flips to "In Progress" the first time general_info
+  // is saved with real content, flips to "Completed" when the final report is
+  // generated for the tag. Same three-value set as the (now legacy) status
+  // column on projects.
+  status: varchar("status", { length: 50 }).notNull().default("Pending"),
+  // Final Selection Summary PDF for THIS tag - generated when the user clicks
+  // "Confirm Pump Selection" on the last wizard step. Moved off projects onto
+  // enquiry_tags when tags gained their own wizards; the projects columns
+  // stay for legacy rows the app no longer writes to.
+  reportDocument: bytea("report_document"),
+  reportFilename: varchar("report_filename", { length: 255 }),
+  reportGeneratedAt: timestamp("report_generated_at", { withTimezone: true }),
+  reportSummary: jsonb("report_summary"),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });

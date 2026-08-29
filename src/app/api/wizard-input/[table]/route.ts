@@ -12,7 +12,6 @@ import {
   driveDirectInput,
   driveVbeltInput,
   driveGearedInput,
-  projects,
 } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
@@ -282,17 +281,18 @@ export async function PUT(
     }
   }
 
-  // Project lifecycle: any tag's first general-info save with real content
-  // flips a still-Pending project to In Progress. Never downgrades a project
-  // that's already further along (e.g. "Completed").
+  // Tag lifecycle: the first general-info save with real content flips a
+  // still-Pending TAG to In Progress. Never downgrades a tag that's already
+  // further along (e.g. "Completed"). Status lives per tag now - a project
+  // with multiple tags can have some Completed and others still In Progress.
   if (
     tableKey === "general-info" &&
     Object.values(values).some((v) => v !== "" && v != null)
   ) {
     await db
-      .update(projects)
+      .update(enquiryTags)
       .set({ status: "In Progress", updatedAt: new Date() })
-      .where(and(eq(projects.id, ctx.projectId), eq(projects.status, "Pending")));
+      .where(and(eq(enquiryTags.id, ctx.tagId), eq(enquiryTags.status, "Pending")));
   }
 
   return json(row);

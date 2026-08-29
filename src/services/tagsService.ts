@@ -7,6 +7,9 @@ export interface TagRecord {
   id: string;
   project_id: string;
   name: string;
+  /** Lifecycle for this tag: Pending / In Progress / Completed. Flipped by
+   *  the wizard as the user progresses through this tag's own steps. */
+  status: string;
   liquid: string | null;
   pump_type: string | null;
   created_at: string | null;

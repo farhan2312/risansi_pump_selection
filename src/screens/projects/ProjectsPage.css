@@ -477,3 +477,73 @@
 .projects-tag-add-btn {
   margin-top: 12px;
 }
+
+/* ---------- Tag status: colored rows + pills ---------------------------- */
+
+/* Row tint - a soft background so the status reads at a glance. The pill
+   below carries the strong color; the row is intentionally light so
+   readability of the plain text columns doesn't take a hit. */
+.projects-tag-row-completed td {
+  background: rgba(16, 185, 129, 0.08);
+}
+.projects-tag-row-in-progress td {
+  background: rgba(37, 99, 235, 0.08);
+}
+.projects-tag-row-pending td {
+  background: rgba(107, 114, 128, 0.08);
+}
+
+.projects-tag-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.projects-tag-status.is-completed {
+  background: rgba(16, 185, 129, 0.18);
+  color: #065f46;
+  border-color: rgba(16, 185, 129, 0.35);
+}
+.projects-tag-status.is-in-progress {
+  background: rgba(37, 99, 235, 0.16);
+  color: #1e3a8a;
+  border-color: rgba(37, 99, 235, 0.35);
+}
+.projects-tag-status.is-pending {
+  background: rgba(107, 114, 128, 0.18);
+  color: #374151;
+  border-color: rgba(107, 114, 128, 0.35);
+}
+.projects-tag-status.is-neutral {
+  background: rgba(107, 114, 128, 0.12);
+  color: #4b5563;
+  border-color: rgba(107, 114, 128, 0.25);
+}
+
+/* Dark-mode readability tweak - use lighter text on the same tinted
+   backgrounds so the row still contrasts against the panel. Only tweaks
+   affected classes; base .projects-tag-status stays the light-theme values. */
+:root[data-theme="dark"] .projects-tag-row-completed td,
+:root:not([data-theme="light"]) .projects-tag-row-completed td {
+  background: rgba(16, 185, 129, 0.14);
+}
+:root[data-theme="dark"] .projects-tag-row-in-progress td,
+:root:not([data-theme="light"]) .projects-tag-row-in-progress td {
+  background: rgba(37, 99, 235, 0.16);
+}
+:root[data-theme="dark"] .projects-tag-row-pending td,
+:root:not([data-theme="light"]) .projects-tag-row-pending td {
+  background: rgba(107, 114, 128, 0.16);
+}
+:root[data-theme="dark"] .projects-tag-status.is-completed,
+:root:not([data-theme="light"]) .projects-tag-status.is-completed { color: #a7f3d0; }
+:root[data-theme="dark"] .projects-tag-status.is-in-progress,
+:root:not([data-theme="light"]) .projects-tag-status.is-in-progress { color: #bfdbfe; }
+:root[data-theme="dark"] .projects-tag-status.is-pending,
+:root:not([data-theme="light"]) .projects-tag-status.is-pending { color: #d1d5db; }

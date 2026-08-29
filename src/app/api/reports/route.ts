@@ -2,44 +2,52 @@ import { desc, eq, isNotNull } from "drizzle-orm";
 
 import { json } from "@/lib/api";
 import { db } from "@/lib/db";
-import { projects, users } from "@/lib/db/schema";
+import { enquiryTags, projects, users } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
 
-// One row per project that has a saved final Selection Summary report
-// (projects.reportDocument — set when the user clicks "Confirm Pump
-// Selection" on the last wizard step). Storing it on the project's own row
-// makes "one project, one report" automatic — there's nowhere else for a
-// second one to live. No auth gate here — same convention as the other
-// project routes; the /selection-summary page itself is already gated by
-// middleware.
+// One row per TAG that has a saved final Selection Summary report (see
+// enquiry_tags.report_document — set when the user clicks "Confirm Pump
+// Selection" on the last wizard step). One enquiry can carry N tags, so one
+// project can appear multiple times here (once per confirmed tag). Storing
+// the report on the tag row itself makes "one tag, one report" automatic -
+// there's nowhere else for a second one to live. No auth gate here - same
+// convention as the other routes; the /selection-summary page itself is
+// already gated by middleware.
 export async function GET() {
   const rows = await db
     .select({
+      tagId: enquiryTags.id,
+      tagName: enquiryTags.name,
+      tagStatus: enquiryTags.status,
       projectId: projects.id,
       projectCode: projects.projectCode,
       projectName: projects.name,
-      // Client code, not customer — customerName isn't collected at
+      // Client code, not customer - customerName isn't collected at
       // creation (only clientCode is, via the Create Project form), so it's
       // almost always empty. clientCode is what's actually filled in.
       clientCode: projects.clientCode,
-      status: projects.status,
       createdByName: users.name,
-      documentFilename: projects.reportFilename,
-      documentGeneratedAt: projects.reportGeneratedAt,
+      documentFilename: enquiryTags.reportFilename,
+      documentGeneratedAt: enquiryTags.reportGeneratedAt,
     })
-    .from(projects)
+    .from(enquiryTags)
+    .innerJoin(projects, eq(enquiryTags.projectId, projects.id))
     .leftJoin(users, eq(projects.createdBy, users.id))
-    .where(isNotNull(projects.reportDocument))
-    .orderBy(desc(projects.reportGeneratedAt));
+    .where(isNotNull(enquiryTags.reportDocument))
+    .orderBy(desc(enquiryTags.reportGeneratedAt));
 
   return json(
     rows.map((r) => ({
+      tag_id: r.tagId,
+      tag_name: r.tagName,
       project_id: r.projectId,
       project_code: r.projectCode,
       project_name: r.projectName,
       client_code: r.clientCode,
-      status: r.status,
+      // Status is now the TAG's status - the value shown on the projects
+      // page's nested tag row for the same tag.
+      status: r.tagStatus,
       created_by_name: r.createdByName,
       document_filename: r.documentFilename,
       document_generated_at: r.documentGeneratedAt,
