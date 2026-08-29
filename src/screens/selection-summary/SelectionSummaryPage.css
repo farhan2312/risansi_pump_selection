@@ -319,3 +319,89 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------- Reports: chevron + nested per-tag table --------------------- */
+
+/* Chevron column shares layout + style with the Projects page so the two
+   tables read the same way. Fixed width prevents jitter as rows collapse. */
+.summary-chevron-col {
+  width: 32px;
+  padding-left: 12px !important;
+  padding-right: 4px !important;
+}
+.summary-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--line, #d0d7de);
+  border-radius: 4px;
+  background: var(--paper, #fff);
+  color: var(--fg-2, #57606a);
+  cursor: pointer;
+  transition: transform 120ms ease, background-color 120ms ease;
+}
+.summary-chevron:hover {
+  background: var(--elev, #f6f8fa);
+  color: var(--fg, #1f2328);
+}
+.summary-chevron.is-open {
+  transform: rotate(90deg);
+  color: var(--accent, #0969da);
+}
+
+/* Nested tag panel sits inside its own <tr>. The wrapper div gives it padding
+   and an inset border that anchors it visually to its parent enquiry. */
+.summary-tags-row > td {
+  background: var(--elev, #f6f8fa);
+  padding: 12px 16px 16px 40px !important;
+  border-top: 0 !important;
+}
+.summary-tags-panel {
+  border: 1px solid var(--line, #d0d7de);
+  border-radius: 6px;
+  background: var(--paper, #fff);
+  padding: 12px;
+}
+.summary-tags-heading {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--fg-3, #6e7781);
+  margin-bottom: 8px;
+}
+.summary-tags-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.summary-tags-table th {
+  text-align: left;
+  padding: 6px 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--fg-3, #6e7781);
+  border-bottom: 1px solid var(--line, #d0d7de);
+  background: transparent;
+}
+.summary-tags-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line, #d0d7de);
+  vertical-align: middle;
+}
+.summary-tags-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Small badge next to the enquiry code in the summary modal - shows which
+   tag the currently-viewed report belongs to, so the two title lines don't
+   collapse to look like one enquiry-wide report. */
+.summary-modal-tag {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-3, #6e7781);
+  margin-left: 4px;
+}

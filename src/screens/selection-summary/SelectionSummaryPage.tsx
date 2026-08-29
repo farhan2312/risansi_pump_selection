@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import "./SelectionSummaryPage.css";
 import {
   getReportSummary,
@@ -29,6 +29,17 @@ const statusPillClass = (status: string | null | undefined): string => {
   }
 };
 
+// Roll up the tag statuses under one enquiry into a single enquiry-level
+// status - same rule the /api/projects list uses server-side, mirrored here
+// so the enquiry row and the nested tag rows agree.
+function rollupTagStatuses(statuses: string[]): string {
+  if (statuses.length === 0) return "—";
+  const norm = (s: string) => (s || "").trim().toLowerCase();
+  if (statuses.every((s) => norm(s) === "completed")) return "Completed";
+  if (statuses.every((s) => norm(s) === "pending")) return "Pending";
+  return "In Progress";
+}
+
 const fmtDate = (iso: string | null) =>
   iso
     ? new Date(iso).toLocaleString("en-IN", {
@@ -40,16 +51,17 @@ const fmtDate = (iso: string | null) =>
       })
     : "—";
 
-// One generated final Selection Summary report per project (projects.id is
-// unique, so there's never more than one per project) — this page lists
-// every project that has one, newest first, with a direct download and a
-// click-through summary.
+// Reports grouped per enquiry, then per tag. A tag can have at most one
+// generated Selection Summary report (enquiry_tags.id is unique, one row per
+// tag), so a single enquiry shows one nested row per confirmed tag. Same
+// chevron-expand pattern the Projects page uses for its own tag list.
 const SelectionSummaryPage = () => {
   const [reports, setReports] = useState<ReportRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [viewing, setViewing] = useState<ReportRecord | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -76,21 +88,77 @@ const SelectionSummaryPage = () => {
         r.project_code.toLowerCase().includes(q) ||
         (r.project_name ?? "").toLowerCase().includes(q) ||
         (r.client_code ?? "").toLowerCase().includes(q) ||
-        r.tag_name.toLowerCase().includes(q)
+        r.tag_name.toLowerCase().includes(q),
     );
   }, [reports, search]);
+
+  // Group the flat per-tag list by enquiry so the outer table shows one row
+  // per enquiry with the tag reports nested underneath. Enquiries are sorted
+  // by their newest tag's generated_at so the most recent activity floats to
+  // the top - matches the flat ordering the API returns.
+  const grouped = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        project_id: string;
+        project_code: string;
+        project_name: string | null;
+        client_code: string | null;
+        created_by_name: string | null;
+        latest_generated_at: string | null;
+        tags: ReportRecord[];
+      }
+    >();
+    for (const r of filtered) {
+      let entry = map.get(r.project_id);
+      if (!entry) {
+        entry = {
+          project_id: r.project_id,
+          project_code: r.project_code,
+          project_name: r.project_name,
+          client_code: r.client_code,
+          created_by_name: r.created_by_name,
+          latest_generated_at: r.document_generated_at,
+          tags: [],
+        };
+        map.set(r.project_id, entry);
+      }
+      entry.tags.push(r);
+      if (
+        r.document_generated_at &&
+        (!entry.latest_generated_at ||
+          r.document_generated_at > entry.latest_generated_at)
+      ) {
+        entry.latest_generated_at = r.document_generated_at;
+      }
+    }
+    return [...map.values()].sort((a, b) =>
+      (b.latest_generated_at ?? "").localeCompare(a.latest_generated_at ?? ""),
+    );
+  }, [filtered]);
+
+  const toggleExpanded = (projectId: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(projectId)) next.delete(projectId);
+      else next.add(projectId);
+      return next;
+    });
 
   return (
     <div className="summary-page">
       <div className="summary-header">
         <div>
           <h1>Reports</h1>
-          <p>Every generated Selection Summary report, one per enquiry.</p>
+          <p>
+            Enquiries with generated Selection Summary reports. Expand an
+            enquiry to see each tag&apos;s report and download it.
+          </p>
         </div>
         <input
           type="search"
           className="summary-search"
-          placeholder="Search enquiry, name, client…"
+          placeholder="Search enquiry, name, client or tag…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -101,7 +169,7 @@ const SelectionSummaryPage = () => {
       {isLoading && (
         <div className="summary-panel">
           <div style={{ padding: 16 }}>
-            <SkeletonRows rows={5} cols={7} />
+            <SkeletonRows rows={5} cols={6} />
           </div>
         </div>
       )}
@@ -110,7 +178,7 @@ const SelectionSummaryPage = () => {
         <EmptyState
           icon="table"
           title="No reports generated yet"
-          description="Click Confirm Pump Selection on the last wizard step of an enquiry to generate and save its report here."
+          description="Click Confirm Pump Selection on the last wizard step of a tag to generate and save its report here."
         />
       )}
 
@@ -119,52 +187,114 @@ const SelectionSummaryPage = () => {
           <table className="summary-table">
             <thead>
               <tr>
+                <th aria-label="Expand" className="summary-chevron-col" />
                 <th>Enquiry</th>
-                <th>Tag</th>
                 <th>Client</th>
                 <th>Status</th>
-                <th>Generated</th>
+                <th>Latest Report</th>
                 <th>Generated By</th>
-                <th className="summary-actions-col">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r) => (
-                <tr
-                  key={r.tag_id}
-                  className="summary-row-clickable"
-                  onClick={() => setViewing(r)}
-                >
-                  <td>
-                    <span className="summary-project-code">{r.project_code}</span>
-                    <span className="summary-project-name">{r.project_name || "—"}</span>
-                  </td>
-                  <td className="mono">{r.tag_name}</td>
-                  <td>{r.client_code || "—"}</td>
-                  <td>
-                    <span className={statusPillClass(r.status)}>{r.status || "—"}</span>
-                  </td>
-                  <td className="mono">{fmtDate(r.document_generated_at)}</td>
-                  <td>{r.created_by_name || "—"}</td>
-                  <td className="summary-actions-col">
-                    <a
-                      className="summary-download-btn"
-                      href={reportDownloadUrl(r.tag_id)}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      Download
-                    </a>
-                  </td>
-                </tr>
-              ))}
-              {filtered.length === 0 && (
+              {grouped.map((g) => {
+                const isOpen = expanded.has(g.project_id);
+                const enquiryStatus = rollupTagStatuses(
+                  g.tags.map((t) => t.status ?? ""),
+                );
+                return (
+                  <React.Fragment key={g.project_id}>
+                    <tr>
+                      <td className="summary-chevron-col">
+                        <button
+                          type="button"
+                          className={`summary-chevron${isOpen ? " is-open" : ""}`}
+                          onClick={() => toggleExpanded(g.project_id)}
+                          aria-expanded={isOpen}
+                          aria-label={
+                            isOpen ? "Hide tag reports" : "Show tag reports"
+                          }
+                        >
+                          <ChevronIcon />
+                        </button>
+                      </td>
+                      <td>
+                        <span className="summary-project-code">
+                          {g.project_code}
+                        </span>
+                        <span className="summary-project-name">
+                          {g.project_name || "—"}
+                        </span>
+                      </td>
+                      <td>{g.client_code || "—"}</td>
+                      <td>
+                        <span className={statusPillClass(enquiryStatus)}>
+                          {enquiryStatus}
+                        </span>
+                      </td>
+                      <td className="mono">{fmtDate(g.latest_generated_at)}</td>
+                      <td>{g.created_by_name || "—"}</td>
+                    </tr>
+                    {isOpen && (
+                      <tr className="summary-tags-row">
+                        <td />
+                        <td colSpan={5}>
+                          <div className="summary-tags-panel">
+                            <div className="summary-tags-heading">
+                              {g.tags.length} tag{g.tags.length === 1 ? "" : "s"} with a saved report
+                            </div>
+                            <table className="summary-tags-table">
+                              <thead>
+                                <tr>
+                                  <th>Tag</th>
+                                  <th>Status</th>
+                                  <th>Generated</th>
+                                  <th className="summary-actions-col">Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {g.tags.map((t) => (
+                                  <tr
+                                    key={t.tag_id}
+                                    className="summary-row-clickable"
+                                    onClick={() => setViewing(t)}
+                                  >
+                                    <td className="mono">{t.tag_name}</td>
+                                    <td>
+                                      <span className={statusPillClass(t.status)}>
+                                        {t.status || "—"}
+                                      </span>
+                                    </td>
+                                    <td className="mono">
+                                      {fmtDate(t.document_generated_at)}
+                                    </td>
+                                    <td className="summary-actions-col">
+                                      <a
+                                        className="summary-download-btn"
+                                        href={reportDownloadUrl(t.tag_id)}
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        Download
+                                      </a>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+              {grouped.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="summary-empty-cell">
+                  <td colSpan={6} className="summary-empty-cell">
                     <EmptyState
                       compact
                       icon="search"
                       title={`No reports match “${search}”`}
-                      description="Try a different enquiry, name, or client."
+                      description="Try a different enquiry, name, client or tag."
                     />
                   </td>
                 </tr>
@@ -236,7 +366,9 @@ const ReportSummaryModal = ({
       >
         <div className="summary-modal-header">
           <div>
-            <h3>{report.project_code}</h3>
+            <h3>
+              {report.project_code} <span className="summary-modal-tag">· {report.tag_name}</span>
+            </h3>
             <p>{report.project_name || "—"}</p>
           </div>
           <button className="summary-modal-close" onClick={onClose} aria-label="Close">
@@ -300,5 +432,19 @@ const ReportSummaryModal = ({
     </div>
   );
 };
+
+// The chevron ships as a right-arrow; the .summary-chevron.is-open class in
+// SelectionSummaryPage.css rotates it 90 deg down when expanded.
+const ChevronIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+    <path
+      d="M4.5 3l3 3-3 3"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
 
 export default SelectionSummaryPage;
