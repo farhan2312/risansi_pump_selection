@@ -76,13 +76,20 @@ const POS_GREEN: RGB = [5, 150, 105]; // confirmed/selected — matches --pos
 // not listed here (keeps this forward-compatible with a renamed/new step
 // rather than erroring).
 const SECTION_COLORS: Record<string, RGB> = {
-  "General Information": [37, 99, 235], // blue
-  "Fluid Properties": [8, 145, 178], // cyan
-  "Operating Conditions": [124, 58, 237], // purple
-  "MOC & Elastomer": [217, 119, 6], // amber
-  "Sealing Details": [79, 70, 229], // indigo
-  "Motor Rating": [71, 85, 105], // slate
-  "Drive Details": [10, 61, 143], // navy
+  // Quotation-format section titles (single-liquid layout).
+  "Liquid Parameters": [37, 99, 235], // blue
+  "Material of Construction": [217, 119, 6], // amber
+  "Sealing Type": [79, 70, 229], // indigo
+  "Pump Details": [8, 145, 178], // cyan
+  "Drive Systems": [10, 61, 143], // navy
+  // Legacy titles (older saved reports may still carry these).
+  "General Information": [37, 99, 235],
+  "Fluid Properties": [8, 145, 178],
+  "Operating Conditions": [124, 58, 237],
+  "MOC & Elastomer": [217, 119, 6],
+  "Sealing Details": [79, 70, 229],
+  "Motor Rating": [71, 85, 105],
+  "Drive Details": [10, 61, 143],
 };
 const DEFAULT_SECTION_COLOR: RGB = [71, 85, 105];
 

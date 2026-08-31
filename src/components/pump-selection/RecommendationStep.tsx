@@ -2,7 +2,6 @@
 
 import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
-import PumpDetailsCard from "../../components/recommendation/PumpDetailsCard";
 import { useEffect, useState } from "react";
 import { getRecommendations } from "../../services/recommendationService";
 import { SIZE_COLUMN_BY_RANGE, sizeForViscosityRange } from "../../lib/suction-discharge-size";
@@ -170,17 +169,19 @@ const RecommendationStep = ({
   // These two lists mirror what each wizard step actually collects — see
   // GeneralInformationStep / FluidPropertiesStep. Temperature and pH belong to
   // the Fluid step (they were moved there), not General Information.
-  const generalInfoItems: FieldItem[] = [
-    ["Media / Application", formData.media],
+  // --- Quotation-format field groups (single liquid), mirroring the Risansi
+  // technical-quotation layout: Liquid Parameters, Material of Construction,
+  // Sealing Type, Pump Details, Drive Systems.
+
+  const liquidParametersItems: FieldItem[] = [
+    ["Liquid / Application", formData.media],
+    ["Type of Pump", formData.pumpType],
+    ["Pump Model", confirmedPump ? confirmedPump.model : ""],
     ["Capacity", formData.capacity ? `${formData.capacity} ${formData.capacityUnit || ""}`.trim() : ""],
     ["Head", formData.head ? `${formData.head} ${formData.headUnit || ""}`.trim() : ""],
     ["Specific Gravity", formData.sg],
-    ["RPM Range", formData.rpmRange ? RPM_RANGE_LABELS[formData.rpmRange] ?? formData.rpmRange : ""],
-  ];
-
-  // pH / viscosity / temperature may each be a single value or a Min–Max
-  // range — the shared helpers render "6.5" or "4–9" from the same fields.
-  const fluidPropertiesItems: FieldItem[] = [
+    ["pH", phDisplay(formData)],
+    ["Temperature", temperatureDisplay(formData)],
     ["Viscosity", viscosityDisplay(formData)],
     ["Viscosity Range", formData.viscosityRange ? `${formData.viscosityRange} cP` : ""],
     ["Solids", formData.solidPercentage ? `${formData.solidPercentage}%` : ""],
@@ -190,39 +191,43 @@ const RecommendationStep = ({
         ? `${formData.solidSize} mm${formData.solidType ? ` (${formData.solidType})` : ""}`
         : "",
     ],
-    ["pH", phDisplay(formData)],
-    ["Temperature", temperatureDisplay(formData)],
-  ];
-
-  const operatingConditionsItems: FieldItem[] = [
-    ["Pump Type", formData.pumpType],
     ["AG / BK", formData.agBk],
-    ["Bearing Housing", formData.bearingHousing],
-    ["Suction Housing", formData.suctionHousing],
-    ["Joint Type", formData.jointType],
+    ["RPM Range", formData.rpmRange ? RPM_RANGE_LABELS[formData.rpmRange] ?? formData.rpmRange : ""],
   ];
 
-  const mocItems: FieldItem[] = [
-    ["Bearing Housing MOC", withRemarks(formData.mocAiBearingHousing, formData.mocAiBearingHousingRemarks)],
-    // Base Plate (Horizontal) and Mounting Plate (Vertical) are separate
-    // components with separate fields. Both are listed; FieldGrid drops the
-    // empty one, so only the plate that applies to this pump type shows.
-    ["Base Plate MOC", withRemarks(formData.mocAiBasePlate, formData.mocAiBasePlateRemarks)],
-    [
-      "Mounting Plate MOC",
-      withRemarks(formData.mocAiMountingPlate, formData.mocAiMountingPlateRemarks),
-    ],
-    ["Tie Rod MOC", withRemarks(formData.mocAiTieRod, formData.mocAiTieRodRemarks)],
-    ["Nut & Bolt MOC", withRemarks(formData.mocAiNutBolt, formData.mocAiNutBoltRemarks)],
-    ["Pump Housing MOC", withRemarks(formData.mocAiPumpHousing, formData.mocAiPumpHousingRemarks)],
-    ["Rotor MOC", withRemarks(formData.mocAiRotor, formData.mocAiRotorRemarks)],
-    ["Shaft MOC", withRemarks(formData.mocAiShaft, formData.mocAiShaftRemarks)],
-    ["Stator Rubber", withRemarks(formData.mocAiStatorRubber, formData.mocAiStatorRubberRemarks)],
-    [
-      "Stator Sleeve MOC",
-      withRemarks(formData.mocAiStatorSleeve, formData.mocAiStatorSleeveRemarks),
-    ],
+  const materialOfConstructionItems: FieldItem[] = [
+    ["Bearing Housing", withRemarks(formData.mocAiBearingHousing, formData.mocAiBearingHousingRemarks)],
+    ["Pump Housing", withRemarks(formData.mocAiPumpHousing, formData.mocAiPumpHousingRemarks)],
+    ["Shaft", withRemarks(formData.mocAiShaft, formData.mocAiShaftRemarks)],
+    ["Rotor", withRemarks(formData.mocAiRotor, formData.mocAiRotorRemarks)],
+    ["Rubber Stator", withRemarks(formData.mocAiStatorRubber, formData.mocAiStatorRubberRemarks)],
+    ["Stator Sleeve", withRemarks(formData.mocAiStatorSleeve, formData.mocAiStatorSleeveRemarks)],
+    // Only one plate applies per pump type; FieldGrid drops the empty one.
+    ["Base Plate", withRemarks(formData.mocAiBasePlate, formData.mocAiBasePlateRemarks)],
+    ["Mounting Plate", withRemarks(formData.mocAiMountingPlate, formData.mocAiMountingPlateRemarks)],
+    ["Tie Rod", withRemarks(formData.mocAiTieRod, formData.mocAiTieRodRemarks)],
+    ["Nut & Bolt", withRemarks(formData.mocAiNutBolt, formData.mocAiNutBoltRemarks)],
   ];
+
+  const pumpDetailsItems: FieldItem[] = confirmedPump
+    ? [
+        ["Suction & Discharge Size", cardSize !== null ? String(cardSize) : ""],
+        ["Pump Speed (RPM)", confirmedPump.rpmRange],
+        ["Pump Stage", confirmedPump.stage != null ? String(confirmedPump.stage) : ""],
+        [
+          "VOLE Min–Max",
+          confirmedPump.voleMin != null && confirmedPump.voleMax != null
+            ? `${confirmedPump.voleMin}–${confirmedPump.voleMax}%`
+            : "",
+        ],
+        ["Mechanical Efficiency", confirmedPump.mechEff != null ? `${confirmedPump.mechEff}%` : ""],
+        ["Bearing Housing (Type)", formData.bearingHousing],
+        ["Suction Housing", formData.suctionHousing],
+        ["Joint Type", formData.jointType],
+        ["Testing Status", confirmedPump.isTested ? "Tested" : "Not Tested"],
+        ["Testing Remarks", confirmedPump.testingRemarks || ""],
+      ]
+    : [];
 
   const sealingItems: FieldItem[] = [
     ["Sealing Type", formData.sealingType],
@@ -244,6 +249,7 @@ const RecommendationStep = ({
   const driveCommonItems: FieldItem[] = [
     ["Drive System", formData.driveSystem],
     ["Motor RPM", formData.motorRPM],
+    ["Drive Motor Rating", formData.driveMotorKw ? `${formData.driveMotorKw} kW` : ""],
   ];
 
   const isVBelt = formData.driveSystem === "V-Belt Drive";
@@ -350,42 +356,18 @@ const RecommendationStep = ({
     hasAny(driveInputItems) ||
     hasAny(motorSelectedItems);
 
-  // Mirrors PumpDetailsCard's own displayed rows — kept as a flat field list
-  // here too so the PDF export (which can't render that component directly)
-  // shows exactly the same "Pump Selection" facts.
-  const pumpFields: FieldItem[] = confirmedPump
-    ? [
-        // Pump Type / Sealing Type / Nearest Charted Head are deliberately
-        // omitted — they're already shown under Operating Conditions, Sealing
-        // Details, and General Information respectively, so repeating them
-        // here just duplicates the summary.
-        ["Pump Model", confirmedPump.model],
-        ["Stage", confirmedPump.stage != null ? String(confirmedPump.stage) : ""],
-        ["AG / BK", formData.agBk],
-        ["Pump RPM (VOLE max–min)", confirmedPump.rpmRange],
-        [
-          "VOLE Min–Max",
-          confirmedPump.voleMin != null && confirmedPump.voleMax != null
-            ? `${confirmedPump.voleMin}–${confirmedPump.voleMax}%`
-            : "",
-        ],
-        ["Mechanical Efficiency", confirmedPump.mechEff != null ? `${confirmedPump.mechEff}%` : ""],
-        ["Suction & Discharge Size", cardSize !== null ? String(cardSize) : ""],
-        ["Testing Status", confirmedPump.isTested ? "Tested" : "Not Tested"],
-        ["Testing Remarks", confirmedPump.testingRemarks || ""],
-      ]
-    : [];
+  // Pump data now lives in the Liquid Parameters + Pump Details sections
+  // (quotation layout), so there's no separate top "Pump Selection" block.
+  const pumpFields: FieldItem[] = [];
 
   // Same section list the on-screen boxes render — single source of truth
   // for what "Confirm Pump Selection" bakes into the saved PDF.
   const pdfSections: SelectionSummaryPdfSection[] = [
-    { title: "General Information", items: generalInfoItems },
-    { title: "Fluid Properties", items: fluidPropertiesItems },
-    { title: "Operating Conditions", items: operatingConditionsItems },
-    { title: "MOC & Elastomer", items: mocItems },
-    { title: "Sealing Details", items: sealingItems },
-    { title: "Motor Rating", items: motorRatingItems },
-    { title: "Drive Details", items: [...driveCommonItems, ...driveInputItems] },
+    { title: "Liquid Parameters", items: liquidParametersItems },
+    { title: "Material of Construction", items: materialOfConstructionItems },
+    { title: "Sealing Type", items: sealingItems },
+    { title: "Pump Details", items: pumpDetailsItems },
+    { title: "Drive Systems", items: [...driveCommonItems, ...driveInputItems] },
     {
       title: `Selected ${isVBelt ? "V-Belt" : "Gearbox"} Option`,
       items: driveSelectedItems,
@@ -487,25 +469,15 @@ const RecommendationStep = ({
 
         {!isLoading && !error && confirmedPump && (
           <>
-            {/* Pump selection at the very top — the anchor of the report. */}
-            <PumpDetailsCard
-              pump={confirmedPump}
-              size={cardSize}
-              agBk={formData.agBk}
-              stage={confirmedPump.stage}
-            />
-
-            <Section title="General Information" items={generalInfoItems} />
-            <Section title="Fluid Properties" items={fluidPropertiesItems} />
-            <Section title="Operating Conditions" items={operatingConditionsItems} />
-            <Section title="MOC & Elastomer" items={mocItems} />
-            <Section title="Sealing Details" items={sealingItems} />
-            <Section title="Motor Rating" items={motorRatingItems} />
+            <Section title="Liquid Parameters" items={liquidParametersItems} />
+            <Section title="Material of Construction" items={materialOfConstructionItems} />
+            <Section title="Sealing Type" items={sealingItems} />
+            <Section title="Pump Details" items={pumpDetailsItems} />
 
             {driveHasAnything && (
               <div className="mt-4 overflow-hidden rounded-lg border border-line bg-paper">
                 <div className="border-b border-line bg-elev px-4 py-2.5">
-                  <span className="section-label">Drive Details</span>
+                  <span className="section-label">Drive Systems</span>
                 </div>
                 <div className="p-4">
                   <FieldGrid items={driveCommonItems} />
