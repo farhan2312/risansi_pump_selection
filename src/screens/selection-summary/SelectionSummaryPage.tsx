@@ -13,6 +13,37 @@ import {
 import EmptyState from "../../components/ui/EmptyState";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import Spinner from "../../components/ui/Spinner";
+import {
+  downloadSelectionSummaryPdf,
+  type SelectionSummaryPdfSection,
+} from "../../lib/selection-summary-pdf";
+
+// Regenerates a tag's PDF from its stored structured summary using the CURRENT
+// generator, so styling/layout changes apply to already-saved reports (the
+// binary saved at Confirm time can be an older format). Old summaries may still
+// carry the retired "Selected Motor" section and Testing rows, so drop them to
+// match the current spec. Falls back to the saved binary when there's no
+// structured summary (pre-feature reports).
+async function downloadReportPdf(record: ReportRecord, summary?: ReportSummary | null): Promise<void> {
+  const data = summary ?? (await getReportSummary(record.tag_id).catch(() => null));
+  if (!data) {
+    window.open(reportDownloadUrl(record.tag_id), "_blank");
+    return;
+  }
+  const sections: SelectionSummaryPdfSection[] = data.sections
+    .filter((s) => s.title !== "Selected Motor")
+    .map((s) => ({
+      ...s,
+      items: s.items.filter(([label]) => !/^testing\b/i.test(label)),
+    }));
+  await downloadSelectionSummaryPdf({
+    projectCode: record.project_code,
+    projectName: record.project_name ?? undefined,
+    pumpFields: data.pumpFields,
+    sections,
+    generatedBy: record.created_by_name ?? undefined,
+  });
+}
 
 // Reuses the exact status-pill classes/colors from DashboardPage.css (loaded
 // globally, see app/layout.tsx) so status reads the same everywhere.
@@ -268,13 +299,15 @@ const SelectionSummaryPage = () => {
                                       {fmtDate(t.document_generated_at)}
                                     </td>
                                     <td className="summary-actions-col">
-                                      <a
+                                      <button
                                         className="summary-download-btn"
-                                        href={reportDownloadUrl(t.tag_id)}
-                                        onClick={(e) => e.stopPropagation()}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          void downloadReportPdf(t);
+                                        }}
                                       >
                                         Download
-                                      </a>
+                                      </button>
                                     </td>
                                   </tr>
                                 ))}
@@ -338,6 +371,16 @@ const ReportSummaryModal = ({
   const [summary, setSummary] = useState<ReportSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      await downloadReportPdf(report, summary);
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -421,9 +464,13 @@ const ReportSummaryModal = ({
         </div>
 
         <div className="summary-modal-footer">
-          <a className="summary-download-btn" href={reportDownloadUrl(report.tag_id)}>
-            Download PDF
-          </a>
+          <button
+            className="summary-download-btn"
+            onClick={handleDownload}
+            disabled={downloading || isLoading}
+          >
+            {downloading ? "Generating…" : "Download PDF"}
+          </button>
           <button className="summary-modal-close-btn" onClick={onClose}>
             Close
           </button>

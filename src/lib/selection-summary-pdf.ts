@@ -1,14 +1,13 @@
 /**
  * Client-side PDF export for the final Selection Summary report — company
- * logo + generated date/by, the confirmed pump's details up top, then one
- * COLORED table per wizard step (mirroring the on-screen report's boxes,
- * each step getting its own distinct hue so sections are easy to tell
- * apart at a glance). The Drive step's selected V-Belt/Gearbox option
- * renders in the app's positive/confirmed green, same as on screen. Every
- * table is measured before it's drawn and, if it wouldn't fully fit in the
- * remaining page space, pushed onto a fresh page as a whole — autoTable's
- * default behavior of splitting a table's rows across a page boundary is
- * deliberately avoided (see ensureTableFits below).
+ * logo + generated date/by, then one section per quotation group, each drawn
+ * as a full-width dark header band followed by a plain bordered two-column
+ * label/value table (matching the Risansi technical-quotation sheets — a
+ * single uniform band color, no per-section hues). Every table is measured
+ * before it's drawn and, if it wouldn't fully fit in the remaining page
+ * space, pushed onto a fresh page as a whole — autoTable's default behavior
+ * of splitting a table's rows across a page boundary is deliberately avoided
+ * (see ensureTableFits below).
  *
  * Pure client-side (jsPDF + jspdf-autotable, no server round-trip) so it
  * can run from a "use client" step component; the resulting bytes are then
