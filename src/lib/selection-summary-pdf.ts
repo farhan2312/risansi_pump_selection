@@ -68,35 +68,12 @@ async function loadImageAsDataUrl(url: string): Promise<{ dataUrl: string; width
 
 type RGB = [number, number, number];
 
-const PUMP_HEAD: RGB = [10, 61, 143]; // navy — the report's anchor section
-const POS_GREEN: RGB = [5, 150, 105]; // confirmed/selected — matches --pos
-
-// One distinct hue per wizard step so the sections are easy to tell apart
-// at a glance, in wizard order. Falls back to a neutral slate for any title
-// not listed here (keeps this forward-compatible with a renamed/new step
-// rather than erroring).
-const SECTION_COLORS: Record<string, RGB> = {
-  // Quotation-format section titles (single-liquid layout).
-  "Liquid Parameters": [37, 99, 235], // blue
-  "Material of Construction": [217, 119, 6], // amber
-  "Sealing Type": [79, 70, 229], // indigo
-  "Pump Details": [8, 145, 178], // cyan
-  "Drive Systems": [10, 61, 143], // navy
-  // Legacy titles (older saved reports may still carry these).
-  "General Information": [37, 99, 235],
-  "Fluid Properties": [8, 145, 178],
-  "Operating Conditions": [124, 58, 237],
-  "MOC & Elastomer": [217, 119, 6],
-  "Sealing Details": [79, 70, 229],
-  "Motor Rating": [71, 85, 105],
-  "Drive Details": [10, 61, 143],
-};
-const DEFAULT_SECTION_COLOR: RGB = [71, 85, 105];
-
-function sectionColor(section: SelectionSummaryPdfSection): RGB {
-  if (section.highlight) return POS_GREEN;
-  return SECTION_COLORS[section.title] ?? DEFAULT_SECTION_COLOR;
-}
+// Quotation-style layout: one uniform dark section band for every section
+// (no per-section colors), full-width, with the title centered — matching the
+// Risansi technical-quotation sheets.
+const SECTION_BAND: RGB = [60, 60, 60]; // dark grey band
+const BAND_TEXT: RGB = [255, 255, 255]; // white title on the band
+const CELL_BORDER: RGB = [150, 150, 150]; // visible grid lines like the sheet
 
 const LABEL_COL_WIDTH = 170;
 const FONT_SIZE = 9.5;
@@ -154,7 +131,10 @@ export async function downloadSelectionSummaryPdf(
     }
   };
 
-  const drawTable = (rows: [string, string][], headColor: RGB) => {
+  // Plain, bordered two-column label/value grid — white cells with visible
+  // grid lines and a bold label column, matching the quotation sheet. No
+  // per-section coloring and no zebra striping.
+  const drawTable = (rows: [string, string][]) => {
     autoTable(doc, {
       startY: y,
       margin: { left: margin, right: margin },
@@ -164,43 +144,36 @@ export async function downloadSelectionSummaryPdf(
         fontSize: FONT_SIZE,
         cellPadding: CELL_PADDING,
         textColor: 40,
-        lineColor: [225, 228, 232],
+        lineColor: CELL_BORDER,
         lineWidth: 0.5,
         valign: "top",
         overflow: "linebreak",
       },
       columnStyles: {
-        0: { fontStyle: "bold", cellWidth: LABEL_COL_WIDTH, textColor: 70 },
+        0: { fontStyle: "bold", cellWidth: LABEL_COL_WIDTH, textColor: 40 },
         1: { cellWidth: contentWidth - LABEL_COL_WIDTH },
       },
-      alternateRowStyles: { fillColor: [249, 250, 251] },
-      // A colored, empty header row reads as a section-color accent bar —
-      // simpler and more compact than a separate title line + table.
       showHead: false,
-      didParseCell: (data) => {
-        if (data.section === "body" && data.column.index === 0) {
-          data.cell.styles.textColor = [
-            Math.round(headColor[0] * 0.75),
-            Math.round(headColor[1] * 0.75),
-            Math.round(headColor[2] * 0.75),
-          ];
-        }
-      },
     });
+    // Butt the section band of the next section directly against this table,
+    // like the continuous banded sheet.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    y = (doc as any).lastAutoTable.finalY + 18;
+    y = (doc as any).lastAutoTable.finalY + 14;
   };
 
-  const drawSectionCaption = (title: string, color: RGB) => {
-    doc.setFontSize(11.5);
-    doc.setTextColor(color[0], color[1], color[2]);
+  // Full-width dark section band with a centered white title — the section
+  // header style used across the Risansi quotation sheets.
+  const BAND_HEIGHT = 20;
+  const drawSectionBand = (title: string) => {
+    doc.setFillColor(SECTION_BAND[0], SECTION_BAND[1], SECTION_BAND[2]);
+    doc.rect(margin, y, contentWidth, BAND_HEIGHT, "F");
+    doc.setFontSize(10.5);
+    doc.setTextColor(BAND_TEXT[0], BAND_TEXT[1], BAND_TEXT[2]);
     doc.setFont("helvetica", "bold");
-    // Small accent square ahead of the title — the color cue the row-level
-    // label coloring alone wouldn't give you at a glance.
-    doc.setFillColor(color[0], color[1], color[2]);
-    doc.rect(margin, y - 8, 8, 8, "F");
-    doc.text(title, margin + 14, y);
-    y += 12;
+    doc.text(title.toUpperCase(), pageWidth / 2, y + BAND_HEIGHT / 2 + 3.5, {
+      align: "center",
+    });
+    y += BAND_HEIGHT;
   };
 
   // --- Header: logo, generated date/by ---
@@ -248,20 +221,19 @@ export async function downloadSelectionSummaryPdf(
   // --- Pump Selection — the report's anchor, always first ---
   const pumpRows = filledRows(input.pumpFields);
   if (pumpRows.length > 0) {
-    ensureTableFits(pumpRows, 22);
-    drawSectionCaption("Pump Selection", PUMP_HEAD);
-    drawTable(pumpRows, PUMP_HEAD);
+    ensureTableFits(pumpRows, BAND_HEIGHT + 4);
+    drawSectionBand("Pump Selection");
+    drawTable(pumpRows);
   }
 
-  // --- One colored table per wizard step ---
+  // --- One banded table per section ---
   for (const section of input.sections) {
     const rows = filledRows(section.items);
     if (rows.length === 0) continue;
 
-    const color = sectionColor(section);
-    ensureTableFits(rows, 22);
-    drawSectionCaption(section.title, color);
-    drawTable(rows, color);
+    ensureTableFits(rows, BAND_HEIGHT + 4);
+    drawSectionBand(section.title);
+    drawTable(rows);
   }
 
   // --- Footer on every page ---

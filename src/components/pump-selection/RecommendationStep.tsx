@@ -224,8 +224,6 @@ const RecommendationStep = ({
         ["Bearing Housing (Type)", formData.bearingHousing],
         ["Suction Housing", formData.suctionHousing],
         ["Joint Type", formData.jointType],
-        ["Testing Status", confirmedPump.isTested ? "Tested" : "Not Tested"],
-        ["Testing Remarks", confirmedPump.testingRemarks || ""],
       ]
     : [];
 
@@ -373,11 +371,8 @@ const RecommendationStep = ({
       items: driveSelectedItems,
       highlight: true,
     },
-    {
-      title: "Selected Motor",
-      items: motorSelectedItems,
-      highlight: true,
-    },
+    // Motor type & rating are already carried in Drive Systems above, so no
+    // separate "Selected Motor" section in the PDF.
   ];
 
   const [confirming, setConfirming] = useState(false);
