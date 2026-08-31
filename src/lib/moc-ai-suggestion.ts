@@ -108,11 +108,24 @@ export interface MocComponentSuggestions {
   alternatives: string;
 }
 
-const REQUIRED_FIELDS: (keyof MocComponentSuggestions)[] = [
-  "bearingHousing", "basePlate", "mountingPlate", "tieRod", "nutBolt",
+// Fields the tool must always return. The plates are handled separately —
+// only ONE exists per pump type (Base on Horizontal, Mounting on Vertical),
+// so only that one is asked for (see requiredFieldsFor / schemaPropertiesFor).
+const BASE_REQUIRED_FIELDS: (keyof MocComponentSuggestions)[] = [
+  "bearingHousing", "tieRod", "nutBolt",
   "pumpHousing", "rotor", "shaft", "statorRubber", "statorSleeve",
   "sealRecommendation", "sealRationale", "summary", "alternatives",
 ];
+
+/** The plate that actually exists on this pump type — the only one the model
+ * is asked for, so there's no phantom "not present" field to work around. */
+function activePlateField(pumpType: string | null): "mountingPlate" | "basePlate" {
+  return pumpType === "Vertical" ? "mountingPlate" : "basePlate";
+}
+
+function requiredFieldsFor(pumpType: string | null): (keyof MocComponentSuggestions)[] {
+  return [...BASE_REQUIRED_FIELDS, activePlateField(pumpType)];
+}
 
 // JSON-Schema property map driving Anthropic's tool input_schema (structured
 // output).
@@ -127,6 +140,27 @@ const WETTED =
 const DRY =
   "NON-WETTED structural part - no media contact. Choose for strength and cost; media resistance does not apply, so do not over-specify an expensive alloy here.";
 
+// Component groups per pump type × wetted status. The prompt's wettable /
+// non-wettable listing is built from these arrays instead of hardcoded
+// sentences, keeping the prompt small and the two pump-type layouts in sync.
+// Two components differ by pump type: the plate (Base on Horizontal, Mounting
+// on Vertical) and the Stator Sleeve (dry on Horizontal, wetted on Vertical).
+const HORIZONTAL_WETTABLE_COMP = ["Pump Housing", "Rotor", "Shaft"];
+const HORIZONTAL_NONWETTABLE_COMP = [
+  "Bearing Housing",
+  "Base Plate",
+  "Tie Rod",
+  "Nut & Bolt",
+  "Stator Sleeve",
+];
+const VERTICAL_WETTABLE_COMP = ["Pump Housing", "Rotor", "Shaft", "Stator Sleeve"];
+const VERTICAL_NONWETTABLE_COMP = [
+  "Bearing Housing",
+  "Mounting Plate",
+  "Tie Rod",
+  "Nut & Bolt",
+];
+
 // JSON-Schema property map driving Anthropic's tool input_schema (structured
 // output). Built per request because two components change meaning with the
 // pump type: the stator sleeve is wetted only on a Vertical pump, and the
@@ -134,20 +168,12 @@ const DRY =
 // which only one actually exists on a given pump.
 function schemaPropertiesFor(pumpType: string | null) {
   const vertical = pumpType === "Vertical";
+  // Only the plate that exists on this pump type is included — no phantom
+  // field, so no "not present, repeat the other value" workaround is needed.
+  const plateField = activePlateField(pumpType);
   return {
     bearingHousing: { type: "string", description: DRY },
-    basePlate: {
-      type: "string",
-      description: vertical
-        ? "NOT PRESENT on this pump - a Vertical pump uses a mounting plate instead. Repeat the mountingPlate value here."
-        : DRY,
-    },
-    mountingPlate: {
-      type: "string",
-      description: vertical
-        ? DRY
-        : "NOT PRESENT on this pump - a Horizontal pump uses a base plate instead. Repeat the basePlate value here.",
-    },
+    [plateField]: { type: "string", description: DRY },
     tieRod: { type: "string", description: DRY },
     nutBolt: { type: "string", description: DRY },
     pumpHousing: { type: "string", description: WETTED },
@@ -196,38 +222,25 @@ function buildPrompt(context: MocAiContext, processData: string): string {
     missing.length > 0
       ? `Not provided: ${missing.join(", ")}. In the summary's Operating Parameters section, include a typical value for each missing one for this media, labeled (estimated). `
       : "";
-  // The stator sleeve is wetted on a Vertical pump but a dry structural
-  // part on the Horizontal variants, so the pump type has to reach the model
-  // for it to recommend the right material.
   const pumpType = context.pumpType ? context.pumpType : "not specified";
   const vertical = context.pumpType === "Vertical";
-  // Spell out which components touch the media. Wetted status drives the
-  // material choice more than anything else, and two of these components
-  // change status with the pump type, so it is stated rather than implied.
-  // Mirrors the on-screen grouping in MocDetailsStep.
-  // These three groups mirror the three tables the MOC step renders, INCLUDING
-  // their separate option lists: the two metal groups pick from
-  // MOC_AI_MATERIALS, the elastomer group from MOC_AI_ELASTOMERS. Stator
-  // Rubber is deliberately NOT folded into the wetted castings - it is wetted,
-  // but it is a rubber, and answering a metal for it is useless to the UI.
+  // Wetted status drives material choice, and two components change status with
+  // the pump type — so state the groups explicitly, built from the component
+  // arrays above (compact, and in sync with the on-screen grouping). Stator
+  // Rubber is its own elastomer group: it's wetted, but a metal answer is
+  // useless to the UI's rubber dropdown, so it's called out separately.
+  const wettable = vertical ? VERTICAL_WETTABLE_COMP : HORIZONTAL_WETTABLE_COMP;
+  const nonWettable = vertical ? VERTICAL_NONWETTABLE_COMP : HORIZONTAL_NONWETTABLE_COMP;
   const sleeveClause = context.pumpType
-    ? `This is a ${vertical ? "VERTICAL" : "HORIZONTAL"} pump. Components fall into three groups:\n` +
-      `1. WETTABLE CASTING COMPONENTS (in media contact - spec metal for media resistance): ` +
-      `Pump Housing, Rotor, Shaft${vertical ? ", Stator Sleeve" : ""}.\n` +
-      `2. NON-WETTABLE COMPONENTS (structural, no media contact - spec metal for strength/cost, ` +
-      `do not over-alloy): Bearing Housing, ${vertical ? "Mounting Plate" : "Base Plate"}, Tie Rod, ` +
-      `Nut & Bolt${vertical ? "" : ", Stator Sleeve"}.\n` +
-      `3. ELASTOMER (wetted; answer an elastomer, not a metal): Stator Rubber. ` +
-      `Not necessary to pick from ${MOC_AI_ELASTOMERS.join(", ")} but preferred - recommend ` +
-      `another elastomer when the media genuinely calls for it, and say so explicitly.\n` +
-      `This pump has a ${vertical ? "MOUNTING PLATE, not a base plate" : "BASE PLATE, not a mounting plate"} - ` +
-      `answer ${vertical ? "mountingPlate" : "basePlate"} for the real part and repeat that same value in ` +
-      `${vertical ? "basePlate" : "mountingPlate"}.\n`
+    ? `This is a ${vertical ? "VERTICAL" : "HORIZONTAL"} pump.\n` +
+      `WETTABLE (media contact - spec metal for media resistance): ${wettable.join(", ")}.\n` +
+      `NON-WETTABLE (structural, no media contact - spec metal for strength/cost, do not over-alloy): ${nonWettable.join(", ")}.\n` +
+      `ELASTOMER (answer a rubber, not a metal): Stator Rubber. Preferred (not mandatory): ${MOC_AI_ELASTOMERS.join(", ")}.\n`
     : "";
   return (
     `PCP pump. Media: ${context.media}. Pump type: ${pumpType}. Head: ${head}. Capacity: ${capacity}.\n` +
     sleeveClause +
-    `Recommend lowest-cost reliable MOC (per component), stator elastomer, shaft seal. For the METAL components, not necessary to pick from ${MOC_AI_MATERIALS.join(", ")} but preferred (the stator rubber uses the elastomer list above instead). Also dont always recommend cheap even it is not suitable. eg pump housing cannot be cast iron. Recommend low cost only when suitable.\n` +
+    `Recommend low-cost reliable MOC (per component), stator elastomer, shaft seal.\n` +
     `${missingClause}` +
     `summary: detailed markdown engineering note — start with an Operating Parameters section listing Media, Head, Capacity, pH, Temperature, Viscosity (with (estimated) for any not provided); then use ## headers, **bold**, bullet lists AND | pipe tables |, e.g. a Component/Material/Why table and a Mechanical Seal vs Gland Packing comparison table. ` +
     `alternatives: markdown with a | pipe table | of alternative materials and trade-offs. ` +
@@ -263,11 +276,19 @@ function buildProcessData(context: MocAiContext): string {
   );
 }
 
-function coerceSuggestions(parsed: Partial<Record<string, unknown>>): MocComponentSuggestions | null {
-  if (REQUIRED_FIELDS.some((k) => typeof parsed[k] !== "string")) {
+function coerceSuggestions(
+  parsed: Partial<Record<string, unknown>>,
+  pumpType: string | null,
+): MocComponentSuggestions | null {
+  // Only the applicable plate is required; the other plate isn't asked for, so
+  // it simply comes back empty (get() below returns "" for a missing field).
+  if (requiredFieldsFor(pumpType).some((k) => typeof parsed[k] !== "string")) {
     return null;
   }
-  const get = (k: keyof MocComponentSuggestions) => (parsed[k] as string).trim();
+  const get = (k: keyof MocComponentSuggestions) => {
+    const v = parsed[k];
+    return typeof v === "string" ? v.trim() : "";
+  };
   return {
     bearingHousing: get("bearingHousing"),
     basePlate: get("basePlate"),
@@ -375,7 +396,7 @@ async function getMocAiSuggestionAnthropic(
           input_schema: {
             type: "object",
             properties: schemaPropertiesFor(context.pumpType),
-            required: REQUIRED_FIELDS,
+            required: requiredFieldsFor(context.pumpType),
           },
         },
       ],
@@ -395,7 +416,7 @@ async function getMocAiSuggestionAnthropic(
     const toolUse = response.content.find((b) => b.type === "tool_use");
     if (!toolUse || toolUse.type !== "tool_use") return null;
 
-    return coerceSuggestions(toolUse.input as Partial<Record<string, unknown>>);
+    return coerceSuggestions(toolUse.input as Partial<Record<string, unknown>>, context.pumpType);
   } catch (err) {
     console.error("Anthropic MOC-suggestion request failed:", err instanceof Error ? err.message : err);
     return null;

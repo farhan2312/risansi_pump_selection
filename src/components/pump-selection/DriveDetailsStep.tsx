@@ -421,29 +421,10 @@ const DriveDetailsStep = ({
         );
         setPumpSpecs(null);
       } else {
-        // Overlay the selected head's figures — VOLE/Mech-Eff/Qth vary by
-        // head, and the recheck must use the head the pump was selected at,
-        // not the engine's duty-point row. Falls back to the raw row for
-        // legacy tags with no selected head.
-        const pt = formData.selectedHead
-          ? (match.headPoints ?? []).find(
-              (p: { headMwc: number }) =>
-                String(p.headMwc) === String(formData.selectedHead),
-            )
-          : null;
-        setPumpSpecs(
-          pt
-            ? {
-                ...match,
-                headMwc: pt.headMwc,
-                voleMin: pt.voleMin,
-                voleMax: pt.voleMax,
-                mechEff: pt.mechEff,
-                qth: pt.qth,
-                rpmRange: pt.rpmRange,
-              }
-            : match,
-        );
+        // Recheck runs at the INPUT duty head (match's duty-point row), same
+        // as the motor rating and drive selection — not the head card the user
+        // clicked in the live panel.
+        setPumpSpecs(match);
       }
     } catch {
       setRecheckError("Couldn't load pump specifications. Check your connection and try again.");

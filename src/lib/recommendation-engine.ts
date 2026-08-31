@@ -158,10 +158,11 @@ export interface Candidate {
   sizeVisc3000To5000In: number | null;
   sizeVisc5000To10000In: number | null;
   sizeViscGt10000In: number | null;
-  /** The model's full charted performance curve — one entry per head row in
-   * pump_model_master, ascending by head. VOLE/Mech-Eff/RPM vary per head, so
-   * this lets the UI show every head point for a model rather than collapsing
-   * to the single duty-nearest row above. */
+  /** The two charted head points bracketing the duty head — nearest below +
+   * nearest at/above — each with its own VOLE/Mech-Eff/RPM. Lets the UI offer
+   * the pump at the heads either side of the duty (e.g. 20 & 30 for a 26 MWC
+   * duty), not the whole curve. One entry only when the duty is on/beyond an
+   * end of the charted range. */
   headPoints: HeadPoint[];
 }
 
@@ -308,9 +309,9 @@ export async function findCandidates(
     const rpmAtVoleMax = canComputeRpm ? (100 * capacityM3hr) / (qth! * (voleMaxPct! / 100)) : null;
     const rpmAtVoleMin = canComputeRpm ? (100 * capacityM3hr) / (qth! * (voleMinPct! / 100)) : null;
 
-    // Full per-head curve for this model — one row per charted head point,
-    // ascending, each with its own VOLE/Mech-Eff/Qth and RPM at that head.
-    const headPoints: HeadPoint[] = points
+    // Per-head performance rows — one per charted head point, ascending, each
+    // with its own VOLE/Mech-Eff/Qth and RPM at that head.
+    const allHeadPoints: HeadPoint[] = points
       .map((p) => {
         const vMin = toNumOrNull(p.voleMin);
         const vMax = toNumOrNull(p.voleMax);
@@ -325,6 +326,27 @@ export async function findCandidates(
         };
       })
       .sort((a, b) => a.headMwc - b.headMwc);
+
+    // Which heads are valid OPERATING heads for this stage, then the two that
+    // bracket the duty. Rules:
+    //  1. Restrict to the stage's own band — exclude the lower boundary that
+    //     overlaps the previous stage. Stage 2 covers >60 MWC, so its 0–60
+    //     rows (and the shared 60 point) aren't valid here; likewise stage 4
+    //     excludes ≤120. Stage 1's lower bound is 0, a real head, so it stays.
+    //  2. If the duty EXACTLY matches a charted head, return just that head —
+    //     no below/above straddle (e.g. a 30 MWC duty offers only 30).
+    //  3. Otherwise return the nearest charted head below the duty and the
+    //     nearest above it (e.g. 26 MWC → 20 and 30). When one side has no
+    //     valid head (duty near a band edge), only the available side returns.
+    const bandLo = STAGE_HEAD_BANDS[stage ?? 0]?.[0] ?? 0;
+    const inBand = allHeadPoints.filter((p) => bandLo === 0 || p.headMwc > bandLo);
+    const exact = inBand.find((p) => Math.abs(p.headMwc - headMwc) < 1e-9);
+    const headPoints: HeadPoint[] = exact
+      ? [exact]
+      : [
+          [...inBand].reverse().find((p) => p.headMwc < headMwc),
+          inBand.find((p) => p.headMwc > headMwc),
+        ].filter((p): p is HeadPoint => p != null);
 
     candidates.push({
       model: modelName,

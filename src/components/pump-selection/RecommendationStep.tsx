@@ -147,31 +147,11 @@ const RecommendationStep = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const rawConfirmedPump =
+  // Values are computed at the INPUT duty head (the engine's duty-point row),
+  // not the head card the user clicked — motor rating / drive / report all key
+  // off the entered head, so the summary matches them.
+  const confirmedPump =
     recommendations.find((p) => p.model === formData.selectedModel) || null;
-
-  // The pump is selected at a specific head now (formData.selectedHead), and
-  // its VOLE / Mech-Eff / RPM all vary by head — so the summary must reflect
-  // the CHOSEN head, not the engine's duty-point row. Overlay the matching
-  // head point's figures onto the confirmed pump. Falls back to the raw row
-  // for legacy tags saved before per-head selection existed.
-  const confirmedPump = (() => {
-    if (!rawConfirmedPump) return null;
-    if (!formData.selectedHead) return rawConfirmedPump;
-    const pt = (rawConfirmedPump.headPoints ?? []).find(
-      (p) => String(p.headMwc) === String(formData.selectedHead),
-    );
-    if (!pt) return rawConfirmedPump;
-    return {
-      ...rawConfirmedPump,
-      headMwc: pt.headMwc,
-      voleMin: pt.voleMin,
-      voleMax: pt.voleMax,
-      mechEff: pt.mechEff,
-      qth: pt.qth,
-      rpmRange: pt.rpmRange,
-    };
-  })();
 
   // Prefer the confirmed model's own per-viscosity size; fall back to the
   // flat SIZE_BY_RANGE hint when the model isn't covered by the per-model
@@ -374,9 +354,6 @@ const RecommendationStep = ({
         // here just duplicates the summary.
         ["Pump Model", confirmedPump.model],
         ["Stage", confirmedPump.stage != null ? String(confirmedPump.stage) : ""],
-        // The operating head the pump was selected at (all the figures below
-        // are computed at this head).
-        ["Operating Head", formData.selectedHead ? `${formData.selectedHead} MWC` : ""],
         ["AG / BK", formData.agBk],
         ["Pump RPM (VOLE max–min)", confirmedPump.rpmRange],
         [
