@@ -161,6 +161,23 @@ const VERTICAL_NONWETTABLE_COMP = [
   "Nut & Bolt",
 ];
 
+// Real MOC precedents extracted from Risansi quotations — fed to the model as
+// strong guidance so its picks match house practice (match on media CHEMISTRY,
+// not the liquid's name; deviate only with a stated reason). Kept compact on
+// purpose. Update this block when new precedents are added.
+const MOC_REFERENCE =
+  "Risansi MOC precedents (match on media chemistry; strong guidance, deviate only with reason):\n" +
+  "- ALWAYS: Bearing Housing = CI IS210 FG260; Stator Sleeve = MS; Base/Mounting Plate = MS Fabricated (dry structural, media-independent).\n" +
+  "- Neutral slurry / digestate / sludge / biomass / poly (pH ~5-9): wetted castings SS304 family (SS304 / SS304 HT / SS304 HCP by abrasion); Stator Rubber = Nitrile; sealing = Gland Packing (note 'for highly abrasive chemical media' when solids are high).\n" +
+  "- Corrosive acids (e.g. phosphoric acid): step up to SS316 family (SS316 / SS316 HT / SS316 HCP); Stator Rubber = Viton; sealing = Mechanical Seal (SS316 SiC/SiC, Viton O-ring, external water quenched) - NOT gland packing.\n" +
+  "Examples (Pump Housing / Shaft / Rotor / Stator / Sleeve / Seal):\n" +
+  "Napier grass slurry (1100cP, 35-42C, 10-12% solids): SS304 / SS304 / SS304 / Nitrile / MS / Gland Packing.\n" +
+  "Digestate (250cP): SS304 / SS304 / SS304 / Nitrile / MS / Gland Packing.\n" +
+  "Dewatering poly (500-100000cP): SS304 / SS304 HT / SS304 HCP / Nitrile / MS / Gland Packing (abrasive).\n" +
+  "Sludge & Biomass (1-1.5cP): SS304 / SS304 HT / SS304 HCP / Nitrile / MS / Gland Packing.\n" +
+  "High-visc slurry/digestate (pH6-8, 50-55C, 10000-25000cP, 25-30% solids): SS304 / SS304 HT / SS304 HT HCP / Nitrile / MS / Gland Packing (abrasive).\n" +
+  "Phosphoric acid dosing (40-55C): SS316 / SS316 HT / SS316 HCP / Viton / MS / Single Mechanical Seal SS316 SiC-SiC Viton external water quenched.\n";
+
 // JSON-Schema property map driving Anthropic's tool input_schema (structured
 // output). Built per request because two components change meaning with the
 // pump type: the stator sleeve is wetted only on a Vertical pump, and the
@@ -240,6 +257,7 @@ function buildPrompt(context: MocAiContext, processData: string): string {
   return (
     `PCP pump. Media: ${context.media}. Pump type: ${pumpType}. Head: ${head}. Capacity: ${capacity}.\n` +
     sleeveClause +
+    MOC_REFERENCE +
     `Recommend low-cost reliable MOC (per component), stator elastomer, shaft seal.\n` +
     `${missingClause}` +
     `summary: detailed markdown engineering note — start with an Operating Parameters section listing Media, Head, Capacity, pH, Temperature, Viscosity (with (estimated) for any not provided); then use ## headers, **bold**, bullet lists AND | pipe tables |, e.g. a Component/Material/Why table and a Mechanical Seal vs Gland Packing comparison table. ` +
