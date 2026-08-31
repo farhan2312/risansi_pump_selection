@@ -8,7 +8,8 @@ import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, label } from "
 // Gland-Packing counterpart to the Mechanical Seal sub-types below.
 const GLAND_PACKING_TYPES = [
   "GAGP",
-  "Teflon/PTFE",
+  "Teflon",
+  "PTFE",
   "Carbon Fiber",
   "Asbestos-Free",
 ] as const;

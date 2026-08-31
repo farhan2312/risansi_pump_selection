@@ -101,6 +101,27 @@ export function resolveDrive(rpmRequired: number, motorRpm: number | null): stri
   return "Geared Motor";
 }
 
+// PCP head bands by stage — the non-overlapping MWC range each stage covers.
+// These ARE the thresholds `requiredStage` uses to map an input head to a
+// stage (≤60 = 1, 60–120 = 2, 120–240 = 4, 240–480 = 8); kept as one map so
+// the UI can show a model's head as its stage band (e.g. "0–60 MWC") without
+// re-deriving the boundaries. Every model in a stage is charted 0→ceiling in
+// the master data, but the band's LOWER bound is the previous stage's ceiling
+// — that's the head range the stage is actually selected for.
+export const STAGE_HEAD_BANDS: Record<number, [number, number]> = {
+  1: [0, 60],
+  2: [60, 120],
+  4: [120, 240],
+  8: [240, 480],
+};
+
+/** "0–60" / "60–120" / … for a stage, or null when the stage is unknown. */
+export function headBandLabel(stage: number | null): string | null {
+  if (stage == null) return null;
+  const band = STAGE_HEAD_BANDS[stage];
+  return band ? `${band[0]}–${band[1]}` : null;
+}
+
 export interface Candidate {
   model: string;
   /** Pump stage count (1/2/4/8), derived from the model name (2H*=2, 4H*=4, bare H*=1). */
@@ -137,9 +158,45 @@ export interface Candidate {
   sizeVisc3000To5000In: number | null;
   sizeVisc5000To10000In: number | null;
   sizeViscGt10000In: number | null;
+  /** The model's full charted performance curve — one entry per head row in
+   * pump_model_master, ascending by head. VOLE/Mech-Eff/RPM vary per head, so
+   * this lets the UI show every head point for a model rather than collapsing
+   * to the single duty-nearest row above. */
+  headPoints: HeadPoint[];
+}
+
+/** One charted head point of a model's performance curve. RPM is computed at
+ * this head (same formula as the duty-point fields), so each row is a real
+ * operating point rather than an interpolation. */
+export interface HeadPoint {
+  headMwc: number;
+  voleMin: number | null;
+  voleMax: number | null;
+  mechEff: number | null;
+  qth: number | null;
+  /** "VOLE-max rpm–VOLE-min rpm" at this head, or "—" when not computable. */
+  rpmRange: string;
 }
 
 type ModelRow = typeof schema.pumpModelMaster.$inferSelect;
+
+/** RPM range string ("lo–hi" / "lo" / "—") at one head row, from the same
+ * RPM = 100·Q / (QTH·VE) formula used for the duty point. */
+function rpmRangeAt(
+  capacityM3hr: number,
+  qth: number | null,
+  voleMin: number | null,
+  voleMax: number | null,
+): string {
+  const ok =
+    qth !== null && qth > 0 &&
+    voleMin !== null && voleMin > 0 &&
+    voleMax !== null && voleMax > 0;
+  if (!ok) return "—";
+  const lo = Math.round((100 * capacityM3hr) / (qth! * (voleMax! / 100))); // best case (low rpm)
+  const hi = Math.round((100 * capacityM3hr) / (qth! * (voleMin! / 100))); // high rpm
+  return hi > lo ? `${lo}–${hi}` : `${lo}`;
+}
 
 /**
  * Step-3 model screening: given a duty point (capacity + head), scans
@@ -251,6 +308,24 @@ export async function findCandidates(
     const rpmAtVoleMax = canComputeRpm ? (100 * capacityM3hr) / (qth! * (voleMaxPct! / 100)) : null;
     const rpmAtVoleMin = canComputeRpm ? (100 * capacityM3hr) / (qth! * (voleMinPct! / 100)) : null;
 
+    // Full per-head curve for this model — one row per charted head point,
+    // ascending, each with its own VOLE/Mech-Eff/Qth and RPM at that head.
+    const headPoints: HeadPoint[] = points
+      .map((p) => {
+        const vMin = toNumOrNull(p.voleMin);
+        const vMax = toNumOrNull(p.voleMax);
+        const q = toNumOrNull(p.qth);
+        return {
+          headMwc: toNum(p.headMwc),
+          voleMin: vMin,
+          voleMax: vMax,
+          mechEff: toNumOrNull(p.mechEff),
+          qth: q,
+          rpmRange: rpmRangeAt(capacityM3hr, q, vMin, vMax),
+        };
+      })
+      .sort((a, b) => a.headMwc - b.headMwc);
+
     candidates.push({
       model: modelName,
       stage,
@@ -272,6 +347,7 @@ export async function findCandidates(
       sizeVisc3000To5000In,
       sizeVisc5000To10000In,
       sizeViscGt10000In,
+      headPoints,
     });
   }
 

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import "./LivePumpRecommendation.css";
 import { previewRecommendations } from "../../services/recommendationService";
 import { saveWizardInput } from "../../services/wizardInputService";
-import type { PumpRecommendation } from "../../data/Recommendations";
+import type { HeadPoint, PumpRecommendation } from "../../data/Recommendations";
 import { SIZE_COLUMN_BY_RANGE, sizeForViscosityRange } from "../../lib/suction-discharge-size";
 import { sealingShort } from "../../lib/sealing";
 
@@ -104,12 +104,29 @@ const LivePumpRecommendation = ({ formData, setFormData, projectId, tagId, locke
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locked, confirmed, status, formData.selectedModel, hasConfirmedRec]);
 
-  const selectPump = (model: string) => {
+  // The head point the user picked for a given model, or null. Selection is
+  // per (model + head) — there's no nearest-to-input fallback; the user must
+  // pick an explicit head, and that head's values drive everything downstream.
+  const selectedPointFor = (r: PumpRecommendation): HeadPoint | null => {
+    if (r.model !== formData.selectedModel || !formData.selectedHead) return null;
+    return (
+      (r.headPoints ?? []).find(
+        (p) => String(p.headMwc) === String(formData.selectedHead),
+      ) ?? null
+    );
+  };
+
+  // Pick a specific head of a model. Re-clicking the already-selected head
+  // clears the selection.
+  const selectHead = (model: string, headMwc: number) => {
     if (locked) return;
-    // Clicking the already-selected card deselects it.
+    const already =
+      formData.selectedModel === model &&
+      String(formData.selectedHead) === String(headMwc);
     setFormData({
       ...formData,
-      selectedModel: formData.selectedModel === model ? "" : model,
+      selectedModel: already ? "" : model,
+      selectedHead: already ? "" : String(headMwc),
     });
   };
 
@@ -121,6 +138,7 @@ const LivePumpRecommendation = ({ formData, setFormData, projectId, tagId, locke
     if (projectId) {
       saveWizardInput("general-info", projectId, {
         selectedModel: formData.selectedModel,
+        selectedHead: formData.selectedHead,
         modelConfirmed: true,
       }, tagId).catch(() => {
         // Best-effort — the in-memory formData still gates navigation; the
@@ -144,7 +162,16 @@ const LivePumpRecommendation = ({ formData, setFormData, projectId, tagId, locke
   };
   const seal = sealingShort(formData.sealingType);
 
-  const cardInner = (r: PumpRecommendation, showAction: boolean, confirmedBadge: boolean) => {
+  // `point` is the head the user picked (or the confirmed head). Head-specific
+  // figures (Head, VOLE, Mech Eff, RPM) come from it; when no head is picked
+  // yet they read "—" and the Head cell falls back to the stage band. Qth and
+  // Size are head-independent, so they always show.
+  const cardInner = (
+    r: PumpRecommendation,
+    showAction: boolean,
+    confirmedBadge: boolean,
+    point: HeadPoint | null,
+  ) => {
     const isSelected = r.model === formData.selectedModel;
     const size = perModelSize(r);
     return (
@@ -163,20 +190,36 @@ const LivePumpRecommendation = ({ formData, setFormData, projectId, tagId, locke
             <b className="mono">{r.stage ?? "—"}</b>
           </div>
           <div>
+            <span>Head</span>
+            <b className="mono">
+              {point
+                ? `${point.headMwc} MWC`
+                : r.headBandMwc
+                  ? `${r.headBandMwc} MWC`
+                  : "—"}
+            </b>
+          </div>
+          <div>
+            <span>Qth</span>
+            <b className="mono">{r.qth != null ? r.qth : "—"}</b>
+          </div>
+          <div>
             <span>RPM</span>
-            <b className="mono">{r.rpmRange}</b>
+            <b className="mono">{point ? point.rpmRange : "—"}</b>
           </div>
           <div>
             <span>VOLE</span>
             <b className="mono">
-              {r.voleMin !== null && r.voleMax !== null
-                ? `${r.voleMin}–${r.voleMax}%`
+              {point && point.voleMin != null && point.voleMax != null
+                ? `${point.voleMin}–${point.voleMax}%`
                 : "—"}
             </b>
           </div>
           <div>
             <span>Mech Eff</span>
-            <b className="mono">{r.mechEff !== null ? `${r.mechEff}%` : "—"}</b>
+            <b className="mono">
+              {point && point.mechEff != null ? `${point.mechEff}%` : "—"}
+            </b>
           </div>
           <div>
             <span>Size</span>
@@ -241,7 +284,7 @@ const LivePumpRecommendation = ({ formData, setFormData, projectId, tagId, locke
           </p>
           <div className="live-rec-cards live-rec-cards--single">
             <div className="live-rec-card is-locked">
-              {cardInner(confirmedRec, false, true)}
+              {cardInner(confirmedRec, false, true, selectedPointFor(confirmedRec))}
             </div>
           </div>
           {!locked && (
@@ -271,32 +314,89 @@ const LivePumpRecommendation = ({ formData, setFormData, projectId, tagId, locke
         <>
           {recs.length > 0 && (
             <p className="live-rec-hint">
-              {recs.length} matching {recs.length === 1 ? "model" : "models"} — click one,
-              then confirm it to continue.
+              {recs.length} matching {recs.length === 1 ? "model" : "models"} — each head is
+              a ready option with its own figures. Click the model + head you want, then
+              confirm.
             </p>
           )}
 
           {(status === "ready" || (status === "loading" && recs.length > 0)) &&
             recs.length > 0 && (
-              <div className="live-rec-cards">
-                {recs.map((r) => (
-                  <button
-                    type="button"
-                    key={r.id}
-                    className={`live-rec-card${r.model === formData.selectedModel ? " is-selected" : ""}`}
-                    onClick={() => selectPump(r.model)}
-                    aria-pressed={r.model === formData.selectedModel}
-                  >
-                    {cardInner(r, true, false)}
-                  </button>
-                ))}
+              <div className="live-rec-groups">
+                {recs.map((r) => {
+                  const points = r.headPoints ?? [];
+                  const size = perModelSize(r);
+                  const isSelectedModel = r.model === formData.selectedModel;
+                  return (
+                    <div
+                      key={r.id}
+                      className={`live-rec-group${isSelectedModel ? " is-selected-group" : ""}`}
+                    >
+                      {/* Model header — head-independent facts (stage, band,
+                          Qth, size, spec line). Not clickable; selection is
+                          per head card below. */}
+                      <div className="live-rec-group-head">
+                        <strong className="live-rec-group-model">{r.model}</strong>
+                        <span className="live-rec-group-facts">
+                          Stage {r.stage ?? "—"} · {r.headBandMwc ? `${r.headBandMwc} MWC` : "—"} ·
+                          Qth {r.qth != null ? r.qth : "—"} ·{" "}
+                          {size !== null ? `${size}"` : "—"}
+                          {[formData.pumpType, formData.agBk, seal].filter(Boolean).length > 0
+                            ? ` · ${[formData.pumpType, formData.agBk, seal].filter(Boolean).join(" · ")}`
+                            : ""}
+                        </span>
+                      </div>
+
+                      <div className="live-rec-headcards">
+                        {points.map((p) => {
+                          const selected =
+                            isSelectedModel &&
+                            String(p.headMwc) === String(formData.selectedHead);
+                          return (
+                            <button
+                              type="button"
+                              key={p.headMwc}
+                              className={`live-rec-headcard${selected ? " is-selected" : ""}`}
+                              onClick={() => selectHead(r.model, p.headMwc)}
+                              aria-pressed={selected}
+                            >
+                              <span className="live-rec-headcard-head">
+                                {selected ? "✓ " : ""}
+                                {p.headMwc} MWC
+                              </span>
+                              <span className="live-rec-headcard-row">
+                                <span>RPM</span>
+                                <b className="mono">{p.rpmRange}</b>
+                              </span>
+                              <span className="live-rec-headcard-row">
+                                <span>VOLE</span>
+                                <b className="mono">
+                                  {p.voleMin != null && p.voleMax != null
+                                    ? `${p.voleMin}–${p.voleMax}%`
+                                    : "—"}
+                                </b>
+                              </span>
+                              <span className="live-rec-headcard-row">
+                                <span>Mech Eff</span>
+                                <b className="mono">
+                                  {p.mechEff != null ? `${p.mechEff}%` : "—"}
+                                </b>
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
 
-          {hasConfirmedRec && (
+          {hasConfirmedRec && formData.selectedHead && (
             <div className="live-rec-confirm-bar">
               <span>
-                Confirm <strong>{formData.selectedModel}</strong> as your pump model?
+                Confirm <strong>{formData.selectedModel}</strong> at{" "}
+                <strong>{formData.selectedHead} MWC</strong> as your pump?
               </span>
               <button type="button" className="live-rec-confirm-btn" onClick={confirmModel}>
                 Confirm

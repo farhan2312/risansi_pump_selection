@@ -158,6 +158,10 @@ export const generalInfoInput = pgTable("general_info_input", {
   sg: varchar("sg", { length: 50 }),
   rpmRange: varchar("rpm_range", { length: 20 }),
   selectedModel: varchar("selected_model", { length: 100 }),
+  // The specific charted head (MWC) the user picked for the selected model.
+  // Performance varies per head, so this - not a nearest-to-input guess -
+  // drives the motor rating, RPM window and report calcs downstream.
+  selectedHead: varchar("selected_head", { length: 20 }),
   modelConfirmed: boolean("model_confirmed").default(false),
   // Wizard progress: the step the user was last on (so a refresh reopens
   // exactly where they left off) and the furthest step they've ever reached
@@ -259,7 +263,7 @@ export const mocSealingInput = pgTable("moc_sealing_input", {
     .references(() => enquiryTags.id, { onDelete: "cascade" }),
   sealingType: varchar("sealing_type", { length: 30 }),
   sealingSubType: varchar("sealing_sub_type", { length: 10 }),
-  // Gland Packing Type (GAGP / Teflon-PTFE / Carbon Fiber / Asbestos-Free) —
+  // Gland Packing Type (GAGP / Teflon / PTFE / Carbon Fiber / Asbestos-Free) —
   // the Gland-Packing counterpart to sealingSubType (which is the Mechanical
   // Seal sub-type). Only one of the two is ever set, since the two sealing
   // types are mutually exclusive.
@@ -483,6 +487,11 @@ export const driveGearedInput = pgTable("drive_geared_input", {
   gbConstructionType: varchar("gb_construction_type", { length: 30 }), // IN LINE HELICAL / PLANTERY
   gearBoxMounting: varchar("gear_box_mounting", { length: 50 }),
   driveCoupling: varchar("drive_coupling", { length: 50 }),
+  // Only relevant when driveCoupling is an actual coupling (not "No Coupling"):
+  // the coupling construction type + its make. Shown on the Drive step only
+  // when a coupling is present.
+  couplingType: varchar("coupling_type", { length: 60 }),
+  couplingMake: varchar("coupling_make", { length: 30 }),
   asfRange: varchar("asf_range", { length: 20 }),
   gearboxSource: varchar("gearbox_source", { length: 20 }), // PBL / PTL / Top Gear
   gearboxModel: varchar("gearbox_model", { length: 100 }),

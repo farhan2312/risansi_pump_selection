@@ -11,7 +11,7 @@ import {
   downloadSelectionSummaryPdf,
   type SelectionSummaryPdfSection,
 } from "../../lib/selection-summary-pdf";
-import { saveReportSummary, uploadFinalReport } from "../../services/reportsService";
+import { getReportSummary, saveReportSummary, uploadFinalReport } from "../../services/reportsService";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import type {
   PumpRecommendation,
@@ -147,8 +147,31 @@ const RecommendationStep = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const confirmedPump =
+  const rawConfirmedPump =
     recommendations.find((p) => p.model === formData.selectedModel) || null;
+
+  // The pump is selected at a specific head now (formData.selectedHead), and
+  // its VOLE / Mech-Eff / RPM all vary by head — so the summary must reflect
+  // the CHOSEN head, not the engine's duty-point row. Overlay the matching
+  // head point's figures onto the confirmed pump. Falls back to the raw row
+  // for legacy tags saved before per-head selection existed.
+  const confirmedPump = (() => {
+    if (!rawConfirmedPump) return null;
+    if (!formData.selectedHead) return rawConfirmedPump;
+    const pt = (rawConfirmedPump.headPoints ?? []).find(
+      (p) => String(p.headMwc) === String(formData.selectedHead),
+    );
+    if (!pt) return rawConfirmedPump;
+    return {
+      ...rawConfirmedPump,
+      headMwc: pt.headMwc,
+      voleMin: pt.voleMin,
+      voleMax: pt.voleMax,
+      mechEff: pt.mechEff,
+      qth: pt.qth,
+      rpmRange: pt.rpmRange,
+    };
+  })();
 
   // Prefer the confirmed model's own per-viscosity size; fall back to the
   // flat SIZE_BY_RANGE hint when the model isn't covered by the per-model
@@ -317,10 +340,13 @@ const RecommendationStep = ({
   ];
   const gearedInputItems: FieldItem[] = [
     ["Configuration", formData.gearedConfigType],
-    ["Gear Box Shaft Type", formData.gearBoxType],
     ["GB Type", formData.gbConstructionType],
+    ["Gear Box Shaft Type", formData.gearBoxType],
     ["Gear Box Mounting", formData.gearBoxMounting],
     ["Coupling", formData.driveCoupling],
+    // Only populated when a real coupling is present; FieldGrid drops empties.
+    ["Coupling Type", formData.couplingType],
+    ["Coupling Make", formData.couplingMake],
     ["ASF Range", formData.asfRange],
   ];
 
@@ -348,6 +374,9 @@ const RecommendationStep = ({
         // here just duplicates the summary.
         ["Pump Model", confirmedPump.model],
         ["Stage", confirmedPump.stage != null ? String(confirmedPump.stage) : ""],
+        // The operating head the pump was selected at (all the figures below
+        // are computed at this head).
+        ["Operating Head", formData.selectedHead ? `${formData.selectedHead} MWC` : ""],
         ["AG / BK", formData.agBk],
         ["Pump RPM (VOLE max–min)", confirmedPump.rpmRange],
         [
@@ -389,6 +418,24 @@ const RecommendationStep = ({
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
 
+  // Persist the "confirmed" (green summary) state across reloads: if this tag
+  // already has a saved report summary, the selection was confirmed on an
+  // earlier visit, so start green rather than waiting for another click.
+  useEffect(() => {
+    if (!tagId) return;
+    let cancelled = false;
+    getReportSummary(tagId)
+      .then((summary) => {
+        if (!cancelled && summary) setConfirmed(true);
+      })
+      .catch(() => {
+        // No summary / fetch error — leave unconfirmed; the button still works.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tagId]);
+
   const handleConfirmSelection = async () => {
     // Reports live on the tag now (a project can carry N tags, each with its
     // own final report). The Confirm button is gated on projectId AND tagId
@@ -421,7 +468,12 @@ const RecommendationStep = ({
 
   return (
     <div className="step-container">
-      <Stepper currentStep={8} maxStep={formData.wizardMaxStep} onStepClick={onStepClick} />
+      <Stepper
+        currentStep={8}
+        maxStep={formData.wizardMaxStep}
+        onStepClick={onStepClick}
+        finalCompleted={confirmed}
+      />
 
       <div className="step-card">
         <h2>Selection Summary</h2>

@@ -25,7 +25,13 @@ export async function POST(req: Request) {
   }
 
   const capacityM3hr = toM3PerHr(capacityRaw, (body.capacityUnit as string) ?? null, sg);
-  const headMwc = toMwc(headRaw, (body.headUnit as string) ?? null, sg);
+  // Prefer the user-selected charted head (already in MWC) over the input
+  // duty head, so downstream calcs run at the head the pump was selected for.
+  const selectedHead = toFloat(body.selectedHead, 0);
+  const headMwc =
+    selectedHead > 0
+      ? selectedHead
+      : toMwc(headRaw, (body.headUnit as string) ?? null, sg);
 
   const rating = await computeMotorRating(db, model, capacityM3hr, headMwc);
   if (!rating) return error("No pump model found for this selection", 404);

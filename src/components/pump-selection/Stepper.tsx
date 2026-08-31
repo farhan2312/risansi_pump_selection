@@ -7,6 +7,10 @@ type StepperProps = {
    * what's already done vs. what's left rather than just "before the cursor". */
   maxStep?: number;
   onStepClick?: (step: number) => void;
+  /** When true, the LAST step (Recommendation) is shown completed/green even
+   * though it's the current step — set once the final report is confirmed, so
+   * the summary reads as done rather than merely in progress. */
+  finalCompleted?: boolean;
 };
 
 const steps = [
@@ -20,7 +24,7 @@ const steps = [
   "Recommendation",
 ];
 
-const Stepper = ({ currentStep, maxStep, onStepClick }: StepperProps) => {
+const Stepper = ({ currentStep, maxStep, onStepClick, finalCompleted }: StepperProps) => {
   // Progress reaches as far as the user has ever been, not just where the
   // cursor is now — jumping back to step 1 shouldn't visually undo the work.
   const reached = Math.max(currentStep, maxStep ?? currentStep);
@@ -48,8 +52,13 @@ const Stepper = ({ currentStep, maxStep, onStepClick }: StepperProps) => {
         const stepNumber = index + 1;
         const isActive = stepNumber === currentStep;
         // Any step before the furthest one reached counts as done — including
-        // ones ahead of the current cursor after jumping back.
-        const isCompleted = !isActive && stepNumber < reached;
+        // ones ahead of the current cursor after jumping back. The last step
+        // also counts as done once the final report is confirmed, even though
+        // it's the current step (so the summary turns green on confirm).
+        const isLast = stepNumber === steps.length;
+        const isCompleted =
+          (!isActive && stepNumber < reached) ||
+          (finalCompleted === true && isLast);
         return (
           <button
             type="button"

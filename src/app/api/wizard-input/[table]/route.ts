@@ -44,7 +44,7 @@ const DRIVE_TABLE_KEYS: TableKey[] = ["drive-direct", "drive-vbelt", "drive-gear
 const FIELDS: Record<TableKey, readonly string[]> = {
   "general-info": [
     "capacity", "capacityUnit", "head", "headUnit", "media",
-    "sg", "rpmRange", "selectedModel", "modelConfirmed",
+    "sg", "rpmRange", "selectedModel", "selectedHead", "modelConfirmed",
     "wizardStep", "wizardMaxStep",
   ],
   "fluid-properties": [
@@ -109,7 +109,7 @@ const FIELDS: Record<TableKey, readonly string[]> = {
   ],
   "drive-geared": [
     "gearBoxType", "gearedConfigType", "gbConstructionType", "gearBoxMounting",
-    "driveCoupling", "asfRange", "gearboxSource", "gearboxModel",
+    "driveCoupling", "couplingType", "couplingMake", "asfRange", "gearboxSource", "gearboxModel",
     "gearboxOutputRpm", "gearboxServiceFactor", "gearboxRatePerNos", "gearboxConfirmed",
   ],
 };

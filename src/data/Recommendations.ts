@@ -84,6 +84,7 @@ export interface PumpSelectionFormData {
   temperatureMode?: string;
   rpmRange?: string; // manual RPM band filter: low/medium/high/vhigh
   selectedModel?: string; // pump picked by the user; persists across steps
+  selectedHead?: string; // charted head (MWC) picked for the model; drives downstream calcs
   modelConfirmed?: boolean; // true once the picked model is confirmed (gates advancing past Fluid)
   solidPercentage: string;
   solidSize: string;
@@ -96,7 +97,7 @@ export interface PumpSelectionFormData {
   driveSystem: string;
   sealingType: string;
   sealingSubType?: string; // MSA / SCG / DCG / MSK — Mechanical Seal only
-  glandPackingType?: string; // GAGP / Teflon-PTFE / Carbon Fiber / Asbestos-Free — Gland Packing only
+  glandPackingType?: string; // GAGP / Teflon / PTFE / Carbon Fiber / Asbestos-Free — Gland Packing only
   // Client-requirements file (image or PDF) uploaded on the MOC step. Bytes
   // live on the server; only the metadata is carried in formData so the
   // wizard can show/preserve "attached" state. `clientRequirements` (the
@@ -116,7 +117,9 @@ export interface PumpSelectionFormData {
   gearedConfigType?: string; // "Geared Motor" | "Gear Box + Motor" — cascades mounting + coupling below
   gbConstructionType?: string; // IN LINE HELICAL / PLANTERY — Geared Motor Drive only
   gearBoxMounting?: string; // Foot Mount B3 (Gear Box + Motor) / Flange Mount B5 / Foot cum Flange B35 (Geared Motor) — cascades on gearedConfigType
-  driveCoupling?: string; // derived from gearedConfigType: "Drive Coupling + Driven Coupling" (Gear Box + Motor) / "Driven Coupling" (Geared Motor)
+  driveCoupling?: string; // No Coupling / Driven Coupling / Drive + Driven Coupling (auto-filled from pump type + GB type)
+  couplingType?: string; // Flexible Bush Pin / Spacer Bush Pin / Tyre Type — only when a coupling is present
+  couplingMake?: string; // Rathi / Fenner — only when a coupling is present
   asfRange?: string; // Application Service Factor band — Geared Motor Drive only
   // Gearbox drive recommendation (manual pick from PBL/PTL/Top Gear masters,
   // screened by RPM window ±20% + Motor KW; narrowed by ASF Range + GB Type)
@@ -222,6 +225,9 @@ export interface PumpRecommendation {
   model: string;
   /** Nearest charted head point (in pump_model_master) to the input duty head. */
   headMwc: number;
+  /** The stage's head band label, e.g. "0–60" / "60–120" — the MWC range
+   * this pump's stage is selected for. */
+  headBandMwc: string | null;
   /** NULL when the model has no charted VOLE/QTH at the matched head — the
    * model is still listed (stage-only inclusion), shown with blanks. */
   voleMin: number | null;
@@ -252,4 +258,19 @@ export interface PumpRecommendation {
   sizeVisc3000To5000In: number | null;
   sizeVisc5000To10000In: number | null;
   sizeViscGt10000In: number | null;
+  /** The model's full charted performance curve — one entry per head row,
+   * ascending by head. Lets the recommendation show every head point (VOLE /
+   * Mech-Eff / RPM all vary per head) rather than only the duty-nearest row. */
+  headPoints?: HeadPoint[];
+}
+
+/** One charted head point of a model's performance curve. */
+export interface HeadPoint {
+  headMwc: number;
+  voleMin: number | null;
+  voleMax: number | null;
+  mechEff: number | null;
+  qth: number | null;
+  /** "VOLE-max rpm–VOLE-min rpm" at this head, or "—" when not computable. */
+  rpmRange: string;
 }

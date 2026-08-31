@@ -1,6 +1,6 @@
 import { error, json, toFloat } from "@/lib/api";
 import { db } from "@/lib/db";
-import { findCandidates, toM3PerHr, toMwc } from "@/lib/recommendation-engine";
+import { findCandidates, headBandLabel, toM3PerHr, toMwc } from "@/lib/recommendation-engine";
 
 export const dynamic = "force-dynamic";
 
@@ -80,6 +80,7 @@ export async function POST(req: Request) {
       id: i,
       model: c.model,
       headMwc: c.headMwc,
+      headBandMwc: headBandLabel(c.stage),
       voleMin: c.voleMin,
       voleMax: c.voleMax,
       mechEff: c.mechEff,
@@ -107,6 +108,7 @@ export async function POST(req: Request) {
       sizeVisc3000To5000In: c.sizeVisc3000To5000In,
       sizeVisc5000To10000In: c.sizeVisc5000To10000In,
       sizeViscGt10000In: c.sizeViscGt10000In,
+      headPoints: c.headPoints,
     };
   });
 

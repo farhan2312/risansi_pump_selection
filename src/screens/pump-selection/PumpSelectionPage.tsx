@@ -43,7 +43,7 @@ type SelectedProject = {
 const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
   "general-info": [
     "capacity", "capacityUnit", "head", "headUnit", "media",
-    "sg", "rpmRange", "selectedModel", "modelConfirmed",
+    "sg", "rpmRange", "selectedModel", "selectedHead", "modelConfirmed",
     "wizardStep", "wizardMaxStep",
   ],
   "fluid-properties": [
@@ -95,7 +95,7 @@ const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
   ],
   "drive-geared": [
     "gearBoxType", "gearedConfigType", "gbConstructionType", "gearBoxMounting",
-    "driveCoupling", "asfRange", "gearboxSource", "gearboxModel",
+    "driveCoupling", "couplingType", "couplingMake", "asfRange", "gearboxSource", "gearboxModel",
     "gearboxOutputRpm", "gearboxServiceFactor", "gearboxRatePerNos", "gearboxConfirmed",
   ],
 };
@@ -219,6 +219,7 @@ const PumpSelectionPage = () => {
     ph: "",
     rpmRange: "", // manual RPM band filter (low/medium/high/vhigh)
     selectedModel: "", // pump picked in the live panel; persists across steps
+    selectedHead: "", // charted head (MWC) picked for the model
     modelConfirmed: false, // gate: a model must be picked + confirmed after the Fluid step before continuing
     // Wizard progress (persisted): where the user last was, and the furthest
     // step they've reached — the stepper keeps everything below the latter
