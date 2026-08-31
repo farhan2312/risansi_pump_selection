@@ -98,6 +98,10 @@ export interface PumpSelectionFormData {
   sealingType: string;
   sealingSubType?: string; // MSA / SCG / DCG / MSK — Mechanical Seal only
   glandPackingType?: string; // GAGP / Teflon / PTFE / Carbon Fiber / Asbestos-Free — Gland Packing only
+  glandPackingMake?: string; // Champion / Other — Gland Packing only
+  mechSealMoc?: string; // SS304 / SS316 / SS316L / Super Duplex Seal / 904L / Hastelloy — Mechanical Seal only
+  mechSealFace?: string; // TC vs. TC / SiC vs. SiC — Mechanical Seal only
+  mechSealMake?: string; // ACME / Eagle Burgmann / Sealmatic — Mechanical Seal only
   // Client-requirements file (image or PDF) uploaded on the MOC step. Bytes
   // live on the server; only the metadata is carried in formData so the
   // wizard can show/preserve "attached" state. `clientRequirements` (the

@@ -55,7 +55,8 @@ const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
     "pumpType", "agBk", "bearingHousing", "suctionHousing", "jointType",
   ],
   "moc-sealing": [
-    "sealingType", "sealingSubType",
+    "sealingType", "sealingSubType", "glandPackingType", "glandPackingMake",
+    "mechSealMoc", "mechSealFace", "mechSealMake",
     "clientRequirementsFilename", "clientRequirementsMime", "clientRequirementsUploadedAt",
     "mocAiBearingHousing", "mocAiBearingHousingRemarks",
     "mocAiBasePlate", "mocAiBasePlateRemarks",
@@ -263,7 +264,12 @@ const PumpSelectionPage = () => {
 
     // Step 4
     sealingType: "",
-    sealingSubType: "", // MSA / SCG / DCG — Mechanical Seal only
+    sealingSubType: "", // MSA / SCG / DCG / MSK — Mechanical Seal only
+    glandPackingType: "",
+    glandPackingMake: "",
+    mechSealMoc: "",
+    mechSealFace: "",
+    mechSealMake: "",
 
     // Free-text client extras (chemical composition, special notes) with no
     // dedicated wizard field — appended to the MOC AI prompt.

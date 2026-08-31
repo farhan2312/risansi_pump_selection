@@ -226,8 +226,15 @@ const RecommendationStep = ({
 
   const sealingItems: FieldItem[] = [
     ["Sealing Type", formData.sealingType],
+    // Mechanical Seal detail (empty rows are dropped by FieldGrid, so only the
+    // fields relevant to the chosen arrangement show).
     ["Mechanical Seal Type", formData.sealingSubType],
+    ["Seal MOC", formData.mechSealMoc],
+    ["Seal Face", formData.mechSealFace],
+    ["Seal Make", formData.mechSealMake],
+    // Gland Packing detail.
     ["Gland Packing Type", formData.glandPackingType],
+    ["Gland Packing Make", formData.glandPackingMake],
   ];
 
   const motorRatingItems: FieldItem[] = [

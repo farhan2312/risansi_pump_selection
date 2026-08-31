@@ -268,6 +268,13 @@ export const mocSealingInput = pgTable("moc_sealing_input", {
   // Seal sub-type). Only one of the two is ever set, since the two sealing
   // types are mutually exclusive.
   glandPackingType: varchar("gland_packing_type", { length: 50 }),
+  // Gland Packing make (Champion / Other) — only with Gland Packing.
+  glandPackingMake: varchar("gland_packing_make", { length: 20 }),
+  // Mechanical Seal detail (only with Mechanical Seal). sealingSubType above
+  // holds the seal type (MSA/SCG/DCG/MSK); its description is derived, not stored.
+  mechSealMoc: varchar("mech_seal_moc", { length: 40 }),
+  mechSealFace: varchar("mech_seal_face", { length: 40 }),
+  mechSealMake: varchar("mech_seal_make", { length: 40 }),
   // Free-text extras the client supplied that the wizard has no field for
   // (chemical composition, special service notes, ...). Appended verbatim to
   // the MOC AI prompt as a "Client requirements" block.
