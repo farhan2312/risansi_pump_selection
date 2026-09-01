@@ -15,33 +15,92 @@ import { SkeletonRows } from "../../components/ui/Skeleton";
 import Spinner from "../../components/ui/Spinner";
 import {
   downloadSelectionSummaryPdf,
+  downloadEnquiryDocumentPdf,
+  buildEnquiryMatrix,
+  type EnquiryDocumentTag,
   type SelectionSummaryPdfSection,
 } from "../../lib/selection-summary-pdf";
 
+// A saved summary can still carry the retired "Selected Motor" section and the
+// Testing rows; drop them so a regenerated PDF matches the current report spec.
+function normalizeSections(summary: ReportSummary): SelectionSummaryPdfSection[] {
+  return summary.sections
+    .filter((s) => s.title !== "Selected Motor")
+    .map((s) => ({
+      ...s,
+      items: s.items.filter(([label]) => !/^testing\b/i.test(label)),
+    }));
+}
+
+// Value of the first summary item whose label matches `labelRe`, across all
+// sections — used to pull the liquid/pump type for a tag's divider label.
+function pickItem(summary: ReportSummary, labelRe: RegExp): string | undefined {
+  for (const s of summary.sections) {
+    for (const [label, value] of s.items) {
+      if (labelRe.test(label) && value && String(value).trim() !== "") {
+        return String(value).trim();
+      }
+    }
+  }
+  return undefined;
+}
+
 // Regenerates a tag's PDF from its stored structured summary using the CURRENT
 // generator, so styling/layout changes apply to already-saved reports (the
-// binary saved at Confirm time can be an older format). Old summaries may still
-// carry the retired "Selected Motor" section and Testing rows, so drop them to
-// match the current spec. Falls back to the saved binary when there's no
-// structured summary (pre-feature reports).
+// binary saved at Confirm time can be an older format). Falls back to the saved
+// binary when there's no structured summary (pre-feature reports).
 async function downloadReportPdf(record: ReportRecord, summary?: ReportSummary | null): Promise<void> {
   const data = summary ?? (await getReportSummary(record.tag_id).catch(() => null));
   if (!data) {
     window.open(reportDownloadUrl(record.tag_id), "_blank");
     return;
   }
-  const sections: SelectionSummaryPdfSection[] = data.sections
-    .filter((s) => s.title !== "Selected Motor")
-    .map((s) => ({
-      ...s,
-      items: s.items.filter(([label]) => !/^testing\b/i.test(label)),
-    }));
   await downloadSelectionSummaryPdf({
     projectCode: record.project_code,
     projectName: record.project_name ?? undefined,
     pumpFields: data.pumpFields,
-    sections,
+    sections: normalizeSections(data),
     generatedBy: record.created_by_name ?? undefined,
+  });
+}
+
+// One enquiry group as loaded/rendered by the page.
+interface EnquiryGroup {
+  project_id: string;
+  project_code: string;
+  project_name: string | null;
+  client_code: string | null;
+  created_by_name: string | null;
+  latest_generated_at: string | null;
+  tags: ReportRecord[];
+}
+
+type LoadedTag = { tag: ReportRecord; summary: ReportSummary | null };
+
+// Maps the fetched per-tag summaries into the tag shape the enquiry document /
+// matrix builder consumes (dropping tags with no saved summary).
+function loadedToTags(loaded: LoadedTag[]): EnquiryDocumentTag[] {
+  return loaded
+    .filter((x): x is { tag: ReportRecord; summary: ReportSummary } => x.summary != null)
+    .map(({ tag, summary }) => ({
+      tagName: tag.tag_name,
+      liquid: pickItem(summary, /^(media|liquid)/i),
+      pumpType: pickItem(summary, /pump type/i),
+      pumpFields: summary.pumpFields,
+      sections: normalizeSections(summary),
+    }));
+}
+
+// Builds the combined multi-tag quotation document for an enquiry from the
+// per-tag summaries already fetched for the View Document modal.
+async function downloadEnquiryDoc(group: EnquiryGroup, loaded: LoadedTag[]): Promise<void> {
+  const tags = loadedToTags(loaded);
+  if (tags.length === 0) return;
+  await downloadEnquiryDocumentPdf({
+    projectCode: group.project_code,
+    projectName: group.project_name ?? undefined,
+    generatedBy: group.created_by_name ?? undefined,
+    tags,
   });
 }
 
@@ -92,6 +151,7 @@ const SelectionSummaryPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [viewing, setViewing] = useState<ReportRecord | null>(null);
+  const [viewingEnquiry, setViewingEnquiry] = useState<EnquiryGroup | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -128,18 +188,7 @@ const SelectionSummaryPage = () => {
   // by their newest tag's generated_at so the most recent activity floats to
   // the top - matches the flat ordering the API returns.
   const grouped = useMemo(() => {
-    const map = new Map<
-      string,
-      {
-        project_id: string;
-        project_code: string;
-        project_name: string | null;
-        client_code: string | null;
-        created_by_name: string | null;
-        latest_generated_at: string | null;
-        tags: ReportRecord[];
-      }
-    >();
+    const map = new Map<string, EnquiryGroup>();
     for (const r of filtered) {
       let entry = map.get(r.project_id);
       if (!entry) {
@@ -224,6 +273,7 @@ const SelectionSummaryPage = () => {
                 <th>Status</th>
                 <th>Latest Report</th>
                 <th>Generated By</th>
+                <th className="summary-actions-col">Document</th>
               </tr>
             </thead>
             <tbody>
@@ -264,11 +314,19 @@ const SelectionSummaryPage = () => {
                       </td>
                       <td className="mono">{fmtDate(g.latest_generated_at)}</td>
                       <td>{g.created_by_name || "—"}</td>
+                      <td className="summary-actions-col">
+                        <button
+                          className="summary-download-btn"
+                          onClick={() => setViewingEnquiry(g)}
+                        >
+                          View Document
+                        </button>
+                      </td>
                     </tr>
                     {isOpen && (
                       <tr className="summary-tags-row">
                         <td />
-                        <td colSpan={5}>
+                        <td colSpan={6}>
                           <div className="summary-tags-panel">
                             <div className="summary-tags-heading">
                               {g.tags.length} tag{g.tags.length === 1 ? "" : "s"} with a saved report
@@ -322,7 +380,7 @@ const SelectionSummaryPage = () => {
               })}
               {grouped.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="summary-empty-cell">
+                  <td colSpan={7} className="summary-empty-cell">
                     <EmptyState
                       compact
                       icon="search"
@@ -339,6 +397,13 @@ const SelectionSummaryPage = () => {
 
       {viewing && (
         <ReportSummaryModal report={viewing} onClose={() => setViewing(null)} />
+      )}
+
+      {viewingEnquiry && (
+        <EnquiryDocumentModal
+          group={viewingEnquiry}
+          onClose={() => setViewingEnquiry(null)}
+        />
       )}
     </div>
   );
@@ -468,6 +533,144 @@ const ReportSummaryModal = ({
             className="summary-download-btn"
             onClick={handleDownload}
             disabled={downloading || isLoading}
+          >
+            {downloading ? "Generating…" : "Download PDF"}
+          </button>
+          <button className="summary-modal-close-btn" onClick={onClose}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- Enquiry document modal (all tags / liquids side by side) -----------
+
+const EnquiryDocumentModal = ({
+  group,
+  onClose,
+}: {
+  group: EnquiryGroup;
+  onClose: () => void;
+}) => {
+  const [loaded, setLoaded] = useState<LoadedTag[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all(
+      group.tags.map(async (tag) => ({
+        tag,
+        summary: await getReportSummary(tag.tag_id).catch(() => null),
+      })),
+    )
+      .then((rows) => {
+        if (!cancelled) setLoaded(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setError("Couldn't load the enquiry document.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [group]);
+
+  const isLoading = loaded === null && error === null;
+  const anySummary = (loaded ?? []).some((x) => x.summary != null);
+  const matrix = useMemo(
+    () => (loaded ? buildEnquiryMatrix(loadedToTags(loaded)) : null),
+    [loaded],
+  );
+
+  const handleDownload = async () => {
+    if (!loaded) return;
+    setDownloading(true);
+    try {
+      await downloadEnquiryDoc(group, loaded);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <div className="summary-modal-overlay" onClick={onClose}>
+      <div
+        className="summary-modal summary-modal-wide"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <div className="summary-modal-header">
+          <div>
+            <h3>
+              {group.project_code}{" "}
+              <span className="summary-modal-tag">· Technical Quotation</span>
+            </h3>
+            <p>
+              {group.project_name || "—"} · {group.tags.length} tag
+              {group.tags.length === 1 ? "" : "s"}
+            </p>
+          </div>
+          <button className="summary-modal-close" onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        </div>
+
+        <div className="summary-modal-body">
+          {isLoading && (
+            <div style={{ padding: "24px 0", textAlign: "center" }}>
+              <Spinner caption="Loading document…" />
+            </div>
+          )}
+          {error && <p className="error-message">{error}</p>}
+          {!isLoading && !error && !anySummary && (
+            <EmptyState
+              compact
+              icon="alert"
+              title="No document available yet"
+              description="These tags were confirmed before the structured summary existed — download each tag's PDF from its row instead."
+            />
+          )}
+
+          {!isLoading && !error && anySummary && matrix && (
+            <div className="summary-doc-scroll">
+              <table className="summary-doc-matrix">
+                <tbody>
+                  {matrix.sections.map((section) => (
+                    <React.Fragment key={section.title}>
+                      <tr>
+                        <td
+                          className="summary-doc-band"
+                          colSpan={matrix.tags.length + 1}
+                        >
+                          {section.title.toUpperCase()}
+                        </td>
+                      </tr>
+                      {section.rows.map((row) => (
+                        <tr key={section.title + row.label}>
+                          <th scope="row" className="summary-doc-label">
+                            {row.label}
+                          </th>
+                          {row.values.map((v, i) => (
+                            <td key={i}>{v || "—"}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="summary-modal-footer">
+          <button
+            className="summary-download-btn"
+            onClick={handleDownload}
+            disabled={downloading || isLoading || !anySummary}
           >
             {downloading ? "Generating…" : "Download PDF"}
           </button>

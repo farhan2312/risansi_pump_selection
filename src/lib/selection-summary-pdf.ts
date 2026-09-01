@@ -15,7 +15,7 @@
  * saved on the project, not just downloaded to the browser.
  */
 import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import autoTable, { type RowInput } from "jspdf-autotable";
 
 export type SelectionSummaryPdfField = [string, string | undefined];
 
@@ -99,23 +99,22 @@ function estimateTableHeight(doc: jsPDF, rows: [string, string][], contentWidth:
   return headerHeight + rowsHeight;
 }
 
-export async function downloadSelectionSummaryPdf(
-  input: SelectionSummaryPdfInput,
-): Promise<SelectionSummaryPdfResult> {
-  const doc = new jsPDF({ unit: "pt", format: "a4" });
+// Shared page layout + drawing helpers, so the single-tag report and the
+// multi-tag enquiry document render identically (same banded tables, same
+// page-fit logic). `state.y` is the running vertical cursor.
+function createLayout(doc: jsPDF) {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 40;
   const contentWidth = pageWidth - margin * 2;
-  let y = 40;
+  const BAND_HEIGHT = 20;
+  const state = { y: 40 };
 
-  // For non-table content only (header text, section captions) — tables use
-  // ensureTableFits below instead, since they need the actual table height,
-  // not a fixed guess.
+  // For non-table content (header text, dividers).
   const ensureSpace = (needed: number) => {
-    if (y + needed > pageHeight - margin - 20) {
+    if (state.y + needed > pageHeight - margin - 20) {
       doc.addPage();
-      y = margin;
+      state.y = margin;
     }
   };
 
@@ -124,18 +123,17 @@ export async function downloadSelectionSummaryPdf(
   // rows across the page boundary.
   const ensureTableFits = (rows: [string, string][], captionHeight: number) => {
     const tableHeight = estimateTableHeight(doc, rows, contentWidth);
-    if (y + captionHeight + tableHeight > pageHeight - margin - 20) {
+    if (state.y + captionHeight + tableHeight > pageHeight - margin - 20) {
       doc.addPage();
-      y = margin;
+      state.y = margin;
     }
   };
 
   // Plain, bordered two-column label/value grid — white cells with visible
-  // grid lines and a bold label column, matching the quotation sheet. No
-  // per-section coloring and no zebra striping.
+  // grid lines and a bold label column, matching the quotation sheet.
   const drawTable = (rows: [string, string][]) => {
     autoTable(doc, {
-      startY: y,
+      startY: state.y,
       margin: { left: margin, right: margin },
       body: rows,
       theme: "grid",
@@ -154,33 +152,72 @@ export async function downloadSelectionSummaryPdf(
       },
       showHead: false,
     });
-    // Butt the section band of the next section directly against this table,
-    // like the continuous banded sheet.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    y = (doc as any).lastAutoTable.finalY + 14;
+    state.y = (doc as any).lastAutoTable.finalY + 14;
   };
 
-  // Full-width dark section band with a centered white title — the section
-  // header style used across the Risansi quotation sheets.
-  const BAND_HEIGHT = 20;
+  // Full-width dark section band with a centered white title.
   const drawSectionBand = (title: string) => {
     doc.setFillColor(SECTION_BAND[0], SECTION_BAND[1], SECTION_BAND[2]);
-    doc.rect(margin, y, contentWidth, BAND_HEIGHT, "F");
+    doc.rect(margin, state.y, contentWidth, BAND_HEIGHT, "F");
     doc.setFontSize(10.5);
     doc.setTextColor(BAND_TEXT[0], BAND_TEXT[1], BAND_TEXT[2]);
     doc.setFont("helvetica", "bold");
-    doc.text(title.toUpperCase(), pageWidth / 2, y + BAND_HEIGHT / 2 + 3.5, {
+    doc.text(title.toUpperCase(), pageWidth / 2, state.y + BAND_HEIGHT / 2 + 3.5, {
       align: "center",
     });
-    y += BAND_HEIGHT;
+    state.y += BAND_HEIGHT;
   };
 
-  // --- Header: logo, generated date/by ---
+  // The pump anchor table (if any) followed by one banded table per section.
+  const drawSections = (
+    pumpFields: SelectionSummaryPdfField[],
+    sections: SelectionSummaryPdfSection[],
+  ) => {
+    const pumpRows = filledRows(pumpFields);
+    if (pumpRows.length > 0) {
+      ensureTableFits(pumpRows, BAND_HEIGHT + 4);
+      drawSectionBand("Pump Selection");
+      drawTable(pumpRows);
+    }
+    for (const section of sections) {
+      const rows = filledRows(section.items);
+      if (rows.length === 0) continue;
+      ensureTableFits(rows, BAND_HEIGHT + 4);
+      drawSectionBand(section.title);
+      drawTable(rows);
+    }
+  };
+
+  return {
+    pageWidth,
+    pageHeight,
+    margin,
+    contentWidth,
+    BAND_HEIGHT,
+    state,
+    ensureSpace,
+    drawTable,
+    drawSectionBand,
+    drawSections,
+  };
+}
+
+type Layout = ReturnType<typeof createLayout>;
+
+// Logo + generated date/by + title + project line. Advances the cursor to the
+// start of the body.
+async function drawReportHeader(
+  doc: jsPDF,
+  L: Layout,
+  opts: { title: string; projectLine: string; generatedBy?: string },
+) {
+  const { margin, pageWidth } = L;
   const logo = await loadImageAsDataUrl("/logo.png");
   if (logo) {
     const targetH = 36;
     const targetW = (logo.width / logo.height) * targetH;
-    doc.addImage(logo.dataUrl, margin, y, targetW, targetH);
+    doc.addImage(logo.dataUrl, margin, L.state.y, targetW, targetH);
   }
   doc.setFontSize(9);
   doc.setTextColor(110);
@@ -190,52 +227,35 @@ export async function downloadSelectionSummaryPdf(
     month: "long",
     year: "numeric",
   });
-  doc.text(`Generated: ${dateStr}`, pageWidth - margin, y + 14, { align: "right" });
-  if (input.generatedBy) {
-    doc.text(`Generated by ${input.generatedBy}`, pageWidth - margin, y + 28, { align: "right" });
+  doc.text(`Generated: ${dateStr}`, pageWidth - margin, L.state.y + 14, { align: "right" });
+  if (opts.generatedBy) {
+    doc.text(`Generated by ${opts.generatedBy}`, pageWidth - margin, L.state.y + 28, {
+      align: "right",
+    });
   }
-  y += 55;
+  L.state.y += 55;
 
   doc.setFontSize(17);
   doc.setTextColor(20);
   doc.setFont("helvetica", "bold");
-  doc.text("Pump Selection Summary Report", margin, y);
-  y += 6;
+  doc.text(opts.title, margin, L.state.y);
+  L.state.y += 6;
   doc.setDrawColor(210);
-  doc.line(margin, y, pageWidth - margin, y);
-  y += 10;
+  doc.line(margin, L.state.y, pageWidth - margin, L.state.y);
+  L.state.y += 10;
 
-  doc.setFontSize(10);
-  doc.setTextColor(80);
-  doc.setFont("helvetica", "normal");
-  const projectLine = [input.projectCode, input.projectName, input.customerName]
-    .filter(Boolean)
-    .join("  •  ");
-  if (projectLine) {
-    doc.text(projectLine, margin, y + 12);
-    y += 12;
+  if (opts.projectLine) {
+    doc.setFontSize(10);
+    doc.setTextColor(80);
+    doc.setFont("helvetica", "normal");
+    doc.text(opts.projectLine, margin, L.state.y + 12);
+    L.state.y += 12;
   }
-  y += 16;
+  L.state.y += 16;
+}
 
-  // --- Pump Selection — the report's anchor, always first ---
-  const pumpRows = filledRows(input.pumpFields);
-  if (pumpRows.length > 0) {
-    ensureTableFits(pumpRows, BAND_HEIGHT + 4);
-    drawSectionBand("Pump Selection");
-    drawTable(pumpRows);
-  }
-
-  // --- One banded table per section ---
-  for (const section of input.sections) {
-    const rows = filledRows(section.items);
-    if (rows.length === 0) continue;
-
-    ensureTableFits(rows, BAND_HEIGHT + 4);
-    drawSectionBand(section.title);
-    drawTable(rows);
-  }
-
-  // --- Footer on every page ---
+function drawFooter(doc: jsPDF, L: Layout) {
+  const { pageWidth, pageHeight, margin } = L;
   const pageCount = doc.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
@@ -247,10 +267,212 @@ export async function downloadSelectionSummaryPdf(
       align: "right",
     });
   }
+}
 
-  const safeProject = input.projectCode.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "");
+function projectLineOf(
+  input: { projectCode: string; projectName?: string; customerName?: string },
+): string {
+  return [input.projectCode, input.projectName, input.customerName].filter(Boolean).join("  •  ");
+}
+
+function safeSlug(s: string): string {
+  return s.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "");
+}
+
+export async function downloadSelectionSummaryPdf(
+  input: SelectionSummaryPdfInput,
+): Promise<SelectionSummaryPdfResult> {
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const L = createLayout(doc);
+
+  await drawReportHeader(doc, L, {
+    title: "Pump Selection Summary Report",
+    projectLine: projectLineOf(input),
+    generatedBy: input.generatedBy,
+  });
+
+  L.drawSections(input.pumpFields, input.sections);
+  drawFooter(doc, L);
+
   const dateSlug = new Date().toISOString().slice(0, 10);
-  const filename = `Selection-Summary-${safeProject || "project"}-${dateSlug}.pdf`;
+  const filename = `Selection-Summary-${safeSlug(input.projectCode) || "project"}-${dateSlug}.pdf`;
+  doc.save(filename);
+
+  return { filename, bytes: doc.output("arraybuffer") };
+}
+
+// --- Combined enquiry document (all tags / liquids in one sheet) ------------
+
+export interface EnquiryDocumentTag {
+  tagName: string;
+  /** Shown on the tag divider bar, when known (from the tag's Liquid
+   * Parameters). */
+  liquid?: string;
+  pumpType?: string;
+  pumpFields: SelectionSummaryPdfField[];
+  sections: SelectionSummaryPdfSection[];
+}
+
+export interface EnquiryDocumentPdfInput {
+  projectCode: string;
+  projectName?: string;
+  customerName?: string;
+  generatedBy?: string;
+  tags: EnquiryDocumentTag[];
+}
+
+// --- Columnar matrix (one column per tag / liquid) --------------------------
+
+export interface EnquiryMatrixRow {
+  label: string;
+  /** One value per tag, in tag order; "" when that tag has no value. */
+  values: string[];
+}
+export interface EnquiryMatrixSection {
+  title: string;
+  rows: EnquiryMatrixRow[];
+}
+export interface EnquiryMatrix {
+  tags: { name: string; liquid?: string; pumpType?: string }[];
+  sections: EnquiryMatrixSection[];
+}
+
+/** Pivots the per-tag reports into the Risansi quotation matrix: parameters
+ * (grouped into their sections) as rows, one column per tag. Section order and
+ * row order follow first-seen across the tags, so a parameter present on any
+ * tag gets a row (blank for tags that don't have it). Used by both the PDF and
+ * the on-screen document so they stay identical. */
+export function buildEnquiryMatrix(tags: EnquiryDocumentTag[]): EnquiryMatrix {
+  // Each tag as an ordered list of { section title, [label,value] items }. A
+  // non-empty pumpFields becomes a leading "Pump Selection" section.
+  const perTag = tags.map((t) => {
+    const secs: { title: string; items: SelectionSummaryPdfField[] }[] = [];
+    if (filledRows(t.pumpFields).length > 0) {
+      secs.push({ title: "Pump Selection", items: t.pumpFields });
+    }
+    for (const s of t.sections) secs.push({ title: s.title, items: s.items });
+    return secs;
+  });
+
+  // Section titles in first-seen order across all tags.
+  const sectionOrder: string[] = [];
+  for (const secs of perTag) {
+    for (const s of secs) if (!sectionOrder.includes(s.title)) sectionOrder.push(s.title);
+  }
+
+  const sections: EnquiryMatrixSection[] = [];
+  for (const title of sectionOrder) {
+    const labelOrder: string[] = [];
+    // Per-tag label -> value map for this section (only non-empty values kept).
+    const maps: Map<string, string>[] = perTag.map((secs) => {
+      const map = new Map<string, string>();
+      for (const s of secs) {
+        if (s.title !== title) continue;
+        for (const [label, value] of s.items) {
+          if (!labelOrder.includes(label)) labelOrder.push(label);
+          const v = value == null ? "" : String(value).trim();
+          if (v !== "") map.set(label, v);
+        }
+      }
+      return map;
+    });
+    const rows: EnquiryMatrixRow[] = [];
+    for (const label of labelOrder) {
+      const values = maps.map((m) => m.get(label) ?? "");
+      if (values.some((v) => v !== "")) rows.push({ label, values });
+    }
+    if (rows.length > 0) sections.push({ title, rows });
+  }
+
+  // Identify each tag column with a "Tag" row at the very top of the first
+  // section (like the quotation's "Tag No." row), rather than a column header -
+  // the liquid and pump type already have their own rows below.
+  if (sections.length > 0) {
+    sections[0].rows.unshift({ label: "Tag", values: tags.map((t) => t.tagName) });
+  }
+
+  return {
+    tags: tags.map((t) => ({ name: t.tagName, liquid: t.liquid, pumpType: t.pumpType })),
+    sections,
+  };
+}
+
+/** One document covering every confirmed tag in an enquiry, laid out as the
+ * Risansi technical-quotation matrix: parameters down the side, one column per
+ * tag (liquid), section header bands spanning all columns. Landscape once there
+ * are more than two tags, so the columns have room. */
+export async function downloadEnquiryDocumentPdf(
+  input: EnquiryDocumentPdfInput,
+): Promise<SelectionSummaryPdfResult> {
+  const matrix = buildEnquiryMatrix(input.tags);
+  const nTags = matrix.tags.length;
+  const landscape = nTags > 2;
+  const doc = new jsPDF({
+    unit: "pt",
+    format: "a4",
+    orientation: landscape ? "landscape" : "portrait",
+  });
+  const L = createLayout(doc);
+
+  await drawReportHeader(doc, L, {
+    title: "Enquiry Technical Quotation",
+    projectLine: projectLineOf(input),
+    generatedBy: input.generatedBy,
+  });
+
+  const colCount = 1 + nTags;
+  const labelW = Math.min(150, L.contentWidth / colCount + 40);
+  const tagW = (L.contentWidth - labelW) / Math.max(nTags, 1);
+
+  const bandCell = (content: string, colSpan: number) => ({
+    content,
+    colSpan,
+    styles: {
+      fillColor: SECTION_BAND,
+      textColor: BAND_TEXT,
+      fontStyle: "bold" as const,
+      halign: "center" as const,
+    },
+  });
+
+  // Body: a full-width section band row, then that section's parameter rows.
+  // The first row of the first section is the "Tag" identity row (see
+  // buildEnquiryMatrix), so no column header is needed.
+  const body: RowInput[] = [];
+  for (const section of matrix.sections) {
+    body.push([bandCell(section.title.toUpperCase(), colCount)]);
+    for (const row of section.rows) {
+      body.push([
+        { content: row.label, styles: { fontStyle: "bold" } },
+        ...row.values.map((v) => ({ content: v, styles: { halign: "center" as const } })),
+      ]);
+    }
+  }
+
+  autoTable(doc, {
+    startY: L.state.y,
+    margin: { left: L.margin, right: L.margin },
+    body,
+    theme: "grid",
+    styles: {
+      fontSize: 8,
+      cellPadding: 4,
+      lineColor: CELL_BORDER,
+      lineWidth: 0.5,
+      valign: "top",
+      overflow: "linebreak",
+      textColor: 40,
+    },
+    columnStyles: {
+      0: { cellWidth: labelW, fontStyle: "bold" },
+      ...Object.fromEntries(matrix.tags.map((_, i) => [i + 1, { cellWidth: tagW }])),
+    },
+  });
+
+  drawFooter(doc, L);
+
+  const dateSlug = new Date().toISOString().slice(0, 10);
+  const filename = `Enquiry-Quotation-${safeSlug(input.projectCode) || "enquiry"}-${dateSlug}.pdf`;
   doc.save(filename);
 
   return { filename, bytes: doc.output("arraybuffer") };

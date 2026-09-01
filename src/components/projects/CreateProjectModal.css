@@ -189,3 +189,120 @@
   color: var(--fg-3, #6e7781);
   line-height: 1.4;
 }
+
+/* --- Client lookup (Market Intell client master, read-only) --------------
+   Debounced typeahead over client code / legal name. Results list sits under
+   the search box; each row offers a Select button that prefills the client
+   fields below. */
+.client-results {
+  margin-top: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-elev, #f7f8fa);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.client-results-msg {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--fg-3, #6e7781);
+}
+.client-results-error {
+  color: var(--neg, #b42318);
+}
+
+.client-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.client-result:last-child {
+  border-bottom: none;
+}
+
+.client-result-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.client-result-code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--fg-3, #6e7781);
+}
+.client-result-name {
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.client-result-industry {
+  font-size: 11px;
+  color: var(--fg-3, #6e7781);
+}
+
+.client-select-btn {
+  flex: none;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--accent, #0a3d8f);
+  background: var(--accent, #0a3d8f);
+  color: #fff;
+  cursor: pointer;
+}
+.client-select-btn:hover {
+  filter: brightness(1.08);
+}
+
+/* The chosen client, shown in place of the search box until "Change". */
+.client-picked {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--pos, #059669);
+  background: var(--pos-soft, #ecfdf5);
+  border-radius: var(--radius-md, 8px);
+}
+.client-picked-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.client-picked-code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--fg-3, #6e7781);
+}
+.client-picked-name {
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.client-picked-industry {
+  font-size: 11px;
+  color: var(--fg-3, #6e7781);
+}
+
+.client-change-btn {
+  flex: none;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--line);
+  background: var(--bg-paper, #fff);
+  color: var(--fg, #1f2328);
+  cursor: pointer;
+}
+.client-change-btn:hover {
+  background: var(--bg-elev, #f7f8fa);
+}

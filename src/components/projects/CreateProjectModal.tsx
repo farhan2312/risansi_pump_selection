@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./CreateProjectModal.css";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
+import { searchClients, type ClientLookupRow } from "../../services/clientsService";
 
 type Props = {
   isOpen: boolean;
@@ -24,6 +26,11 @@ export function enquiryPrefix(now: Date = new Date()): string {
   return `RIL/EN/${yy(start)}-${yy(start + 1)}/`;
 }
 
+// Shorter than the typical typing cadence, long enough that a full client name
+// costs one request rather than one per keystroke.
+const SEARCH_DEBOUNCE_MS = 300;
+const MIN_QUERY = 2;
+
 const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
   const [enquiryNo, setEnquiryNo] = useState<string>(() => enquiryPrefix());
   const [clientName, setClientName] = useState("");
@@ -31,6 +38,17 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
   const [industry, setIndustry] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // --- Client lookup (Market Intell client master, read-only) ---
+  const [query, setQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(query, SEARCH_DEBOUNCE_MS);
+  const [results, setResults] = useState<ClientLookupRow[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  // Set once a row is picked, so the picked row's summary replaces the result
+  // list instead of the list reappearing under the (now filled) fields.
+  const [picked, setPicked] = useState<ClientLookupRow | null>(null);
+  const reqId = useRef(0);
 
   // Refresh the prefix each time the modal opens - covers the rare Apr-1
   // rollover mid-session, and resets the field after a cancelled attempt.
@@ -42,9 +60,53 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
     setError("");
   }, [isOpen]);
 
+  // Fire one search per typing pause. `reqId` drops out-of-order responses so
+  // a slow earlier request cannot overwrite the newest results.
+  useEffect(() => {
+    const q = debouncedQuery.trim();
+    if (!isOpen || picked || q.length < MIN_QUERY) {
+      setResults([]);
+      setSearching(false);
+      setSearchError("");
+      return;
+    }
+    const id = ++reqId.current;
+    setSearching(true);
+    setSearchError("");
+    searchClients(q)
+      .then((rows) => {
+        if (id !== reqId.current) return;
+        setResults(rows);
+        setSearching(false);
+      })
+      .catch(() => {
+        if (id !== reqId.current) return;
+        setResults([]);
+        setSearching(false);
+        setSearchError("Client lookup is unavailable right now.");
+      });
+  }, [debouncedQuery, isOpen, picked]);
+
   if (!isOpen) return null;
 
   const currentPrefix = enquiryPrefix();
+
+  const handleSelect = (row: ClientLookupRow) => {
+    setClientCode(row.code);
+    setClientName(row.legal_name);
+    setIndustry(row.industry ?? "");
+    setPicked(row);
+    setResults([]);
+    setQuery("");
+    setError("");
+  };
+
+  // Clearing the pick leaves the fields as they are (still editable) and lets
+  // the search box work again.
+  const handleClearPick = () => {
+    setPicked(null);
+    setQuery("");
+  };
 
   const handleCreate = async () => {
     if (saving) return;
@@ -71,6 +133,13 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
     // open so the user can fix it. null means success - the parent closes it.
     if (msg) setError(msg);
   };
+
+  const showNoMatch =
+    !searching &&
+    !searchError &&
+    !picked &&
+    debouncedQuery.trim().length >= MIN_QUERY &&
+    results.length === 0;
 
   return (
     <div className="modal-overlay">
@@ -106,6 +175,76 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
               Prefilled with the current fiscal-year prefix. Type the suffix
               after the trailing slash - the full string is what gets saved.
             </p>
+          </div>
+
+          <div className="form-group">
+            <label>Find client</label>
+            {picked ? (
+              <div className="client-picked">
+                <div className="client-picked-main">
+                  <span className="client-picked-code">{picked.code}</span>
+                  <span className="client-picked-name">{picked.legal_name}</span>
+                  <span className="client-picked-industry">
+                    {picked.industry || "-"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="client-change-btn"
+                  onClick={handleClearPick}
+                >
+                  Change
+                </button>
+              </div>
+            ) : (
+              <>
+                <input
+                  value={query}
+                  placeholder="Type client code or client name..."
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+                <p className="modal-hint">
+                  Searches the client master. Pick a result to prefill the
+                  fields below, or just fill them in manually.
+                </p>
+              </>
+            )}
+
+            {!picked &&
+              (searching || searchError || showNoMatch || results.length > 0) && (
+                <div className="client-results">
+                  {searching && <div className="client-results-msg">Searching...</div>}
+                  {searchError && (
+                    <div className="client-results-msg client-results-error">
+                      {searchError}
+                    </div>
+                  )}
+                  {showNoMatch && (
+                    <div className="client-results-msg">
+                      No client matches that code or name.
+                    </div>
+                  )}
+                  {!searching &&
+                    results.map((row) => (
+                      <div className="client-result" key={row.code}>
+                        <div className="client-result-main">
+                          <span className="client-result-code">{row.code}</span>
+                          <span className="client-result-name">{row.legal_name}</span>
+                          <span className="client-result-industry">
+                            {row.industry || "-"}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          className="client-select-btn"
+                          onClick={() => handleSelect(row)}
+                        >
+                          Select
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              )}
           </div>
 
           <div className="form-group">
