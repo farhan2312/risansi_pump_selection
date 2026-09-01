@@ -260,6 +260,7 @@ const reconstructAiSuggestion = (f: any): MocComponentSuggestions | null => {
     statorRubber: f.mocAiSuggestedStatorRubber || "",
     statorSleeve: f.mocAiSuggestedStatorSleeve || "",
     sealRecommendation: f.mocAiSuggestedSealRecommendation || "",
+    sealMoc: f.mocAiSuggestedSealMoc || "",
     sealRationale: f.mocAiSuggestedSealRationale || "",
     summary: f.mocAiSuggestedSummary || "",
     alternatives: f.mocAiSuggestedAlternatives || "",
@@ -284,6 +285,7 @@ const CLEARED_AI_FIELDS = {
   mocAiSuggestedSummary: "",
   mocAiSuggestedAlternatives: "",
   mocAiSuggestedSealRecommendation: "",
+  mocAiSuggestedSealMoc: "",
   mocAiSuggestedSealRationale: "",
   mocAiGeneratedAt: "",
 } as const;
@@ -491,6 +493,7 @@ const MocDetailsStep = ({
             mocAiSuggestedSummary: suggestion.summary,
             mocAiSuggestedAlternatives: suggestion.alternatives,
             mocAiSuggestedSealRecommendation: suggestion.sealRecommendation,
+            mocAiSuggestedSealMoc: suggestion.sealMoc,
             mocAiSuggestedSealRationale: suggestion.sealRationale,
             mocAiGeneratedAt: new Date().toISOString(),
           };
@@ -843,6 +846,11 @@ const MocDetailsStep = ({
                   <div className="mt-1 text-[14px] font-semibold text-fg">
                     {aiSuggestion.sealRecommendation || "—"}
                   </div>
+                  {aiSuggestion.sealMoc && (
+                    <div className="mt-1 text-[12px] text-emerald-900">
+                      <span className="font-semibold">Seal MOC:</span> {aiSuggestion.sealMoc}
+                    </div>
+                  )}
                   {aiSuggestion.sealRationale && (
                     <MarkdownLite text={aiSuggestion.sealRationale} className="mt-1 text-[12px] text-emerald-900" />
                   )}

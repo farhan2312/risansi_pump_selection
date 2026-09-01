@@ -87,7 +87,7 @@ const FIELDS: Record<TableKey, readonly string[]> = {
     "mocAiSuggestedRotor", "mocAiSuggestedShaft", "mocAiSuggestedStatorRubber",
     "mocAiSuggestedStatorSleeve",
     "mocAiSuggestedSummary", "mocAiSuggestedAlternatives",
-    "mocAiSuggestedSealRecommendation", "mocAiSuggestedSealRationale",
+    "mocAiSuggestedSealRecommendation", "mocAiSuggestedSealMoc", "mocAiSuggestedSealRationale",
     "mocAiGeneratedAt",
   ],
   "motor-drive": [

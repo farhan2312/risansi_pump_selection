@@ -54,6 +54,9 @@ export interface MocComponentSuggestions {
   /** Stator sleeve - wetted on Vertical pumps, structural on Horizontal. */
   statorSleeve: string;
   sealRecommendation: string;
+  /** MOC of the recommended seal - mechanical seal body/face/O-ring, or the
+   * gland packing material. */
+  sealMoc: string;
   /** Short (1-2 sentence) reason for the seal pick specifically. */
   sealRationale: string;
   /** Detailed multi-paragraph engineering report — rendered in the Summary

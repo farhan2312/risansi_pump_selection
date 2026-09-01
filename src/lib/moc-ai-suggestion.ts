@@ -102,6 +102,10 @@ export interface MocComponentSuggestions {
   statorSleeve: string;
   // Sealing
   sealRecommendation: string;
+  /** MOC of the recommended seal itself — for a Mechanical Seal: body/metal
+   * grade, face pair and O-ring elastomer; for Gland Packing: the packing
+   * material. */
+  sealMoc: string;
   sealRationale: string;
   // Report content (rendered in the UI's Summary panel and exported to PDF)
   summary: string;
@@ -114,7 +118,7 @@ export interface MocComponentSuggestions {
 const BASE_REQUIRED_FIELDS: (keyof MocComponentSuggestions)[] = [
   "bearingHousing", "tieRod", "nutBolt",
   "pumpHousing", "rotor", "shaft", "statorRubber", "statorSleeve",
-  "sealRecommendation", "sealRationale", "summary", "alternatives",
+  "sealRecommendation", "sealMoc", "sealRationale", "summary", "alternatives",
 ];
 
 /** The plate that actually exists on this pump type — the only one the model
@@ -220,9 +224,25 @@ function schemaPropertiesFor(pumpType: string | null) {
         : "On this HORIZONTAL pump the stator sleeve is " + DRY,
     },
     sealRecommendation: { type: "string", enum: [...MOC_AI_SEAL_TYPES] },
+    sealMoc: {
+      type: "string",
+      description:
+        "Material of construction of the recommended seal, matched to the media chemistry/abrasion. " +
+        "For a Mechanical Seal: state the build - metal/body grade (e.g. SS316), face pair (e.g. SiC/SiC or Carbon/SiC) and O-ring elastomer. " +
+        "For Gland Packing: the packing material (e.g. PTFE-graphite or aramid/PTFE).",
+    },
     sealRationale: { type: "string" },
-    summary: { type: "string", description: "Detailed markdown: ## headers, **bold**, bullet lists, and | pipe tables |." },
-    alternatives: { type: "string", description: "Markdown including a | pipe table | of alternatives and trade-offs." },
+    summary: {
+      type: "string",
+      description:
+        "Concise markdown: Key Design Drivers bullets + ONE Component/Material/Why | pipe table |. " +
+        "Do NOT include an operating-parameters table, a seal comparison table, or an alternatives table - those are separate report sections.",
+    },
+    alternatives: {
+      type: "string",
+      description:
+        "Markdown with ONE | pipe table | of alternative materials and trade-offs. Do not restate the primary selection or the summary.",
+    },
   };
 }
 
@@ -236,15 +256,17 @@ function buildPrompt(context: MocAiContext, processData: string): string {
     ? `${context.capacity} ${context.capacityUnit ?? ""}`.trim()
     : "n/a";
   // Enumerate which of the ancillary parameters the user did NOT enter, so
-  // the model knows to fill those with typical values for the media (and
-  // label them (estimated)) in the summary's Operating Parameters section.
+  // the model knows to assume a typical value for the media and flag it
+  // (estimated). Kept to a one-line note in the summary — the input values
+  // themselves are already printed in the report's process-data table, so the
+  // summary must NOT reprint a full parameters table.
   const missing: string[] = [];
   if (!context.ph) missing.push("pH");
   if (!context.temperatureC) missing.push("Temperature");
   if (!context.viscosityCp) missing.push("Viscosity");
   const missingClause =
     missing.length > 0
-      ? `Not provided: ${missing.join(", ")}. In the summary's Operating Parameters section, include a typical value for each missing one for this media, labeled (estimated). `
+      ? `Not provided: ${missing.join(", ")}. In the summary, note the typical value you assumed for each, labeled (estimated), in one line - do not reprint the other parameters. `
       : "";
   const pumpType = context.pumpType ? context.pumpType : "not specified";
   const vertical = context.pumpType === "Vertical";
@@ -266,10 +288,10 @@ function buildPrompt(context: MocAiContext, processData: string): string {
     sleeveClause +
     MOC_REFERENCE +
     `don’t want to use costly material unnecessarily. So material choice should be optimum \n`+
-    `Recommend low-cost reliable MOC (per component), stator elastomer, shaft seal.\n` +
+    `Recommend low-cost reliable MOC (per component), stator elastomer, the shaft seal type AND the seal's own MOC (mechanical seal: body/face/O-ring; gland packing: packing material).\n` +
     `${missingClause}` +
-    `summary: detailed markdown engineering note — start with an Operating Parameters section listing Media, Head, Capacity, pH, Temperature, Viscosity (with (estimated) for any not provided); then use ## headers, **bold**, bullet lists AND | pipe tables |, e.g. a Component/Material/Why table and a Mechanical Seal vs Gland Packing comparison table. ` +
-    `alternatives: markdown with a | pipe table | of alternative materials and trade-offs. ` +
+    `summary: concise markdown engineering note. The report already prints the input parameters, the seal recommendation, and the alternatives separately, so DO NOT repeat any of those here (no operating-parameters table, no seal comparison table, no alternatives table). Cover only: a short Key Design Drivers list (bullets) and ONE Component / Material / Why | pipe table | for the wetted metals, stator elastomer and structural parts. Use ## headers and **bold**. Keep it tight. ` +
+    `alternatives: markdown with ONE | pipe table | of alternative materials and their trade-offs - do not restate the primary selection or the summary. ` +
     `IMPORTANT: use plain ASCII only. No emoji, no unicode symbols (avoid these: check-mark, cross, warning-triangle, approx-symbol, arrow, bullet-dot). Use "OK" / "X" / "!" / "~" / "->" / "-" instead.` +
     (processData ? `\nOther data:\n${processData}` : "") +
     (context.clientRequirementsFile
@@ -322,6 +344,7 @@ function coerceSuggestions(
     statorRubber: get("statorRubber"),
     statorSleeve: get("statorSleeve"),
     sealRecommendation: get("sealRecommendation"),
+    sealMoc: get("sealMoc"),
     sealRationale: get("sealRationale"),
     summary: get("summary"),
     alternatives: get("alternatives"),

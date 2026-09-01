@@ -75,7 +75,7 @@ const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
     "mocAiSuggestedRotor", "mocAiSuggestedShaft", "mocAiSuggestedStatorRubber",
     "mocAiSuggestedStatorSleeve",
     "mocAiSuggestedSummary", "mocAiSuggestedAlternatives",
-    "mocAiSuggestedSealRecommendation", "mocAiSuggestedSealRationale",
+    "mocAiSuggestedSealRecommendation", "mocAiSuggestedSealMoc", "mocAiSuggestedSealRationale",
     "mocAiGeneratedAt",
   ],
   "motor-drive": [
@@ -314,6 +314,7 @@ const PumpSelectionPage = () => {
     mocAiSuggestedSummary: "",
     mocAiSuggestedAlternatives: "",
     mocAiSuggestedSealRecommendation: "",
+    mocAiSuggestedSealMoc: "",
     mocAiSuggestedSealRationale: "",
     mocAiGeneratedAt: "",
 

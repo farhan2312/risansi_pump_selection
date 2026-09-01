@@ -401,6 +401,21 @@ export async function downloadMocReportPdf(input: MocPdfInput): Promise<MocPdfRe
   doc.setTextColor(...POS_GREEN);
   doc.text(sanitizeForPdf(input.suggestion.sealRecommendation || "-"), margin, y);
   y += 14;
+  if (input.suggestion.sealMoc && input.suggestion.sealMoc.trim() !== "") {
+    ensureSpace(16);
+    doc.setFontSize(9.5);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(40);
+    y = renderMarkdown(
+      doc,
+      `**Seal MOC:** ${input.suggestion.sealMoc}`,
+      margin,
+      contentWidth,
+      pageHeight,
+      y,
+    );
+    y += 2;
+  }
   y = renderMarkdown(doc, input.suggestion.sealRationale || "", margin, contentWidth, pageHeight, y);
   y += 4;
 

@@ -344,6 +344,7 @@ export const mocSealingInput = pgTable("moc_sealing_input", {
   mocAiSuggestedSummary: text("ai_summary"),
   mocAiSuggestedAlternatives: text("ai_alternatives"),
   mocAiSuggestedSealRecommendation: text("ai_seal_recommendation"),
+  mocAiSuggestedSealMoc: text("ai_seal_moc"),
   mocAiSuggestedSealRationale: text("ai_seal_rationale"),
   mocAiGeneratedAt: timestamp("ai_generated_at", { withTimezone: true }),
   // The generated MOC PDF report, saved as raw bytes when downloaded.

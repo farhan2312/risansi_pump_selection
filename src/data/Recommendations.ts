@@ -180,6 +180,7 @@ export interface PumpSelectionFormData {
   mocAiSuggestedSummary?: string;
   mocAiSuggestedAlternatives?: string;
   mocAiSuggestedSealRecommendation?: string;
+  mocAiSuggestedSealMoc?: string;
   mocAiSuggestedSealRationale?: string;
   mocAiGeneratedAt?: string;
   driveMotorKw?: string; // final drive motor rating (KW) chosen on the Motor Rating step
