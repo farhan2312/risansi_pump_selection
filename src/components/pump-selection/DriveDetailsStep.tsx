@@ -143,7 +143,7 @@ const GB_CONSTRUCTION_TYPES = ["IN LINE HELICAL", "PLANTERY", "PARALLEL SHAFT"];
 //   Vertical            -> HISO, No Coupling, GB Flange, Motor Flange
 //                          (and GB construction forced to IN LINE HELICAL)
 //   Horizontal + inline -> HISO, Driven Coupling, GB Foot,
-//                          Motor Flange if KW >= 15 else Foot cum Flange
+//                          Motor Foot cum Flange if KW >= 15 else Flange
 //   Horizontal + planetary/parallel
 //                       -> SISO, Drive + Driven Coupling, GB Foot, Motor Foot
 // These are auto-filled as editable DEFAULTS (see the effect in the
@@ -177,7 +177,7 @@ function deriveGearedDefaults(
       driveCoupling: "Driven Coupling",
       gearBoxMounting: "Foot Mount B3",
       driveMotorMounting:
-        Number.isFinite(kw) && kw >= 15 ? "Flange B5" : "Foot cum Flange B35",
+        Number.isFinite(kw) && kw >= 15 ? "Foot cum Flange B35" : "Flange B5",
     };
   }
   if (gbConstructionType === "PLANTERY" || gbConstructionType === "PARALLEL SHAFT") {
