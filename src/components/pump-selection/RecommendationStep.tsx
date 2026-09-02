@@ -10,6 +10,7 @@ import {
   downloadSelectionSummaryPdf,
   type SelectionSummaryPdfSection,
 } from "../../lib/selection-summary-pdf";
+import { mechSealDescription } from "./SealingDetailsStep";
 import { getReportSummary, saveReportSummary, uploadFinalReport } from "../../services/reportsService";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import type {
@@ -232,6 +233,9 @@ const RecommendationStep = ({
     // Mechanical Seal detail (empty rows are dropped by FieldGrid, so only the
     // fields relevant to the chosen arrangement show).
     ["Mechanical Seal Type", formData.sealingSubType],
+    // Derived from the seal type (not stored) - same source the Sealing step's
+    // description box uses, so the summary and PDF read identically.
+    ["Seal Description", mechSealDescription(formData.sealingSubType)],
     ["Seal MOC", formData.mechSealMoc],
     ["Seal Face", formData.mechSealFace],
     ["Seal Make", formData.mechSealMake],
