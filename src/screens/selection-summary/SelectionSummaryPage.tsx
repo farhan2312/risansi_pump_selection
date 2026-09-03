@@ -20,6 +20,7 @@ import {
   type EnquiryDocumentTag,
   type SelectionSummaryPdfSection,
 } from "../../lib/selection-summary-pdf";
+import { printEnquiryDocument } from "../../lib/enquiry-print";
 
 // A saved summary can still carry the retired "Selected Motor" section and the
 // Testing rows; drop them so a regenerated PDF matches the current report spec.
@@ -577,6 +578,8 @@ const EnquiryDocumentModal = ({
     };
   }, [group]);
 
+  const [printing, setPrinting] = useState(false);
+
   const isLoading = loaded === null && error === null;
   const anySummary = (loaded ?? []).some((x) => x.summary != null);
   const matrix = useMemo(
@@ -591,6 +594,26 @@ const EnquiryDocumentModal = ({
       await downloadEnquiryDoc(group, loaded);
     } finally {
       setDownloading(false);
+    }
+  };
+
+  // Opens the browser's own print dialog, so page size, orientation, page
+  // range and "Save as PDF" are all the user's choice.
+  const handlePrint = async () => {
+    if (!matrix) return;
+    setPrinting(true);
+    try {
+      await printEnquiryDocument(
+        {
+          projectCode: group.project_code,
+          projectName: group.project_name,
+          clientCode: group.client_code,
+          generatedBy: group.created_by_name,
+        },
+        matrix,
+      );
+    } finally {
+      setPrinting(false);
     }
   };
 
@@ -667,8 +690,17 @@ const EnquiryDocumentModal = ({
         </div>
 
         <div className="summary-modal-footer">
+          {/* Native print dialog - lets the user pick paper size, orientation,
+              page range and "Save as PDF" rather than taking a fixed layout. */}
           <button
             className="summary-download-btn"
+            onClick={handlePrint}
+            disabled={printing || isLoading || !anySummary}
+          >
+            {printing ? "Preparing…" : "Print / Save as PDF"}
+          </button>
+          <button
+            className="summary-modal-close-btn"
             onClick={handleDownload}
             disabled={downloading || isLoading || !anySummary}
           >
