@@ -57,8 +57,13 @@ export async function POST(req: Request) {
     // classified, so it's excluded for that filtered view only.
     if (rpm === null) return rpmBand === "";
     switch (rpmBand) {
+      // "low" was < 200; it is now split so very slow duties can be picked out
+      // separately: vlow 0-50, low 50-200 (upper bound exclusive, so 200 stays
+      // in "medium" exactly as before).
+      case "vlow":
+        return rpm < 50;
       case "low":
-        return rpm < 200;
+        return rpm >= 50 && rpm < 200;
       case "medium":
         return rpm >= 200 && rpm <= 320;
       case "high":

@@ -33,7 +33,14 @@ export async function POST(req: Request) {
   const capacityM3hr = toM3PerHr(capacityRaw, (body.capacityUnit as string) ?? null, sg);
   const headMwc = toMwc(headRaw, (body.headUnit as string) ?? null, sg);
 
-  const drive = await computeVBeltDrive(db, model, capacityM3hr, headMwc, motorRpm, motorKw);
+  // Charted head picked for this model in the Fluid step - already a MWC
+  // value from the master, so NOT re-converted via toMwc.
+  const selectedHeadRaw = toFloat(body.selectedHead);
+  const selectedHeadMwc = selectedHeadRaw > 0 ? selectedHeadRaw : null;
+
+  const drive = await computeVBeltDrive(
+    db, model, capacityM3hr, headMwc, motorRpm, motorKw, selectedHeadMwc,
+  );
   if (!drive) return error("No pump model found for this selection", 404);
 
   return json(drive);

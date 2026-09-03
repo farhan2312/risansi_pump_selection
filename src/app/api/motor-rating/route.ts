@@ -27,7 +27,19 @@ export async function POST(req: Request) {
   const capacityM3hr = toM3PerHr(capacityRaw, (body.capacityUnit as string) ?? null, sg);
   const headMwc = toMwc(headRaw, (body.headUnit as string) ?? null, sg);
 
-  const rating = await computeMotorRating(db, model, capacityM3hr, headMwc);
+  // The head picked for this model on the recommendation card. Already a
+  // charted head in MWC (that's where the card's options come from), so it is
+  // NOT run through toMwc again.
+  const selectedHeadRaw = toFloat(body.selectedHead);
+  const selectedHeadMwc = selectedHeadRaw > 0 ? selectedHeadRaw : null;
+
+  const rating = await computeMotorRating(
+    db,
+    model,
+    capacityM3hr,
+    headMwc,
+    selectedHeadMwc,
+  );
   if (!rating) return error("No pump model found for this selection", 404);
 
   return json(rating);

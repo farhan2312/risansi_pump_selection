@@ -51,7 +51,17 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model, formData.capacity, formData.capacityUnit, formData.head, formData.headUnit, formData.sg]);
+  }, [
+    model,
+    formData.capacity,
+    formData.capacityUnit,
+    formData.head,
+    formData.headUnit,
+    // ME / Min KW tested are read at the selected head, so a different head
+    // for the same model must re-run the calculation.
+    formData.selectedHead,
+    formData.sg,
+  ]);
 
   const hasKwOptions = (rating?.kwOptions.length ?? 0) > 0;
 
@@ -130,11 +140,10 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
                 </div>
               </div>
               <p className="mt-2 text-[12px] text-fg-3">
-                BKW = Capacity × Head ÷ 367 ÷ (ME ÷ 100), at nearest charted head{" "}
-                {rating.headMwc} MWC. Recommendation = nearest standard motor KW ≥ Motor KW
-                {rating.minKwTested !== null
-                  ? `, within Min KW tested (${rating.minKwTested}).`
-                  : "."}
+                BKW = Capacity × Head ÷ 367 ÷ (ME ÷ 100), at the entered duty head{" "}
+                {round(rating.dutyHeadMwc)} MWC. ME ({rating.mechEff}%) is read at the
+                selected head, {rating.headMwc} MWC. Recommendation = nearest standard
+                motor KW ≥ Motor KW.
               </p>
               {rating.exceedsMinTested && (
                 <p className="mt-2 text-[12px] text-warn">

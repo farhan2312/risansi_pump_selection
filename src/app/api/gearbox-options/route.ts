@@ -39,8 +39,14 @@ export async function POST(req: Request) {
       ? body.gbConstructionType.trim()
       : null;
 
+  // Charted head picked for this model in the Fluid step - already a MWC
+  // value from the master, so NOT re-converted via toMwc.
+  const selectedHeadRaw = toFloat(body.selectedHead);
+  const selectedHeadMwc = selectedHeadRaw > 0 ? selectedHeadRaw : null;
+
   const result = await findGearboxOptions(
     db, model, capacityM3hr, headMwc, motorKw, asfRange, gbConstructionType,
+    selectedHeadMwc,
   );
   if (!result) return error("No pump model found for this selection", 404);
 

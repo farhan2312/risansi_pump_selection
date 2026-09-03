@@ -241,6 +241,30 @@ const ELASTOMER_ROWS: ComponentRow[] = [
   },
 ];
 
+/** Maps a fresh AI suggestion onto the MANUAL formData keys for the pump
+ * type's active rows, plus the sealing arrangement. Only rows the suggestion
+ * actually answered are written, so a blank AI field never wipes an existing
+ * manual pick. The values are written verbatim — the dropdowns below list any
+ * value that isn't one of the standard options, so nothing is silently lost
+ * when the AI names a material outside the list. */
+const applySuggestionToManual = (
+  suggestion: MocComponentSuggestions,
+  pumpType: string | undefined,
+): Record<string, string> => {
+  const groups = componentGroupsFor(pumpType);
+  const rows = [...groups.nonWettable, ...groups.wettable, ...ELASTOMER_ROWS];
+  const out: Record<string, string> = {};
+  for (const row of rows) {
+    const value = (suggestion[row.aiKey] ?? "").trim();
+    if (value !== "") out[row.key] = value;
+  }
+  // The seal arrangement is its own field on the Sealing step; the AI answers
+  // it with one of the same two values that dropdown offers.
+  const seal = (suggestion.sealRecommendation ?? "").trim();
+  if (seal !== "") out.sealingType = seal;
+  return out;
+};
+
 // Rebuilds the AI suggestion object from the persisted formData fields so the
 // full post-generation panel (summary, seal recommendation, green per-
 // component cells) can be shown again after a reload. Returns null when AI has
@@ -497,9 +521,18 @@ const MocDetailsStep = ({
             mocAiSuggestedSealRationale: suggestion.sealRationale,
             mocAiGeneratedAt: new Date().toISOString(),
           };
-          setFormData((f: typeof formData) => ({ ...f, ...aiFields }));
+          // Carry the suggestion straight into the manual selections, so the
+          // form comes back already filled in rather than needing every row
+          // re-entered by hand. The dropdowns stay ordinary inputs, so any row
+          // can simply be changed afterwards.
+          const applied = applySuggestionToManual(
+            suggestion,
+            formData.pumpType as string | undefined,
+          );
+          const saved = { ...aiFields, ...applied };
+          setFormData((f: typeof formData) => ({ ...f, ...saved }));
           if (projectId) {
-            saveWizardInput("moc-sealing", projectId, aiFields, tagId).catch(() => {});
+            saveWizardInput("moc-sealing", projectId, saved, tagId).catch(() => {});
           }
         }
       })
@@ -834,7 +867,6 @@ const MocDetailsStep = ({
                           This recommendation is AI-generated for guidance only.
                           Verify the selected materials against engineering
                           standards and customer specifications before approval.
-                          Manual selections are not updated automatically.
                         </p>
                       </div>
                     </div>
@@ -900,7 +932,8 @@ const MocDetailsStep = ({
 // Recommendation | Manual (dropdown) | Open Remarks (free text). Always
 // rendered once a media is entered — the AI column just reads "—" until a
 // suggestion has been fetched. The manual dropdown + remarks are independent
-// formData fields; the AI value is informational only, never auto-applied.
+// formData fields; generating a suggestion seeds the manual column from it
+// (see applySuggestionToManual), and each row can be changed from there.
 const MocComponentTable = ({
   title,
   rows,
@@ -954,6 +987,13 @@ const MocComponentTable = ({
                     }
                   >
                     <option value="">Select</option>
+                    {/* A value carried over from the AI can name a material
+                        outside the standard list; list it so the dropdown can
+                        actually show it instead of falling back to blank. */}
+                    {formData[row.key] &&
+                      !row.options.includes(formData[row.key]) && (
+                        <option value={formData[row.key]}>{formData[row.key]}</option>
+                      )}
                     {row.options.map((opt) => (
                       <option key={opt} value={opt}>
                         {opt}

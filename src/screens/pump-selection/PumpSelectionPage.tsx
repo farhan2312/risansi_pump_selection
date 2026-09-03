@@ -617,8 +617,13 @@ const PumpSelectionPage = () => {
         formData={formData}
         setFormData={setFormData}
         projectId={project?.id}
-            tagId={project?.tagId}
+        tagId={project?.tagId}
         locked={step > 5}
+        /* Confirming happens from the Fluid step (2) on. On General
+           Information the list is still a preview - capacity/head are being
+           entered, so a confirmation there would be premature (and the Fluid
+           step is what gates on it). */
+        canConfirm={step >= 2}
       />
     </>
   );

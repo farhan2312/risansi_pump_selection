@@ -183,19 +183,38 @@ type ModelRow = typeof schema.pumpModelMaster.$inferSelect;
 
 /** RPM range string ("lo–hi" / "lo" / "—") at one head row, from the same
  * RPM = 100·Q / (QTH·VE) formula used for the duty point. */
+/** The pump's required RPM window at ONE charted head. This is the single
+ * definition of that window: the head cards in the Fluid step display it (via
+ * rpmRangeAt) and the V-Belt / gearbox screening filters against it (via
+ * computePumpRpmWindow), so both must come from here — and from the SAME head
+ * — or the drive steps would screen against a window the user never saw. */
+function rpmWindowFrom(
+  capacityM3hr: number,
+  qth: number | null,
+  voleMin: number | null,
+  voleMax: number | null,
+): { lo: number; hi: number } | null {
+  const ok =
+    qth !== null && qth > 0 &&
+    voleMin !== null && voleMin > 0 &&
+    voleMax !== null && voleMax > 0;
+  if (!ok) return null;
+  return {
+    lo: (100 * capacityM3hr) / (qth! * (voleMax! / 100)), // best case (low rpm)
+    hi: (100 * capacityM3hr) / (qth! * (voleMin! / 100)), // high rpm
+  };
+}
+
 function rpmRangeAt(
   capacityM3hr: number,
   qth: number | null,
   voleMin: number | null,
   voleMax: number | null,
 ): string {
-  const ok =
-    qth !== null && qth > 0 &&
-    voleMin !== null && voleMin > 0 &&
-    voleMax !== null && voleMax > 0;
-  if (!ok) return "—";
-  const lo = Math.round((100 * capacityM3hr) / (qth! * (voleMax! / 100))); // best case (low rpm)
-  const hi = Math.round((100 * capacityM3hr) / (qth! * (voleMin! / 100))); // high rpm
+  const w = rpmWindowFrom(capacityM3hr, qth, voleMin, voleMax);
+  if (!w) return "—";
+  const lo = Math.round(w.lo);
+  const hi = Math.round(w.hi);
   return hi > lo ? `${lo}–${hi}` : `${lo}`;
 }
 
@@ -390,8 +409,14 @@ export async function findCandidates(
 
 export interface MotorRating {
   model: string;
-  /** Nearest charted head point used for the mechanical-efficiency lookup. */
+  /** The charted head that mechanical efficiency and Min KW tested were read
+   * from: the head selected for this model when there is one, else the charted
+   * head nearest the duty. It is NOT the head the BKW formula uses. */
   headMwc: number;
+  /** The duty head the BKW formula actually uses: the head entered on General
+   * Information, converted to MWC. Surfaced so the calculation panel can name
+   * the real input instead of the charted lookup point. */
+  dutyHeadMwc: number;
   /** Mechanical efficiency (%) at the duty head for the selected model. */
   mechEff: number;
   /** BKW = Capacity × Head / 367 / (ME/100). Null if ME is 0/absent. */
@@ -431,6 +456,11 @@ export async function computeMotorRating(
   model: string,
   capacityM3hr: number,
   headMwc: number,
+  /** The charted head the engineer selected for this model on the
+   * recommendation card. Sources ME / Min KW tested; the BKW formula still
+   * uses the entered duty head above. Null/absent falls back to the charted
+   * head nearest the duty. */
+  selectedHeadMwc?: number | null,
 ): Promise<MotorRating | null> {
   const rows = await db
     .select()
@@ -438,9 +468,20 @@ export async function computeMotorRating(
     .where(eq(schema.pumpModelMaster.model, model));
   if (rows.length === 0) return null;
 
-  const nearest = rows.reduce((best, p) =>
+  // Which charted row supplies ME / Min-KW-tested. The head the engineer
+  // picked on the recommendation card IS one of the charted heads, so when it
+  // is known that exact row is used — otherwise the step would quote a
+  // different efficiency than the card the pump was chosen from. Only when no
+  // head was picked do we fall back to the row nearest the duty head.
+  const nearestToDuty = rows.reduce((best, p) =>
     Math.abs(toNum(p.headMwc) - headMwc) < Math.abs(toNum(best.headMwc) - headMwc) ? p : best,
   );
+  const atSelected =
+    selectedHeadMwc !== null && selectedHeadMwc !== undefined
+      ? rows.find((p) => Math.abs(toNum(p.headMwc) - selectedHeadMwc) < 1e-9) ?? null
+      : null;
+  const nearest = atSelected ?? nearestToDuty;
+
   const mechEff = toNum(nearest.mechEff);
   const minKwTested = toNumOrNull(nearest.minKwTested);
 
@@ -474,6 +515,7 @@ export async function computeMotorRating(
   return {
     model,
     headMwc: toNum(nearest.headMwc),
+    dutyHeadMwc: headMwc,
     mechEff,
     bkw,
     motorKw,
@@ -537,6 +579,12 @@ async function computePumpRpmWindow(
   model: string,
   headMwc: number,
   capacityM3hr: number,
+  /** The charted head selected for this model in the Fluid step. That choice
+   * already fixed the RPM window — the head card displays it — so the drive
+   * screening reads the SAME row rather than re-deriving at whichever head
+   * happens to sit nearest the duty. Null/absent keeps the old
+   * nearest-to-duty behaviour (nothing picked yet). */
+  selectedHeadMwc?: number | null,
 ): Promise<PumpRpmWindow | null> {
   const rows = await db
     .select()
@@ -544,18 +592,23 @@ async function computePumpRpmWindow(
     .where(eq(schema.pumpModelMaster.model, model));
   if (rows.length === 0) return null;
 
-  const nearest = rows.reduce((best, p) =>
+  const nearestToDuty = rows.reduce((best, p) =>
     Math.abs(toNum(p.headMwc) - headMwc) < Math.abs(toNum(best.headMwc) - headMwc) ? p : best,
   );
-  const qth = toNumOrNull(nearest.qth);
-  const voleMinPct = toNumOrNull(nearest.voleMin);
-  const voleMaxPct = toNumOrNull(nearest.voleMax);
-  if (!qth || qth <= 0 || !voleMinPct || !voleMaxPct) return null;
+  const atSelected =
+    selectedHeadMwc !== null && selectedHeadMwc !== undefined
+      ? rows.find((p) => Math.abs(toNum(p.headMwc) - selectedHeadMwc) < 1e-9) ?? null
+      : null;
+  const row = atSelected ?? nearestToDuty;
 
-  return {
-    rpmLo: (100 * capacityM3hr) / (qth * (voleMaxPct / 100)),
-    rpmHi: (100 * capacityM3hr) / (qth * (voleMinPct / 100)),
-  };
+  const w = rpmWindowFrom(
+    capacityM3hr,
+    toNumOrNull(row.qth),
+    toNumOrNull(row.voleMin),
+    toNumOrNull(row.voleMax),
+  );
+  if (!w) return null;
+  return { rpmLo: w.lo, rpmHi: w.hi };
 }
 
 /**
@@ -577,8 +630,11 @@ export async function computeVBeltDrive(
   headMwc: number,
   motorRpm: number,
   motorKw: number,
+  /** Charted head selected for this model in the Fluid step - fixes the RPM
+   * window (see computePumpRpmWindow). */
+  selectedHeadMwc: number | null = null,
 ): Promise<VBeltDrive | null> {
-  const window = await computePumpRpmWindow(db, model, headMwc, capacityM3hr);
+  const window = await computePumpRpmWindow(db, model, headMwc, capacityM3hr, selectedHeadMwc);
   if (!window) return null;
   const { rpmLo, rpmHi } = window;
 
@@ -750,8 +806,11 @@ export async function findGearboxOptions(
   motorKw: number,
   asfRange: string | null = null,
   gbConstructionType: string | null = null,
+  /** Charted head selected for this model in the Fluid step - fixes the RPM
+   * window (see computePumpRpmWindow). */
+  selectedHeadMwc: number | null = null,
 ): Promise<GearboxRecommendation | null> {
-  const window = await computePumpRpmWindow(db, model, headMwc, capacityM3hr);
+  const window = await computePumpRpmWindow(db, model, headMwc, capacityM3hr, selectedHeadMwc);
   if (!window) return null;
   const { rpmLo, rpmHi } = window;
   const rpmLoPadded = rpmLo * 0.8;

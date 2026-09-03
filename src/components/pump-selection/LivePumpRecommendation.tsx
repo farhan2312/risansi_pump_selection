@@ -24,6 +24,11 @@ type Props = {
    * Motor Rating on, the wizard is configuring the chosen pump, and swapping
    * it there would silently invalidate the motor/drive work already done. */
   locked?: boolean;
+  /** Whether the Confirm action is offered here. The model is confirmed from
+   * the Fluid step onward, not on General Information — step 1 is still being
+   * filled in, so its matches are a preview rather than a decision. Picking a
+   * card stays available everywhere; only the commit moves. */
+  canConfirm?: boolean;
 };
 
 type Status = "idle" | "loading" | "ready" | "empty" | "error";
@@ -44,7 +49,14 @@ const engineKey = (f: any) =>
     solidType: f.solidType,
   });
 
-const LivePumpRecommendation = ({ formData, setFormData, projectId, tagId, locked = false }: Props) => {
+const LivePumpRecommendation = ({
+  formData,
+  setFormData,
+  projectId,
+  tagId,
+  locked = false,
+  canConfirm = true,
+}: Props) => {
   const [recs, setRecs] = useState<PumpRecommendation[]>([]);
   const [status, setStatus] = useState<Status>("idle");
   // Local "re-pick" mode: after a model is confirmed, "Change model" re-opens
@@ -171,8 +183,12 @@ const LivePumpRecommendation = ({ formData, setFormData, projectId, tagId, locke
     showAction: boolean,
     confirmedBadge: boolean,
     point: HeadPoint | null,
+    // Cards are one-per (model + head), so "selected" is a model+head match,
+    // not just the model. Callers that only know the model omit this.
+    selectedOverride?: boolean,
   ) => {
-    const isSelected = r.model === formData.selectedModel;
+    const isSelected =
+      selectedOverride ?? r.model === formData.selectedModel;
     const size = perModelSize(r);
     return (
       <>
@@ -245,6 +261,24 @@ const LivePumpRecommendation = ({ formData, setFormData, projectId, tagId, locke
     );
   };
 
+  // One flat card per (model + head). The result set is small enough now that
+  // grouping by model added a level of nesting without adding information —
+  // every figure that differs between cards is on the card itself.
+  // A model with no computed head points still gets one card so it isn't
+  // silently dropped from the list.
+  type CardOption = { rec: PumpRecommendation; point: HeadPoint | null };
+  const options: CardOption[] = recs.flatMap((rec): CardOption[] => {
+    const points = rec.headPoints ?? [];
+    return points.length > 0
+      ? points.map((point) => ({ rec, point }))
+      : [{ rec, point: null }];
+  });
+
+  const isSelectedOption = (rec: PumpRecommendation, point: HeadPoint | null): boolean =>
+    rec.model === formData.selectedModel &&
+    point !== null &&
+    String(point.headMwc) === String(formData.selectedHead);
+
   const confirmedView = confirmed && (locked || !editing) && hasConfirmedRec;
 
   return (
@@ -312,87 +346,35 @@ const LivePumpRecommendation = ({ formData, setFormData, projectId, tagId, locke
         </p>
       ) : (
         <>
-          {recs.length > 0 && (
+          {options.length > 0 && (
             <p className="live-rec-hint">
-              {recs.length} matching {recs.length === 1 ? "model" : "models"} — each head is
-              a ready option with its own figures. Click the model + head you want, then
-              confirm.
+              {options.length} matching {options.length === 1 ? "option" : "options"} —
+              each card is a model at one head, with its own figures. Click the one you
+              want{canConfirm ? ", then confirm." : "."}
             </p>
           )}
 
           {(status === "ready" || (status === "loading" && recs.length > 0)) &&
-            recs.length > 0 && (
-              <div className="live-rec-groups">
-                {recs.map((r) => {
-                  const points = r.headPoints ?? [];
-                  const size = perModelSize(r);
-                  const isSelectedModel = r.model === formData.selectedModel;
+            options.length > 0 && (
+              <div className="live-rec-cards">
+                {options.map(({ rec, point }) => {
+                  const selected = isSelectedOption(rec, point);
                   return (
-                    <div
-                      key={r.id}
-                      className={`live-rec-group${isSelectedModel ? " is-selected-group" : ""}`}
+                    <button
+                      type="button"
+                      key={`${rec.id}-${point ? point.headMwc : "na"}`}
+                      className={`live-rec-card${selected ? " is-selected" : ""}`}
+                      onClick={() => point && selectHead(rec.model, point.headMwc)}
+                      aria-pressed={selected}
                     >
-                      {/* Model header — head-independent facts (stage, band,
-                          Qth, size, spec line). Not clickable; selection is
-                          per head card below. */}
-                      <div className="live-rec-group-head">
-                        <strong className="live-rec-group-model">{r.model}</strong>
-                        <span className="live-rec-group-facts">
-                          Stage {r.stage ?? "—"} · {r.headBandMwc ? `${r.headBandMwc} MWC` : "—"} ·
-                          Qth {r.qth != null ? r.qth : "—"} ·{" "}
-                          {size !== null ? `${size}"` : "—"}
-                          {[formData.pumpType, formData.agBk, seal].filter(Boolean).length > 0
-                            ? ` · ${[formData.pumpType, formData.agBk, seal].filter(Boolean).join(" · ")}`
-                            : ""}
-                        </span>
-                      </div>
-
-                      <div className="live-rec-headcards">
-                        {points.map((p) => {
-                          const selected =
-                            isSelectedModel &&
-                            String(p.headMwc) === String(formData.selectedHead);
-                          return (
-                            <button
-                              type="button"
-                              key={p.headMwc}
-                              className={`live-rec-headcard${selected ? " is-selected" : ""}`}
-                              onClick={() => selectHead(r.model, p.headMwc)}
-                              aria-pressed={selected}
-                            >
-                              <span className="live-rec-headcard-head">
-                                {selected ? "✓ " : ""}
-                                {p.headMwc} MWC
-                              </span>
-                              <span className="live-rec-headcard-row">
-                                <span>RPM</span>
-                                <b className="mono">{p.rpmRange}</b>
-                              </span>
-                              <span className="live-rec-headcard-row">
-                                <span>VOLE</span>
-                                <b className="mono">
-                                  {p.voleMin != null && p.voleMax != null
-                                    ? `${p.voleMin}–${p.voleMax}%`
-                                    : "—"}
-                                </b>
-                              </span>
-                              <span className="live-rec-headcard-row">
-                                <span>Mech Eff</span>
-                                <b className="mono">
-                                  {p.mechEff != null ? `${p.mechEff}%` : "—"}
-                                </b>
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
+                      {cardInner(rec, true, false, point, selected)}
+                    </button>
                   );
                 })}
               </div>
             )}
 
-          {hasConfirmedRec && formData.selectedHead && (
+          {canConfirm && hasConfirmedRec && formData.selectedHead && (
             <div className="live-rec-confirm-bar">
               <span>
                 Confirm <strong>{formData.selectedModel}</strong> at{" "}

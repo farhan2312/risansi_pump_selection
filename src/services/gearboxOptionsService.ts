@@ -36,6 +36,9 @@ export const getGearboxOptions = async (
     capacityUnit: formData.capacityUnit,
     head: formData.head,
     headUnit: formData.headUnit,
+    // Charted head chosen in the Fluid step - fixes the RPM window the belt /
+    // gearbox options are screened against, so it matches the card picked.
+    selectedHead: formData.selectedHead,
     sg: formData.sg,
     motorKw: formData.driveMotorKw,
     asfRange: formData.asfRange,

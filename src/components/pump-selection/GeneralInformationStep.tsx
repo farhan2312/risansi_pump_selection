@@ -150,7 +150,8 @@ const GeneralInformationStep = ({
               }
             >
               <option value="">Any RPM range</option>
-              <option value="low">Low ( &lt; 200 )</option>
+              <option value="vlow">Very Low ( 0 – 50 )</option>
+              <option value="low">Low ( 50 – 200 )</option>
               <option value="medium">Medium ( 200 – 320 )</option>
               <option value="high">High ( 320 – 400 )</option>
               <option value="vhigh">Very High ( &gt; 400 )</option>

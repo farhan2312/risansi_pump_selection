@@ -42,7 +42,8 @@ const withRemarks = (value?: string, remarks?: string): string | undefined => {
 };
 
 const RPM_RANGE_LABELS: Record<string, string> = {
-  low: "Low (< 200)",
+  vlow: "Very Low (0–50)",
+  low: "Low (50–200)",
   medium: "Medium (200–320)",
   high: "High (320–400)",
   vhigh: "Very High (> 400)",

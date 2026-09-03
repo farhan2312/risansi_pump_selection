@@ -42,9 +42,10 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
   margin-top: 2px;
-  /* Full match list can be long (40+ models) — cap the height and scroll
-     inside the panel so the wizard's Next/Previous buttons stay reachable. */
-  max-height: 320px;
+  /* One card per model+head, so the list can still run long — cap the height
+     and scroll inside the panel so the wizard's Next/Previous buttons stay
+     reachable. */
+  max-height: 420px;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -308,90 +309,3 @@
   background: var(--accent-soft);
 }
 
-/* --- Grouped per-head cards (one card per model+head, pre-calculated) ---- */
-
-.live-rec-groups {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 2px;
-  /* Long list (models × heads) — cap height and scroll inside the panel so
-     the wizard's Next/Previous stay reachable. */
-  max-height: 420px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
-.live-rec-group {
-  border: 1px solid var(--line);
-  border-radius: var(--radius, 6px);
-  padding: 8px 10px;
-  background: var(--bg-paper);
-}
-.live-rec-group.is-selected-group {
-  border-color: var(--title);
-}
-
-.live-rec-group-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-.live-rec-group-model {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--title, var(--fg));
-}
-.live-rec-group-facts {
-  font-size: 11px;
-  color: var(--fg-3);
-}
-
-.live-rec-headcards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  gap: 8px;
-}
-
-.live-rec-headcard {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  text-align: left;
-  cursor: pointer;
-  background: var(--bg-elev);
-  border: 1.5px solid var(--line);
-  border-radius: var(--radius, 6px);
-  padding: 6px 8px;
-  transition: border-color 0.12s, background 0.12s;
-}
-.live-rec-headcard:hover {
-  border-color: var(--accent-line, var(--accent));
-}
-.live-rec-headcard.is-selected {
-  border-color: var(--title);
-  background: var(--accent-soft);
-}
-.live-rec-headcard-head {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--fg);
-}
-.live-rec-headcard-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 6px;
-  font-size: 11px;
-}
-.live-rec-headcard-row > span {
-  color: var(--fg-3);
-}
-
-/* Narrow screens: single-column head cards. */
-@media (max-width: 560px) {
-  .live-rec-headcards {
-    grid-template-columns: 1fr;
-  }
-}

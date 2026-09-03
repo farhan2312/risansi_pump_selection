@@ -1,8 +1,13 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
 import { actions, btnGhost, btnPrimary, control, fieldWrap, fullWidth, grid, label } from "./formStyles";
+
+// Sentinel for the "type it in" branch of a make dropdown. Never stored — the
+// field holds either a listed make or whatever was typed.
+const OTHER = "Other";
 
 // Packing materials offered when Sealing Type = Gland Packing — the
 // Gland-Packing counterpart to the Mechanical Seal sub-types below.
@@ -13,7 +18,10 @@ const GLAND_PACKING_TYPES = [
   "Carbon Fiber",
   "Asbestos-Free",
 ] as const;
-const GLAND_PACKING_MAKES = ["Champion", "Other"] as const;
+// Listed makes. "Other" is offered alongside them and swaps the dropdown for a
+// free-text box, so a make that isn't on the list can still be recorded — the
+// typed value is stored in the SAME field, so nothing downstream changes.
+const GLAND_PACKING_MAKES = ["Champion"] as const;
 
 // Mechanical Seal options.
 const MECH_SEAL_TYPES = ["MSA", "SCG", "DCG", "MSK"] as const;
@@ -52,6 +60,70 @@ const MECH_SEAL_FACES = [
 ] as const;
 const MECH_SEAL_MAKES = ["ACME", "Eagle Burgmann", "Sealmatic"] as const;
 
+/** A make dropdown that falls back to free text. `options` are the listed
+ * makes; picking "Other" swaps in a text box whose value is written straight
+ * back to `value`, so the stored field is always the real make. A loaded value
+ * that isn't on the list re-opens in the "Other" state automatically. */
+const MakeField = ({
+  label: fieldLabel,
+  options,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  options: readonly string[];
+  value: string;
+  onChange: (next: string) => void;
+  placeholder: string;
+}) => {
+  const isListed = value !== "" && options.includes(value);
+  const [other, setOther] = useState(value !== "" && !isListed);
+
+  // A value loaded from the DB (or set elsewhere) that isn't one of the listed
+  // makes must show as "Other" with the text filled in.
+  useEffect(() => {
+    if (value !== "" && !options.includes(value)) setOther(true);
+  }, [value, options]);
+
+  return (
+    <div className={fieldWrap}>
+      <label className={label}>{fieldLabel}</label>
+      <select
+        className={control}
+        value={other ? OTHER : value}
+        onChange={(e) => {
+          if (e.target.value === OTHER) {
+            setOther(true);
+            onChange("");
+          } else {
+            setOther(false);
+            onChange(e.target.value);
+          }
+        }}
+      >
+        <option value="">Select Make</option>
+        {options.map((m) => (
+          <option key={m} value={m}>
+            {m}
+          </option>
+        ))}
+        <option value={OTHER}>{OTHER}</option>
+      </select>
+      {other && (
+        <input
+          className={control}
+          type="text"
+          autoFocus
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      )}
+    </div>
+  );
+};
+
 // Fields cleared when Sealing Type is switched, so a stale sub-type/make/etc.
 // from the other arrangement never lingers.
 const MECH_SEAL_FIELDS = {
@@ -85,6 +157,10 @@ const SealingDetailsStep = ({
   const isMechSeal = formData.sealingType === "Mechanical Seal";
   const isGlandPacking = formData.sealingType === "Gland Packing";
   const sealDescription = mechSealDescription(formData.sealingSubType as string);
+  // Persisted on the MOC step when the AI suggestion was generated.
+  const aiSeal = (formData.mocAiSuggestedSealRecommendation as string) ?? "";
+  const aiSealMoc = (formData.mocAiSuggestedSealMoc as string) ?? "";
+  const aiSealRationale = (formData.mocAiSuggestedSealRationale as string) ?? "";
 
   return (
     <div className="step-container">
@@ -93,6 +169,26 @@ const SealingDetailsStep = ({
       <div className="step-card">
         <h2>Sealing Details</h2>
         <p>Select the sealing arrangement for this pump.</p>
+
+        {/* Sealing recommendation carried over from the MOC step, shown here
+            too so the arrangement can be judged against it without going back
+            a step. Only appears once a suggestion has been generated. */}
+        {aiSeal && (
+          <div className="mb-[14px] rounded-lg border-2 border-emerald-400 bg-emerald-50 pl-[14px] pr-[14px] pt-[12px] pb-[12px]">
+            <span className="section-label">Recommended Sealing</span>
+            <div className="mt-1 text-[14px] font-semibold text-fg">{aiSeal}</div>
+            {aiSealMoc && (
+              <div className="mt-1 text-[12px] text-emerald-900">
+                <span className="font-semibold">Seal MOC:</span> {aiSealMoc}
+              </div>
+            )}
+            {aiSealRationale && (
+              <p className="mt-1 text-[12px] leading-[1.5] text-emerald-900">
+                {aiSealRationale}
+              </p>
+            )}
+          </div>
+        )}
 
         <div className={grid}>
           <div className={fieldWrap}>
@@ -198,23 +294,13 @@ const SealingDetailsStep = ({
                 </select>
               </div>
 
-              <div className={fieldWrap}>
-                <label className={label}>Seal Make</label>
-                <select
-                  className={control}
-                  value={formData.mechSealMake ?? ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, mechSealMake: e.target.value })
-                  }
-                >
-                  <option value="">Select Make</option>
-                  {MECH_SEAL_MAKES.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <MakeField
+                label="Seal Make"
+                options={MECH_SEAL_MAKES}
+                value={formData.mechSealMake ?? ""}
+                onChange={(next) => setFormData({ ...formData, mechSealMake: next })}
+                placeholder="Enter seal make"
+              />
             </>
           )}
 
@@ -238,23 +324,13 @@ const SealingDetailsStep = ({
                 </select>
               </div>
 
-              <div className={fieldWrap}>
-                <label className={label}>Gland Packing Make</label>
-                <select
-                  className={control}
-                  value={formData.glandPackingMake ?? ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, glandPackingMake: e.target.value })
-                  }
-                >
-                  <option value="">Select Make</option>
-                  {GLAND_PACKING_MAKES.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <MakeField
+                label="Gland Packing Make"
+                options={GLAND_PACKING_MAKES}
+                value={formData.glandPackingMake ?? ""}
+                onChange={(next) => setFormData({ ...formData, glandPackingMake: next })}
+                placeholder="Enter packing make"
+              />
             </>
           )}
         </div>
