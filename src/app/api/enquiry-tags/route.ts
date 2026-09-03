@@ -2,6 +2,7 @@ import { and, asc, eq, sql } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
 import { db } from "@/lib/db";
+import { logAudit } from "@/lib/audit";
 import {
   enquiryTags,
   generalInfoInput,
@@ -81,6 +82,14 @@ export async function POST(req: Request) {
     .insert(enquiryTags)
     .values({ projectId, name: nameRaw })
     .returning();
+
+  await logAudit(req, {
+    action: "tag.create",
+    entity: "enquiry_tags",
+    entityId: row.id,
+    detail: `Added tag ${row.name}`,
+  });
+
   return json(
     {
       id: row.id,

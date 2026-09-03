@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
 import { db } from "@/lib/db";
+import { logAudit } from "@/lib/audit";
 import { enquiryTags } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
@@ -76,6 +77,13 @@ export async function POST(
     });
 
   if (!updated) return error("Tag not found", 404);
+
+  await logAudit(req, {
+    action: "report.generate",
+    entity: "enquiry_tags",
+    entityId: id,
+    detail: `Generated Selection Summary report`,
+  });
 
   return json(updated, 201);
 }

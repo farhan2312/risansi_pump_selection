@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { error, json, userToDict } from "@/lib/api";
 import { AuthError, requireSystemAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { logAudit } from "@/lib/audit";
 import { users } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
@@ -94,6 +95,19 @@ export async function PATCH(
     .where(eq(users.id, user.id))
     .returning();
 
+  // Access changes are the highest-signal rows in the trail - spell out what
+  // actually changed rather than just "updated".
+  const changes: string[] = [];
+  if (patch.role !== undefined && patch.role !== user.role) changes.push(`role ${user.role} -> ${patch.role}`);
+  if (patch.status !== undefined && patch.status !== user.status) changes.push(`status ${user.status} -> ${patch.status}`);
+  if (patch.passwordHash !== undefined) changes.push("password reset");
+  await logAudit(req, {
+    action: changes.some((c) => c.startsWith("role")) ? "user.role_change" : "user.update",
+    entity: "users_pump",
+    entityId: user.id,
+    detail: `${user.email}: ${changes.length ? changes.join(", ") : "updated"}`,
+  });
+
   return json(userToDict(updated));
 }
 
@@ -125,6 +139,13 @@ export async function DELETE(
   if (!deleted) {
     return error("User not found", 404);
   }
+
+  await logAudit(req, {
+    action: "user.delete",
+    entity: "users_pump",
+    entityId: deleted.id,
+    detail: `Deleted user ${deleted.email}`,
+  });
 
   return json({ id: deleted.id, deleted: true });
 }

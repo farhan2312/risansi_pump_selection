@@ -88,6 +88,7 @@ export const ADMIN_LINKS: NavLink[] = [
 /** system_admin only — plain "admin" explicitly does not get these. */
 export const SYSTEM_ADMIN_LINKS: NavLink[] = [
   { href: "/admin/users", label: "Users & Access", icon: "users" },
+  { href: "/admin/audit", label: "Audit Log", icon: "database" },
   { href: "/admin/bug-tracker", label: "Bug Tracker", icon: "database" },
 ];
 

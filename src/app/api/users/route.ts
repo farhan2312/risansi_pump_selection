@@ -4,6 +4,7 @@ import { asc, eq } from "drizzle-orm";
 import { error, json, userToDict } from "@/lib/api";
 import { AuthError, requireSystemAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { logAudit } from "@/lib/audit";
 import { users } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
@@ -81,6 +82,13 @@ export async function POST(req: Request) {
       reviewedAt: new Date(),
     })
     .returning();
+
+  await logAudit(req, {
+    action: "user.create",
+    entity: "users_pump",
+    entityId: user.id,
+    detail: `Created user ${user.email} with role ${user.role}`,
+  });
 
   return json(userToDict(user), 201);
 }

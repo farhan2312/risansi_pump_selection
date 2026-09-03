@@ -96,7 +96,11 @@ export async function middleware(req: NextRequest) {
   // are open to admin and system_admin alike.
   const role = payload.role;
   const isAdminLevel = role === "admin" || role === "system_admin";
-  if (pathname.startsWith("/admin/users") || pathname.startsWith("/admin/bug-tracker")) {
+  if (
+    pathname.startsWith("/admin/users") ||
+    pathname.startsWith("/admin/bug-tracker") ||
+    pathname.startsWith("/admin/audit")
+  ) {
     if (role !== "system_admin") {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }

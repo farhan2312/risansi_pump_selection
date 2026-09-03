@@ -3,6 +3,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { error, isUniqueViolation, json, projectToDict } from "@/lib/api";
 import { tryDecodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { logAudit } from "@/lib/audit";
 import { enquiryTags, projects, users } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
@@ -118,6 +119,13 @@ export async function POST(req: Request) {
     const [creator] = await db.select({ name: users.name }).from(users).where(eq(users.id, createdBy)).limit(1);
     createdByName = creator?.name ?? null;
   }
+
+  await logAudit(req, {
+    action: "enquiry.create",
+    entity: "projects",
+    entityId: project.id,
+    detail: `Created enquiry ${project.projectCode}`,
+  });
 
   return json(projectToDict(project, createdByName), 201);
 }

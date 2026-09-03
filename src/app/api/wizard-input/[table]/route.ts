@@ -2,6 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
 import { db } from "@/lib/db";
+import { logAudit } from "@/lib/audit";
 import {
   enquiryTags,
   generalInfoInput,
@@ -296,6 +297,13 @@ export async function PUT(
       .where(and(eq(enquiryTags.id, ctx.tagId), eq(enquiryTags.status, "Pending")));
   }
 
+  await logAudit(req, {
+    action: "wizard.save",
+    entity: tableKey,
+    entityId: ctx.tagId,
+    detail: `Saved ${tableKey.replace(/-/g, " ")} step`,
+  });
+
   return json(row);
 }
 
@@ -328,6 +336,13 @@ export async function DELETE(
     .delete(table as any)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .where(eq((table as any).tagId, ctx.tagId));
+
+  await logAudit(req, {
+    action: "wizard.clear",
+    entity: tableKey,
+    entityId: ctx.tagId,
+    detail: `Cleared ${tableKey.replace(/-/g, " ")} step`,
+  });
 
   return json({ ok: true });
 }

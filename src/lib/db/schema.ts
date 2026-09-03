@@ -862,3 +862,33 @@ export const pumpRecommendations = pgTable("pump_recommendations", {
 // instead (see /api/moc-recommendation/media route), which is curated
 // reference data rather than something the wizard grows.
 */
+
+// --- Audit log ---------------------------------------------------------
+// Full activity trail for the system-admin Audit Log page: who signed in,
+// when, and every recorded action. Append-only — nothing in the app updates
+// or deletes rows here. `eventType` separates sign-in events from ordinary
+// actions so the page can count logins/sessions without scanning `action`
+// strings:
+//   login        - successful sign-in (one per session)
+//   login_failed - rejected sign-in attempt (bad password / blocked status)
+//   logout       - explicit sign-out
+//   action       - anything else the user did (create/update/delete/generate)
+// Identity is denormalised onto the row (email/role at the time) so the trail
+// still reads correctly after a user is renamed, re-roled or removed.
+export const auditLog = pgTable("audit_log", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: uuid("user_id"),
+  userEmail: varchar("user_email", { length: 255 }),
+  userRole: varchar("user_role", { length: 30 }),
+  eventType: varchar("event_type", { length: 20 }).notNull(),
+  /** Dotted verb, e.g. "project.create", "wizard.save", "user.role_change". */
+  action: varchar("action", { length: 80 }).notNull(),
+  /** What was acted on (table/resource) and its id, when there is one. */
+  entity: varchar("entity", { length: 80 }),
+  entityId: varchar("entity_id", { length: 120 }),
+  /** Short human-readable summary shown in the Activity feed. */
+  detail: text("detail"),
+  ip: varchar("ip", { length: 64 }),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+});

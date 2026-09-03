@@ -16,6 +16,7 @@ const LABELS: Record<string, string> = {
   "/admin/gearbox-master": "Gearbox Type",
   "/admin/motor-master": "Motor Master",
   "/admin/users": "Users & Access",
+  "/admin/audit": "Audit Log",
   "/admin/bug-tracker": "Bug Tracker",
 };
 
