@@ -187,9 +187,7 @@ const VERTICAL_NONWETTABLE_COMP = ["Bearing Housing", "Mounting Plate"];
 const STRUCTURAL_MOC_PREFERENCE =
   "Structural / fastener preference (house practice - follow it unless the media genuinely rules it out, and say why if you deviate): " +
   "HORIZONTAL - Stator Sleeve, Tie Rod, Base Plate and Nut & Bolt are dry structural parts, normally Mild Steel but can be other materials if necessary. " +
-  "VERTICAL - the pump hangs in the liquid, so Stator Sleeve, Tie Rod and Nut & Bolt are wetted and normally take the SAME MOC as the Shaft; only the Mounting Plate is dry, normally Mild Steel but can be other materials if necessary. " +
-  "Bearing Housing is not covered by this house preference; select it directly based on engineering suitability, construction, strength, bearing requirements and cost.\n";
-
+  "VERTICAL - the pump hangs in the liquid, so Stator Sleeve, Tie Rod and Nut & Bolt are wetted and normally take the SAME MOC as the Shaft; only the Mounting Plate is dry, normally Mild Steel but can be other materials if necessary. "
 // Cost-optimized MOC engineering precedents (distilled from real single-screw /
 // PCP enquiry recommendations) — fed to the model as strong guidance so its
 // picks follow the same "don't over-specify" logic: match on media CHEMISTRY,
