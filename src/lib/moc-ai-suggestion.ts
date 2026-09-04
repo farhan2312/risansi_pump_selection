@@ -186,9 +186,9 @@ const VERTICAL_NONWETTABLE_COMP = ["Bearing Housing", "Mounting Plate"];
 // Bearing Housing is deliberately not covered — always the model's call.
 const STRUCTURAL_MOC_PREFERENCE =
   "Structural / fastener preference (house practice - follow it unless the media genuinely rules it out, and say why if you deviate): " +
-  "HORIZONTAL - Stator Sleeve, Tie Rod, Base Plate and Nut & Bolt are dry structural parts, normally Mild Steel. " +
-  "VERTICAL - the pump hangs in the liquid, so Stator Sleeve, Tie Rod and Nut & Bolt are wetted and normally take the SAME MOC as the Shaft; only the Mounting Plate is dry, normally Mild Steel. " +
-  "Bearing Housing is your call.\n";
+  "HORIZONTAL - Stator Sleeve, Tie Rod, Base Plate and Nut & Bolt are dry structural parts, normally Mild Steel but can be other materials if necessary. " +
+  "VERTICAL - the pump hangs in the liquid, so Stator Sleeve, Tie Rod and Nut & Bolt are wetted and normally take the SAME MOC as the Shaft; only the Mounting Plate is dry, normally Mild Steel but can be other materials if necessary. " +
+  "Bearing Housing is not covered by this house preference; select it directly based on engineering suitability, construction, strength, bearing requirements and cost.\n";
 
 // Cost-optimized MOC engineering precedents (distilled from real single-screw /
 // PCP enquiry recommendations) — fed to the model as strong guidance so its
@@ -213,7 +213,7 @@ const MOC_REFERENCE =
   "Calcium carbonate slurry, pH7-8: Cast Iron / SS420 hard-chrome / SS410 / Nitrile (Natural Rubber for max abrasion) / Gland Packing (aramid/PTFE) or Single Mechanical Seal SiC-SiC.\n" +
   "Neutral scrubber slurry, pH7, 60C, fine abrasive: SS304 / SS304 / SS304 / Natural Rubber / Single Mechanical Seal (Carbon-SiC, EPDM).\n" +
   "Ceramic slurry, 60C, ~50cP, abrasive, high pressure: Cast Iron / SS410 hardened / alloy steel / Nitrile (abrasion grade; EPDM if alkaline) / Single Mechanical Seal SiC-SiC (NBR/EPDM, SS316).\n"+
-  "Recommend Cast Iron for Pump Hosuing only it is reliable and suitable for media"
+  "Recommend Cast Iron for Pump Housing only if it is reliable and suitable for the media"
 
 // JSON-Schema property map driving Anthropic's tool input_schema (structured
 // output). Built per request because two components change meaning with the
