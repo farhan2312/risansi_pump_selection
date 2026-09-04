@@ -212,7 +212,8 @@ const MOC_REFERENCE =
   "Molasses / sugar A-wash, 65C, Brix~85: Cast Iron / SS420 hardened hard-chrome / SS410 / Nitrile / Single Mechanical Seal (Carbon-SiC) or PTFE-graphite Gland Packing.\n" +
   "Calcium carbonate slurry, pH7-8: Cast Iron / SS420 hard-chrome / SS410 / Nitrile (Natural Rubber for max abrasion) / Gland Packing (aramid/PTFE) or Single Mechanical Seal SiC-SiC.\n" +
   "Neutral scrubber slurry, pH7, 60C, fine abrasive: SS304 / SS304 / SS304 / Natural Rubber / Single Mechanical Seal (Carbon-SiC, EPDM).\n" +
-  "Ceramic slurry, 60C, ~50cP, abrasive, high pressure: Cast Iron / SS410 hardened / alloy steel / Nitrile (abrasion grade; EPDM if alkaline) / Single Mechanical Seal SiC-SiC (NBR/EPDM, SS316).\n";
+  "Ceramic slurry, 60C, ~50cP, abrasive, high pressure: Cast Iron / SS410 hardened / alloy steel / Nitrile (abrasion grade; EPDM if alkaline) / Single Mechanical Seal SiC-SiC (NBR/EPDM, SS316).\n"+
+  "Recommend Cast Iron for Pump Hosuing only it is reliable and suitable for media"
 
 // JSON-Schema property map driving Anthropic's tool input_schema (structured
 // output). Built per request because two components change meaning with the
@@ -254,7 +255,7 @@ function schemaPropertiesFor(pumpType: string | null) {
       description:
         "Material of construction of the recommended seal, matched to the media chemistry/abrasion. " +
         "For a Mechanical Seal: state the build - metal/body grade (e.g. SS316), face pair (e.g. SiC/SiC or Carbon/SiC) and O-ring elastomer. " +
-        "For Gland Packing: the packing material (e.g. PTFE-graphite or aramid/PTFE).",
+        "For Gland Packing: the packing material type(eg - GAGP or Teflon or PTFE or Carbon Fiber or Asbestos-Free or any other you recommend).",
     },
     sealRationale: { type: "string" },
     summary: {
