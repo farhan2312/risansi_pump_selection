@@ -308,7 +308,7 @@ function buildPrompt(context: MocAiContext, processData: string): string {
     `PCP pump. Media: ${context.media}. Pump type: ${pumpType}. Head: ${head}. Capacity: ${capacity}.\n` +
     sleeveClause +
     MOC_REFERENCE +
-    `don’t want to use costly material unnecessarily. So material choice should be optimum \n`+
+    `material choice should be optimum \n`+
     `Recommend low-cost reliable MOC (per component), stator elastomer, the shaft seal type AND the seal's own MOC (mechanical seal: body/face/O-ring; gland packing: packing material).\n` +
     `${missingClause}` +
     `summary: concise markdown engineering note. The report already prints the input parameters, the seal recommendation, and the alternatives separately, so DO NOT repeat any of those here (no operating-parameters table, no seal comparison table, no alternatives table). Cover only: a short Key Design Drivers list (bullets) and ONE Component / Material / Why | pipe table | for the wetted metals, stator elastomer and structural parts. Use ## headers and **bold**. Keep it tight. ` +
