@@ -4,6 +4,7 @@ import { error, json } from "@/lib/api";
 import { AuthError, decodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { motorMaster } from "@/lib/db/schema";
+import { mountingMatchTerms } from "@/lib/motor-mounting";
 
 export const dynamic = "force-dynamic";
 
@@ -37,13 +38,28 @@ export async function GET(req: Request) {
     filters.push(eq(motorMaster.motorRpm, parseInt(rpm, 10)));
   }
 
-  // Mounting is stored as a bare word ("FOOT") while the wizard's value is a
-  // label with its IEC code ("Foot B3"), so match on the first word,
-  // case-insensitively, instead of requiring an exact string match.
+  // Mounting. The wizard's value is a label carrying its IEC code ("Foot B3",
+  // "Flange B5", "Foot cum Flange B35"); the master stores the descriptive
+  // part on its own ("FOOT"). Match the FULL descriptive text, not the first
+  // word — "Foot cum Flange" is its own mounting, and matching on "Foot" made
+  // it silently return plain foot-mounted motors. The IEC code is accepted as
+  // an alternative so rows stored as "B35" match too.
+  //
+  // motor_master currently holds FOOT rows only, so Flange/Foot-cum-Flange
+  // correctly return nothing until that data is loaded — deliberately NOT
+  // falling back to FOOT, which would misreport a foot motor as satisfying a
+  // B5/B35 requirement.
   const mounting = params.get("mounting");
   if (mounting && mounting.trim()) {
-    const firstWord = mounting.trim().split(/\s+/)[0];
-    filters.push(sql`upper(${motorMaster.mounting}) = upper(${firstWord})`);
+    const { text, code } = mountingMatchTerms(mounting);
+    // Normalise the stored value the same way the label is normalised, so
+    // "Foot-cum-Flange" / "FOOT CUM FLANGE" compare equal.
+    const stored = sql`btrim(regexp_replace(upper(${motorMaster.mounting}), '[^A-Z0-9]+', ' ', 'g'))`;
+    filters.push(
+      code
+        ? sql`(${stored} = ${text} OR ${stored} = ${code})`
+        : sql`${stored} = ${text}`,
+    );
   }
 
   const make = params.get("make");

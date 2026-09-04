@@ -157,13 +157,38 @@ const HORIZONTAL_NONWETTABLE_COMP = [
   "Nut & Bolt",
   "Stator Sleeve",
 ];
-const VERTICAL_WETTABLE_COMP = ["Pump Housing", "Rotor", "Shaft", "Stator Sleeve"];
-const VERTICAL_NONWETTABLE_COMP = [
-  "Bearing Housing",
-  "Mounting Plate",
+// A VERTICAL pump hangs in the liquid, so its tie rods and fasteners sit in
+// the media too - they take the SHAFT's MOC, not a structural one. Only the
+// bearing housing and the mounting plate stay genuinely dry (per the house
+// MOC rules; see STRUCTURAL_MOC_RULES below).
+const VERTICAL_WETTABLE_COMP = [
+  "Pump Housing",
+  "Rotor",
+  "Shaft",
+  "Stator Sleeve",
   "Tie Rod",
   "Nut & Bolt",
 ];
+const VERTICAL_NONWETTABLE_COMP = ["Bearing Housing", "Mounting Plate"];
+
+// House PREFERENCE for the structural / fastener components — stated in the
+// prompt (see STRUCTURAL_MOC_PREFERENCE below) rather than forced onto the
+// answer. It is what these parts normally are, not a constraint: the model may
+// still deviate when the media genuinely calls for it (an aggressive acid that
+// would eat Mild Steel tie rods, say), and is told to say so when it does.
+//
+//   HORIZONTAL - Stator Sleeve, Tie Rod, Base Plate and Nut & Bolt are dry
+//                structural parts -> normally Mild Steel.
+//   VERTICAL   - the pump hangs in the liquid, so Stator Sleeve, Tie Rod and
+//                Nut & Bolt are wetted and normally take the SHAFT's MOC;
+//                only the Mounting Plate stays dry -> normally Mild Steel.
+//
+// Bearing Housing is deliberately not covered — always the model's call.
+const STRUCTURAL_MOC_PREFERENCE =
+  "Structural / fastener preference (house practice - follow it unless the media genuinely rules it out, and say why if you deviate): " +
+  "HORIZONTAL - Stator Sleeve, Tie Rod, Base Plate and Nut & Bolt are dry structural parts, normally Mild Steel. " +
+  "VERTICAL - the pump hangs in the liquid, so Stator Sleeve, Tie Rod and Nut & Bolt are wetted and normally take the SAME MOC as the Shaft; only the Mounting Plate is dry, normally Mild Steel. " +
+  "Bearing Housing is your call.\n";
 
 // Cost-optimized MOC engineering precedents (distilled from real single-screw /
 // PCP enquiry recommendations) — fed to the model as strong guidance so its
@@ -176,7 +201,7 @@ const MOC_REFERENCE =
   "General: economical default build = Cast Iron casing + SS420 (hard-chrome) or SS304 rotor + SS410/SS304 shaft + Nitrile stator; step wetted metals up to SS316/SS316L for chlorides, acids or corrosive process; Duplex 2205 for moderately high chloride and Super Duplex 2507 only for near-saturated brine; do not over-alloy.\n" +
   "Elastomer: Nitrile (NBR) is the economical default (oils, sewage, molasses, slurry <=80C); Natural Rubber for maximum abrasion in neutral slurry; EPDM for hot aqueous / salt / alkaline / CIP service; Viton only for aggressive chemicals or high temperature.\n" +
   "Seal: single Mechanical Seal for clean / low-leakage duty (Carbon-SiC or Carbon-Ceramic faces); SiC/SiC faces when the media is abrasive; Gland Packing (PTFE/graphite or aramid) for solids-heavy or low-budget duty that tolerates minor leakage; Double Mechanical Seal only for crystallizing, toxic or zero-leakage service.\n" +
-  "Non-wetted structural parts (Bearing Housing, Base/Mounting Plate, Tie Rod, Nut & Bolt; also Stator Sleeve on a Horizontal pump): default to economical Cast Iron / Mild Steel fabrication with SS304 fasteners - media resistance does not apply, so do not over-alloy.\n" +
+  STRUCTURAL_MOC_PREFERENCE +
   "Examples (media -> Pump Housing / Rotor / Shaft / Stator Rubber / Seal):\n" +
   "Oil+water 15:85, 70C, 5-20cP: Cast Iron / SS420 hardened / SS410 / Nitrile / Single Mechanical Seal (Carbon-SiC, NBR) [SS316 if produced/sea water or high chloride].\n" +
   "Sewage / STP: Cast Iron / alloy steel hard-chrome / SS410 / Nitrile / Gland Packing.\n" +
@@ -332,7 +357,7 @@ function coerceSuggestions(
     const v = parsed[k];
     return typeof v === "string" ? v.trim() : "";
   };
-  return {
+  const out: MocComponentSuggestions = {
     bearingHousing: get("bearingHousing"),
     basePlate: get("basePlate"),
     mountingPlate: get("mountingPlate"),
@@ -349,6 +374,9 @@ function coerceSuggestions(
     summary: get("summary"),
     alternatives: get("alternatives"),
   };
+  // Returned as answered — the structural/fastener preference is guidance in
+  // the prompt, not an override applied here.
+  return out;
 }
 
 // Assembles the `content` for the user message. When a client-requirements

@@ -1675,8 +1675,11 @@ const DriveDetailsStep = ({
                   {motorStatus === "ready" && motorOptions.length === 0 && (
                     <p className="mt-2 text-[13px] text-warn">
                       No motor in the master matches this rating
-                      {formData.driveMotorMake ? ` for ${formData.driveMotorMake}` : ""}.
-                      Try a different make or mounting.
+                      {formData.driveMotorMake ? ` for ${formData.driveMotorMake}` : ""}
+                      {formData.driveMotorMounting
+                        ? ` with ${formData.driveMotorMounting} mounting`
+                        : ""}
+                      . Try a different make or mounting.
                     </p>
                   )}
 

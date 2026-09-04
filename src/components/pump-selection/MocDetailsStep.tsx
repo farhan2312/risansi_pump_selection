@@ -217,17 +217,19 @@ const WETTABLE_BASE_ROWS: ComponentRow[] = [
  *  exactly one of the two, never both. */
 const componentGroupsFor = (pumpType: string | undefined) => {
   const vertical = isVerticalPump(pumpType);
+  // On a VERTICAL pump the tie rods and fasteners hang in the liquid with the
+  // rest of the wet end, so they group with the wettable parts and take the
+  // shaft's MOC; only the bearing housing and mounting plate stay dry. See the
+  // house rules in moc-ai-suggestion.ts (applyStructuralMocRules).
   return {
     nonWettable: [
       BEARING_HOUSING_ROW,
       vertical ? MOUNTING_PLATE_ROW : BASE_PLATE_ROW,
-      TIE_ROD_ROW,
-      NUT_BOLT_ROW,
-      ...(vertical ? [] : [STATOR_SLEEVE_ROW]),
+      ...(vertical ? [] : [TIE_ROD_ROW, NUT_BOLT_ROW, STATOR_SLEEVE_ROW]),
     ],
     wettable: [
       ...WETTABLE_BASE_ROWS,
-      ...(vertical ? [STATOR_SLEEVE_ROW] : []),
+      ...(vertical ? [STATOR_SLEEVE_ROW, TIE_ROD_ROW, NUT_BOLT_ROW] : []),
     ],
   };
 };
