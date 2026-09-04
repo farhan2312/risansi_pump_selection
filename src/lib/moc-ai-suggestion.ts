@@ -195,7 +195,7 @@ const STRUCTURAL_MOC_PREFERENCE =
 // chemistry / temperature / solids justify it, with a stated reason. Kept
 // compact on purpose. Update this block when new precedents are added.
 const MOC_REFERENCE =
-  "It is just an guidance example, no need to follow it blindly. You should recommend the best low cost MOC for the given media and its conditions.\n" +
+  "It is just an example history for context, no need to follow it blindly. You should recommend the best low cost MOC for the given media and its conditions.\n" +
   STRUCTURAL_MOC_PREFERENCE +
   "Examples (media -> Pump Housing / Rotor / Shaft / Stator Rubber / Seal):\n" +
   "Oil+water 15:85, 70C, 5-20cP: Cast Iron / SS420 hardened / SS410 / Nitrile / Single Mechanical Seal (Carbon-SiC, NBR) [SS316 if produced/sea water or high chloride].\n" +
