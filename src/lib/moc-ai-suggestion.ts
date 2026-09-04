@@ -196,9 +196,6 @@ const STRUCTURAL_MOC_PREFERENCE =
 // compact on purpose. Update this block when new precedents are added.
 const MOC_REFERENCE =
   "MOC selection guidance (cost-optimized precedents; match on media CHEMISTRY not the liquid's name; prefer the economical option and step up only when chemistry/temperature/solids justify it, stating the reason):\n" +
-  "General: economical default build = Cast Iron casing + SS420 (hard-chrome) or SS304 rotor + SS410/SS304 shaft + Nitrile stator; step wetted metals up to SS316/SS316L for chlorides, acids or corrosive process; Duplex 2205 for moderately high chloride and Super Duplex 2507 only for near-saturated brine; do not over-alloy.\n" +
-  "Elastomer: Nitrile (NBR) is the economical default (oils, sewage, molasses, slurry <=80C); Natural Rubber for maximum abrasion in neutral slurry; EPDM for hot aqueous / salt / alkaline / CIP service; Viton only for aggressive chemicals or high temperature.\n" +
-  "Seal: single Mechanical Seal for clean / low-leakage duty (Carbon-SiC or Carbon-Ceramic faces); SiC/SiC faces when the media is abrasive; Gland Packing (PTFE/graphite or aramid) for solids-heavy or low-budget duty that tolerates minor leakage; Double Mechanical Seal only for crystallizing, toxic or zero-leakage service.\n" +
   STRUCTURAL_MOC_PREFERENCE +
   "Examples (media -> Pump Housing / Rotor / Shaft / Stator Rubber / Seal):\n" +
   "Oil+water 15:85, 70C, 5-20cP: Cast Iron / SS420 hardened / SS410 / Nitrile / Single Mechanical Seal (Carbon-SiC, NBR) [SS316 if produced/sea water or high chloride].\n" +
