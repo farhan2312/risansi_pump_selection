@@ -5,6 +5,7 @@ import Stepper from "./Stepper";
 import "./GeneralInformationStep.css";
 import { actions, btnGhost, btnPrimary, control, fieldWrap, hint, label } from "./formStyles";
 import { getMotorRating, type MotorRating } from "../../services/motorRatingService";
+import { Err, ErrorBanner, Req } from "./fieldBits";
 
 type Props = {
   onNext: () => void;
@@ -77,6 +78,23 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
     const atOrAbove = rating.kwOptions.filter((k) => k >= rec);
     return [...below, ...atOrAbove];
   })();
+
+  // The rating drives the whole drive step (motor options, v-belt and gearbox
+  // screening), so it cannot be left blank. It is normally already filled from
+  // the recommendation - this catches the case where it was cleared, or where
+  // no standard ratings exist and it has to be typed in.
+  const [showErrors, setShowErrors] = useState(false);
+  const ratingError = (formData.driveMotorKw ?? "").toString().trim()
+    ? ""
+    : "Drive motor rating is required.";
+
+  const handleNext = () => {
+    if (ratingError) {
+      setShowErrors(true);
+      return;
+    }
+    onNext();
+  };
 
   // Picking below the recommendation is allowed (the engineer may have a
   // reason) but it under-powers the duty, so it is called out rather than
@@ -165,7 +183,10 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
 
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <div className={fieldWrap}>
-                <label className={label}>Drive Motor Rating (KW)</label>
+                <label className={label}>
+                  Drive Motor Rating (KW)
+                  <Req />
+                </label>
                 {hasKwOptions ? (
                   <select
                     className={control}
@@ -194,6 +215,7 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
                     }
                   />
                 )}
+                <Err show={showErrors} msg={ratingError} />
                 {belowRecommended && (
                   <div className="mt-[8px] rounded-lg border border-warn bg-[var(--warn-soft,#fff8e6)] pl-[12px] pr-[12px] pt-[10px] pb-[10px]">
                     <span className="block text-[12.5px] font-semibold text-warn">
@@ -218,11 +240,13 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
           </>
         )}
 
+        <ErrorBanner show={showErrors} count={ratingError ? 1 : 0} />
+
         <div className={actions}>
           <button className={btnGhost} onClick={onPrevious}>
             Previous
           </button>
-          <button className={btnPrimary} onClick={onNext}>
+          <button className={btnPrimary} onClick={handleNext}>
             Next
           </button>
         </div>
