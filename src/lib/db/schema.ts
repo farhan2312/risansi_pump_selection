@@ -275,6 +275,9 @@ export const mocSealingInput = pgTable("moc_sealing_input", {
   mechSealMoc: varchar("mech_seal_moc", { length: 40 }),
   mechSealFace: varchar("mech_seal_face", { length: 40 }),
   mechSealMake: varchar("mech_seal_make", { length: 40 }),
+  // Why the engineer departed from the AI-recommended sealing arrangement.
+  // Required in the UI only when the selection differs from that suggestion.
+  sealingRemarks: text("sealing_remarks"),
   // Free-text extras the client supplied that the wizard has no field for
   // (chemical composition, special service notes, ...). Appended verbatim to
   // the MOC AI prompt as a "Client requirements" block.

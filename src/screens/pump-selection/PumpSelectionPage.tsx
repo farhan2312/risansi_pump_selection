@@ -56,7 +56,7 @@ const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
   ],
   "moc-sealing": [
     "sealingType", "sealingSubType", "glandPackingType", "glandPackingMake",
-    "mechSealMoc", "mechSealFace", "mechSealMake",
+    "mechSealMoc", "mechSealFace", "mechSealMake", "sealingRemarks",
     "clientRequirementsFilename", "clientRequirementsMime", "clientRequirementsUploadedAt",
     "mocAiBearingHousing", "mocAiBearingHousingRemarks",
     "mocAiBasePlate", "mocAiBasePlateRemarks",
@@ -313,6 +313,7 @@ const PumpSelectionPage = () => {
     mocAiSuggestedStatorSleeve: "",
     mocAiSuggestedSummary: "",
     mocAiSuggestedAlternatives: "",
+    sealingRemarks: "",
     mocAiSuggestedSealRecommendation: "",
     mocAiSuggestedSealMoc: "",
     mocAiSuggestedSealRationale: "",

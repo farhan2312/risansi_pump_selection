@@ -65,18 +65,27 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
 
   const hasKwOptions = (rating?.kwOptions.length ?? 0) > 0;
 
-  // Trim the raw kwOptions list so the dropdown carries at most two sub-
-  // recommended sizes (the ones closest to `recommendedKw`) plus every size at
+  // Trim the raw kwOptions list so the dropdown carries at most ONE sub-
+  // recommended size (the one closest below `recommendedKw`) plus every size at
   // or above the recommendation. Full list is preserved on `rating.kwOptions`
   // for anything else that consumes it; only the dropdown is trimmed.
   const kwOptionsForDisplay = (() => {
     if (!rating) return [] as number[];
     const rec = rating.recommendedKw;
     if (rec == null) return rating.kwOptions;
-    const below = rating.kwOptions.filter((k) => k < rec).slice(-2);
+    const below = rating.kwOptions.filter((k) => k < rec).slice(-1);
     const atOrAbove = rating.kwOptions.filter((k) => k >= rec);
     return [...below, ...atOrAbove];
   })();
+
+  // Picking below the recommendation is allowed (the engineer may have a
+  // reason) but it under-powers the duty, so it is called out rather than
+  // silently accepted.
+  const selectedKw = parseFloat(formData.driveMotorKw ?? "");
+  const belowRecommended =
+    rating?.recommendedKw != null &&
+    Number.isFinite(selectedKw) &&
+    selectedKw < rating.recommendedKw;
 
   return (
     <div className="step-container">
@@ -185,9 +194,23 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
                     }
                   />
                 )}
+                {belowRecommended && (
+                  <div className="mt-[8px] rounded-lg border border-warn bg-[var(--warn-soft,#fff8e6)] pl-[12px] pr-[12px] pt-[10px] pb-[10px]">
+                    <span className="block text-[12.5px] font-semibold text-warn">
+                      Below the recommended rating
+                    </span>
+                    <p className="mt-[3px] text-[12px] leading-[1.5] text-fg-2">
+                      {formData.driveMotorKw} kW is under the {rating.recommendedKw} kW this
+                      duty calculates to (Motor KW{" "}
+                      {rating.motorKw !== null ? round(rating.motorKw) : "—"}). The motor may
+                      overload at the stated capacity and head &mdash; confirm the duty before
+                      continuing.
+                    </p>
+                  </div>
+                )}
                 <span className={hint}>
                   {hasKwOptions
-                    ? "Final selection is manual. Only the closest two smaller sizes are offered below the recommended rating; every larger standard rating is above."
+                    ? "Final selection is manual. Only the closest smaller size is offered below the recommended rating; every larger standard rating is above."
                     : "No standard KW ratings available — enter the motor KW manually."}
                 </span>
               </div>

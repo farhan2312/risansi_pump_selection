@@ -180,6 +180,7 @@ export interface PumpSelectionFormData {
   mocAiSuggestedSummary?: string;
   mocAiSuggestedAlternatives?: string;
   mocAiSuggestedSealRecommendation?: string;
+  sealingRemarks?: string;
   mocAiSuggestedSealMoc?: string;
   mocAiSuggestedSealRationale?: string;
   mocAiGeneratedAt?: string;

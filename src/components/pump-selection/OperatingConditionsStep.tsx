@@ -1,6 +1,10 @@
+"use client";
+
+import { useState } from "react";
 import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
 import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, hint, label } from "./formStyles";
+import { Err, ErrorBanner, Req, hasErrors } from "./fieldBits";
 
 type Props = {
   onNext: () => void;
@@ -77,6 +81,28 @@ const OperatingConditionsStep = ({
   const agBkOptions = agBkOptionsFor(formData.pumpType);
   const suctionHousingOptions = suctionHousingOptionsFor(formData.pumpType);
 
+  // Every specification is required - they all feed the MOC component split,
+  // the quotation and the built pump. AG/BK is the one conditional field: it
+  // only applies to pump types that offer it (Horizontal Standard has none).
+  const [showErrors, setShowErrors] = useState(false);
+  const errors: Record<string, string> = {
+    pumpType: formData.pumpType ? "" : "Select a pump type.",
+    agBk:
+      agBkOptions.length === 0 || formData.agBk ? "" : "Select an AG / BK option.",
+    bearingHousing: formData.bearingHousing ? "" : "Select a bearing housing.",
+    suctionHousing: formData.suctionHousing ? "" : "Select a suction housing.",
+    jointType: formData.jointType ? "" : "Select a joint type.",
+  };
+  const errorCount = Object.values(errors).filter(Boolean).length;
+
+  const handleNext = () => {
+    if (hasErrors(errors)) {
+      setShowErrors(true);
+      return;
+    }
+    onNext();
+  };
+
   return (
     <div className="step-container">
       <Stepper currentStep={3} maxStep={formData.wizardMaxStep} onStepClick={onStepClick} />
@@ -87,7 +113,7 @@ const OperatingConditionsStep = ({
 
         <div className={grid}>
           <div className={fieldWrap}>
-            <label className={label}>Pump Type</label>
+            <label className={label}>Pump Type<Req /></label>
             <select
               className={control}
               value={formData.pumpType}
@@ -103,13 +129,14 @@ const OperatingConditionsStep = ({
               </option>
               <option value="Vertical">Vertical</option>
             </select>
+            <Err show={showErrors} msg={errors.pumpType} />
           </div>
 
           {/* AG / BK feed option — availability + choices are decided by the
               selected pump type (Horizontal Standard has none). */}
           {agBkOptions.length > 0 && (
             <div className={fieldWrap}>
-              <label className={label}>AG / BK</label>
+              <label className={label}>AG / BK<Req /></label>
               <select
                 className={control}
                 value={formData.agBk ?? ""}
@@ -125,11 +152,12 @@ const OperatingConditionsStep = ({
                 ))}
               </select>
               <span className={hint}>Set by the selected pump type.</span>
+              <Err show={showErrors} msg={errors.agBk} />
             </div>
           )}
 
           <div className={fieldWrap}>
-            <label className={label}>Bearing Housing</label>
+            <label className={label}>Bearing Housing<Req /></label>
             <select
               className={control}
               value={formData.bearingHousing}
@@ -141,10 +169,11 @@ const OperatingConditionsStep = ({
               <option value="Bearing Housing">Bearing Housing</option>
               <option value="Close Coupled">Close Coupled</option>
             </select>
+            <Err show={showErrors} msg={errors.bearingHousing} />
           </div>
 
           <div className={fieldWrap}>
-            <label className={label}>Suction Housing</label>
+            <label className={label}>Suction Housing<Req /></label>
             <select
               className={control}
               value={formData.suctionHousing}
@@ -159,10 +188,11 @@ const OperatingConditionsStep = ({
                 </option>
               ))}
             </select>
+            <Err show={showErrors} msg={errors.suctionHousing} />
           </div>
 
           <div className={fieldWrap}>
-            <label className={label}>Joint Type</label>
+            <label className={label}>Joint Type<Req /></label>
             <select
               className={control}
               value={formData.jointType}
@@ -175,14 +205,17 @@ const OperatingConditionsStep = ({
               <option value="Cardan Joint 2">Cardan Joint 2</option>
               <option value="CJSM">CJSM</option>
             </select>
+            <Err show={showErrors} msg={errors.jointType} />
           </div>
         </div>
+
+        <ErrorBanner show={showErrors} count={errorCount} />
 
         <div className={actions}>
           <button className={btnGhost} onClick={onPrevious}>
             Previous
           </button>
-          <button className={btnPrimary} onClick={onNext}>
+          <button className={btnPrimary} onClick={handleNext}>
             Next
           </button>
         </div>

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
 import { actions, btnGhost, btnPrimary, control, fieldWrap, fullWidth, grid, label } from "./formStyles";
+import { Err, ErrorBanner, Req, hasErrors } from "./fieldBits";
 
 // Sentinel for the "type it in" branch of a make dropdown. Never stored — the
 // field holds either a listed make or whatever was typed.
@@ -70,12 +71,16 @@ const MakeField = ({
   value,
   onChange,
   placeholder,
+  error,
+  showError = false,
 }: {
   label: string;
   options: readonly string[];
   value: string;
   onChange: (next: string) => void;
   placeholder: string;
+  error?: string;
+  showError?: boolean;
 }) => {
   const isListed = value !== "" && options.includes(value);
   const [other, setOther] = useState(value !== "" && !isListed);
@@ -88,7 +93,10 @@ const MakeField = ({
 
   return (
     <div className={fieldWrap}>
-      <label className={label}>{fieldLabel}</label>
+      <label className={label}>
+        {fieldLabel}
+        <Req />
+      </label>
       <select
         className={control}
         value={other ? OTHER : value}
@@ -120,6 +128,7 @@ const MakeField = ({
           onChange={(e) => onChange(e.target.value)}
         />
       )}
+      <Err show={showError} msg={error} />
     </div>
   );
 };
@@ -162,6 +171,39 @@ const SealingDetailsStep = ({
   const aiSealMoc = (formData.mocAiSuggestedSealMoc as string) ?? "";
   const aiSealRationale = (formData.mocAiSuggestedSealRationale as string) ?? "";
 
+  // Every field of the chosen arrangement is required. On top of that: if the
+  // engineer picks a different arrangement from the one the AI recommended,
+  // the remarks explaining why become required - that reasoning is what the
+  // quotation and any later review actually need.
+  const [showErrors, setShowErrors] = useState(false);
+  const deviatesFromAi =
+    aiSeal !== "" && formData.sealingType !== "" && formData.sealingType !== aiSeal;
+  const errors: Record<string, string> = {
+    sealingType: formData.sealingType ? "" : "Select a sealing type.",
+    sealingSubType:
+      !isMechSeal || formData.sealingSubType ? "" : "Select a mechanical seal type.",
+    mechSealMoc: !isMechSeal || formData.mechSealMoc ? "" : "Select the seal MOC.",
+    mechSealFace: !isMechSeal || formData.mechSealFace ? "" : "Select the seal face.",
+    mechSealMake: !isMechSeal || formData.mechSealMake ? "" : "Select the seal make.",
+    glandPackingType:
+      !isGlandPacking || formData.glandPackingType ? "" : "Select a packing type.",
+    glandPackingMake:
+      !isGlandPacking || formData.glandPackingMake ? "" : "Select a packing make.",
+    sealingRemarks:
+      !deviatesFromAi || (formData.sealingRemarks ?? "").trim()
+        ? ""
+        : `Remarks are required when the sealing differs from the recommended ${aiSeal}.`,
+  };
+  const errorCount = Object.values(errors).filter(Boolean).length;
+
+  const handleNext = () => {
+    if (hasErrors(errors)) {
+      setShowErrors(true);
+      return;
+    }
+    onNext();
+  };
+
   return (
     <div className="step-container">
       <Stepper currentStep={5} maxStep={formData.wizardMaxStep} onStepClick={onStepClick} />
@@ -192,7 +234,7 @@ const SealingDetailsStep = ({
 
         <div className={grid}>
           <div className={fieldWrap}>
-            <label className={label}>Sealing Type</label>
+            <label className={label}>Sealing Type<Req /></label>
             <select
               className={control}
               value={formData.sealingType}
@@ -212,12 +254,13 @@ const SealingDetailsStep = ({
               <option value="Mechanical Seal">Mechanical Seal</option>
               <option value="Gland Packing">Gland Packing</option>
             </select>
+            <Err show={showErrors} msg={errors.sealingType} />
           </div>
 
           {isMechSeal && (
             <>
               <div className={fieldWrap}>
-                <label className={label}>Mechanical Seal Type</label>
+                <label className={label}>Mechanical Seal Type<Req /></label>
                 <select
                   className={control}
                   value={formData.sealingSubType}
@@ -232,6 +275,7 @@ const SealingDetailsStep = ({
                     </option>
                   ))}
                 </select>
+                <Err show={showErrors} msg={errors.sealingSubType} />
               </div>
 
               {/* Description of the chosen seal type — a full-width callout so
@@ -259,7 +303,7 @@ const SealingDetailsStep = ({
               )}
 
               <div className={fieldWrap}>
-                <label className={label}>Seal MOC</label>
+                <label className={label}>Seal MOC<Req /></label>
                 <select
                   className={control}
                   value={formData.mechSealMoc ?? ""}
@@ -274,10 +318,11 @@ const SealingDetailsStep = ({
                     </option>
                   ))}
                 </select>
+                <Err show={showErrors} msg={errors.mechSealMoc} />
               </div>
 
               <div className={fieldWrap}>
-                <label className={label}>Seal Face</label>
+                <label className={label}>Seal Face<Req /></label>
                 <select
                   className={control}
                   value={formData.mechSealFace ?? ""}
@@ -292,6 +337,7 @@ const SealingDetailsStep = ({
                     </option>
                   ))}
                 </select>
+                <Err show={showErrors} msg={errors.mechSealFace} />
               </div>
 
               <MakeField
@@ -300,6 +346,8 @@ const SealingDetailsStep = ({
                 value={formData.mechSealMake ?? ""}
                 onChange={(next) => setFormData({ ...formData, mechSealMake: next })}
                 placeholder="Enter seal make"
+                error={errors.mechSealMake}
+                showError={showErrors}
               />
             </>
           )}
@@ -307,7 +355,7 @@ const SealingDetailsStep = ({
           {isGlandPacking && (
             <>
               <div className={fieldWrap}>
-                <label className={label}>Gland Packing Type</label>
+                <label className={label}>Gland Packing Type<Req /></label>
                 <select
                   className={control}
                   value={formData.glandPackingType ?? ""}
@@ -322,6 +370,7 @@ const SealingDetailsStep = ({
                     </option>
                   ))}
                 </select>
+                <Err show={showErrors} msg={errors.glandPackingType} />
               </div>
 
               <MakeField
@@ -330,16 +379,44 @@ const SealingDetailsStep = ({
                 value={formData.glandPackingMake ?? ""}
                 onChange={(next) => setFormData({ ...formData, glandPackingMake: next })}
                 placeholder="Enter packing make"
+                error={errors.glandPackingMake}
+                showError={showErrors}
               />
             </>
           )}
+
+          {/* Open remarks. Always available, but required once the chosen
+              arrangement differs from the AI's recommendation - that reasoning
+              is what the quotation and any later review need. */}
+          <div className={`${fieldWrap} ${fullWidth}`}>
+            <label className={label}>
+              Open Remarks
+              {deviatesFromAi && <Req />}
+            </label>
+            <textarea
+              className={control}
+              rows={2}
+              placeholder={
+                deviatesFromAi
+                  ? `Why is ${formData.sealingType} used instead of the recommended ${aiSeal}?`
+                  : "Any notes on the sealing selection (optional)"
+              }
+              value={formData.sealingRemarks ?? ""}
+              onChange={(e) =>
+                setFormData({ ...formData, sealingRemarks: e.target.value })
+              }
+            />
+            <Err show={showErrors} msg={errors.sealingRemarks} />
+          </div>
         </div>
+
+        <ErrorBanner show={showErrors} count={errorCount} />
 
         <div className={actions}>
           <button className={btnGhost} onClick={onPrevious}>
             Previous
           </button>
-          <button className={btnPrimary} onClick={onNext}>
+          <button className={btnPrimary} onClick={handleNext}>
             Next
           </button>
         </div>

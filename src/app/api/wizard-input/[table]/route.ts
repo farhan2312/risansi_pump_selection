@@ -63,7 +63,7 @@ const FIELDS: Record<TableKey, readonly string[]> = {
   ],
   "moc-sealing": [
     "sealingType", "sealingSubType", "glandPackingType", "glandPackingMake",
-    "mechSealMoc", "mechSealFace", "mechSealMake",
+    "mechSealMoc", "mechSealFace", "mechSealMake", "sealingRemarks",
     // Legacy free-text client-requirements is intentionally omitted from the
     // writable list: the form now uploads a file. Metadata columns for that
     // upload (filename/mime/uploadedAt) live here so restore can rebuild the

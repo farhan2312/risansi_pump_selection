@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Stepper from "./Stepper";
 import "./GeneralInformationStep.css";
 import { actions, btnGhost, btnPrimary, control } from "./formStyles";
+import { ErrorBanner, hasErrors } from "./fieldBits";
 import {
   getMocAiSuggestion,
   MOC_AI_ELASTOMERS,
@@ -330,6 +331,18 @@ const MocDetailsStep = ({
   // moves the Stator Sleeve into the wettable group and renames Base Plate to
   // Mounting Plate. Cheap enough to derive on every render.
   const componentGroups = componentGroupsFor(formData.pumpType as string | undefined);
+
+  // Every manual MOC must be chosen, and a manual pick that DIFFERS from the
+  // AI recommendation must say why - the remarks are the record of that
+  // engineering judgement. Rows are pump-type dependent, so the rules are
+  // derived from the same groups the table renders.
+  const [showErrors, setShowErrors] = useState(false);
+  const activeRows = [
+    ...componentGroups.nonWettable,
+    ...componentGroups.wettable,
+    ...ELASTOMER_ROWS,
+  ];
+
   const { user } = useCurrentUser();
 
   // Client requirements is now an uploaded file (image or PDF), not free text.
@@ -539,6 +552,29 @@ const MocDetailsStep = ({
         }
       })
       .catch(() => setAiStatus("error"));
+  };
+
+  // One entry per row: the manual pick, plus its remarks when that pick
+  // departs from what the AI recommended.
+  const mocErrors: Record<string, string> = {};
+  for (const row of activeRows) {
+    const manual = (formData[row.key] ?? "").trim();
+    const suggested = (aiSuggestion?.[row.aiKey] ?? "").trim();
+    const remarks = (formData[`${row.key}Remarks`] ?? "").trim();
+    if (!manual) {
+      mocErrors[row.key] = "Required";
+    } else if (suggested && manual !== suggested && !remarks) {
+      mocErrors[`${row.key}Remarks`] = `Remarks required - differs from ${suggested}`;
+    }
+  }
+  const mocErrorCount = Object.values(mocErrors).filter(Boolean).length;
+
+  const handleNext = () => {
+    if (hasErrors(mocErrors)) {
+      setShowErrors(true);
+      return;
+    }
+    onNext();
   };
 
   const [pdfGenerating, setPdfGenerating] = useState(false);
@@ -898,6 +934,8 @@ const MocDetailsStep = ({
               ai={aiSuggestion}
               formData={formData}
               setFormData={setFormData}
+              errors={mocErrors}
+              showErrors={showErrors}
             />
             <MocComponentTable
               title="Wettable Casting Components"
@@ -905,6 +943,8 @@ const MocDetailsStep = ({
               ai={aiSuggestion}
               formData={formData}
               setFormData={setFormData}
+              errors={mocErrors}
+              showErrors={showErrors}
             />
             <MocComponentTable
               title="Elastomer"
@@ -912,15 +952,19 @@ const MocDetailsStep = ({
               ai={aiSuggestion}
               formData={formData}
               setFormData={setFormData}
+              errors={mocErrors}
+              showErrors={showErrors}
             />
           </div>
         )}
+
+        <ErrorBanner show={showErrors} count={mocErrorCount} />
 
         <div className={actions}>
           <button className={btnGhost} onClick={onPrevious}>
             Previous
           </button>
-          <button className={btnPrimary} onClick={onNext}>
+          <button className={btnPrimary} onClick={handleNext}>
             Next
           </button>
         </div>
@@ -942,6 +986,8 @@ const MocComponentTable = ({
   ai,
   formData,
   setFormData,
+  errors,
+  showErrors,
 }: {
   title: string;
   rows: ComponentRow[];
@@ -950,6 +996,8 @@ const MocComponentTable = ({
   formData: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setFormData: any;
+  errors: Record<string, string>;
+  showErrors: boolean;
 }) => (
   <div className="mt-3">
     <span className="section-label">{title}</span>
@@ -961,7 +1009,7 @@ const MocComponentTable = ({
           <tr className="bg-paper text-left text-[11px] uppercase tracking-wide text-fg-3">
             <th className="px-3 py-2">Component</th>
             <th className="px-3 py-2">AI Recommendation</th>
-            <th className="px-3 py-2">Manual</th>
+            <th className="px-3 py-2">Manual *</th>
             <th className="px-3 py-2">Open Remarks</th>
           </tr>
         </thead>
@@ -1002,6 +1050,9 @@ const MocComponentTable = ({
                       </option>
                     ))}
                   </select>
+                  {showErrors && errors[row.key] && (
+                    <span className="mt-1 block text-[11.5px] text-neg">{errors[row.key]}</span>
+                  )}
                 </td>
                 <td className="px-3 py-2">
                   <input
@@ -1016,6 +1067,11 @@ const MocComponentTable = ({
                       })
                     }
                   />
+                  {showErrors && errors[`${row.key}Remarks`] && (
+                    <span className="mt-1 block text-[11.5px] text-neg">
+                      {errors[`${row.key}Remarks`]}
+                    </span>
+                  )}
                 </td>
               </tr>
             );
