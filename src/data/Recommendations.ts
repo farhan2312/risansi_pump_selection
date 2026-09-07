@@ -92,8 +92,12 @@ export interface PumpSelectionFormData {
   solidSizeMode?: string;
   solidType?: string; // "Hard Solid" | "Soft Solid" — only relevant when solids > 0
   pumpType: string;
+  suctionSize?: string; // inches — defaults to the viscosity band size
+  dischargeSize?: string; // inches — defaults to the viscosity band size
   agBk?: string; // AG / BK feed option — only set when viscosity > 10000 cP
   agBkRemarks?: string; // required justification when agBk is "Not Required"
+  negativeSuctionSize?: string; // vertical pumps only - depth below the flange
+  negativeSuctionUnit?: string; // "mt" | "mm"
   bearingHousing: string;
   suctionHousing: string;
   jointType: string;

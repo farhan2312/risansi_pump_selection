@@ -50,6 +50,8 @@ const FIELDS: Record<TableKey, readonly string[]> = {
   ],
   "fluid-properties": [
     "viscosity", "viscosityUnit", "viscosityRange", "viscosityCp",
+    // Line sizes (inches), defaulted from the viscosity band but user-editable.
+    "suctionSize", "dischargeSize",
     "solidPercentage", "solidSize", "solidSizeMax", "solidSizeMode", "solidType",
     // Temperature + pH are entered on the Fluid step, so they persist here.
     "ph", "temperature", "temperatureRaw", "temperatureUnit",
@@ -60,6 +62,7 @@ const FIELDS: Record<TableKey, readonly string[]> = {
   ],
   "operating-conditions": [
     "pumpType", "agBk", "agBkRemarks", "bearingHousing", "suctionHousing", "jointType",
+    "negativeSuctionSize", "negativeSuctionUnit",
   ],
   "moc-sealing": [
     "sealingType", "sealingSubType", "glandPackingType", "glandPackingMake",

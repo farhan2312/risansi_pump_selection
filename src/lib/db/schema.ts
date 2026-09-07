@@ -218,6 +218,11 @@ export const fluidPropertiesInput = pgTable("fluid_properties_input", {
   temperatureMax: varchar("temperature_max", { length: 50 }), // canonical °C (max)
   temperatureMaxRaw: varchar("temperature_max_raw", { length: 50 }), // as-entered (max)
   temperatureMode: varchar("temperature_mode", { length: 10 }),
+  // Suction & discharge line sizes, always in inches. Both default to the size
+  // recommended for the viscosity band, and both stay editable - a job can
+  // deviate from the table (and the two need not match each other).
+  suctionSize: varchar("suction_size", { length: 20 }),
+  dischargeSize: varchar("discharge_size", { length: 20 }),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
@@ -244,6 +249,11 @@ export const operatingConditionsInput = pgTable("operating_conditions_input", {
   bearingHousing: varchar("bearing_housing", { length: 50 }),
   suctionHousing: varchar("suction_housing", { length: 50 }),
   jointType: varchar("joint_type", { length: 50 }),
+  // Vertical pumps hang into the sump, so the depth below the mounting flange
+  // has to be stated. Only vertical pump types carry these; every other type
+  // leaves them null.
+  negativeSuctionSize: varchar("negative_suction_size", { length: 50 }),
+  negativeSuctionUnit: varchar("negative_suction_unit", { length: 10 }),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });

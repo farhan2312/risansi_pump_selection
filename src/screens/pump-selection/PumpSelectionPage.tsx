@@ -48,11 +48,13 @@ const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
   ],
   "fluid-properties": [
     "viscosity", "viscosityUnit", "viscosityRange", "viscosityCp",
+    "suctionSize", "dischargeSize",
     "solidPercentage", "solidSize", "solidSizeMax", "solidSizeMode", "solidType",
     "ph", "temperature", "temperatureRaw", "temperatureUnit",
   ],
   "operating-conditions": [
     "pumpType", "agBk", "agBkRemarks", "bearingHousing", "suctionHousing", "jointType",
+    "negativeSuctionSize", "negativeSuctionUnit",
   ],
   "moc-sealing": [
     "sealingType", "sealingSubType", "glandPackingType", "glandPackingMake",
@@ -232,6 +234,8 @@ const PumpSelectionPage = () => {
     viscosity: "",
     viscosityUnit: "",
     viscosityRange: "",
+    suctionSize: "", // inches - defaulted from the viscosity band, editable
+    dischargeSize: "",
     viscosityCp: "", // canonical cP value (cP = cSt × SG when entered in cSt)
     solidPercentage: "",
     solidSize: "",
@@ -243,6 +247,8 @@ const PumpSelectionPage = () => {
     pumpType: "",
     agBk: "", // AG / BK feed option — only shown when viscosity > 10000 cP
     agBkRemarks: "", // why AG/BK was marked Not Required (mandatory when it is)
+    negativeSuctionSize: "", // vertical pumps only - depth below the flange
+    negativeSuctionUnit: "mt",
     bearingHousing: "",
     suctionHousing: "",
     jointType: "",

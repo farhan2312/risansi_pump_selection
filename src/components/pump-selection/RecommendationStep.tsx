@@ -43,6 +43,14 @@ type Props = {
 
 // Combines a manual material selection with its open-remarks note into one
 // summary line, e.g. "SS304 (verify with client spec)".
+// Line sizes are always inches. Prefer what the user entered on the Fluid
+// step; fall back to the size derived from the confirmed model / viscosity
+// band for drafts saved before those fields existed.
+const sizeText = (entered: string | undefined, derived: number | null): string => {
+  const value = (entered ?? "").trim() || (derived !== null ? String(derived) : "");
+  return value ? `${value}"` : "";
+};
+
 const withRemarks = (value?: string, remarks?: string): string | undefined => {
   if (!value) return undefined;
   return remarks ? `${value} (${remarks})` : value;
@@ -220,7 +228,10 @@ const RecommendationStep = ({
 
   const pumpDetailsItems: FieldItem[] = confirmedPump
     ? [
-        ["Suction & Discharge Size", cardSize !== null ? String(cardSize) : ""],
+        // Entered on the Fluid step (pre-filled from the viscosity band, then
+        // editable), so the user's own value wins over the derived one.
+        ["Suction Size", sizeText(formData.suctionSize, cardSize)],
+        ["Discharge Size", sizeText(formData.dischargeSize, cardSize)],
         ["Pump Speed (RPM)", confirmedPump.rpmRange],
         ["Pump Stage", confirmedPump.stage != null ? String(confirmedPump.stage) : ""],
         [
@@ -233,6 +244,13 @@ const RecommendationStep = ({
         ["Bearing Housing (Type)", formData.bearingHousing],
         ["Suction Housing", formData.suctionHousing],
         ["Joint Type", formData.jointType],
+        // Vertical pumps only - FieldGrid drops the row for every other type.
+        [
+          "Negative Suction Size",
+          formData.negativeSuctionSize
+            ? `${formData.negativeSuctionSize} ${formData.negativeSuctionUnit || "mt"}`
+            : "",
+        ],
       ]
     : [];
 

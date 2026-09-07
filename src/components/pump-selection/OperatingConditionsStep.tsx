@@ -48,6 +48,11 @@ const SUCTION_HOUSINGS_BY_PUMP_TYPE: Record<string, string[]> = {
 // picking it makes the remarks box mandatory so the reason is on record.
 export const AG_BK_NOT_REQUIRED = "Not Required";
 
+// Only vertical pumps hang into the sump, so only they are asked how far the
+// suction reaches below the mounting flange.
+const VERTICAL_PUMP_TYPE = "Vertical";
+const NEGATIVE_SUCTION_UNITS = ["mt", "mm"];
+
 const agBkOptionsFor = (pumpType: string): string[] =>
   AG_BK_OPTIONS_BY_PUMP_TYPE[pumpType] ?? [];
 // Before a pump type is chosen, show every housing so the field isn't empty;
@@ -81,11 +86,18 @@ const OperatingConditionsStep = ({
             : agOpts.includes(formData.agBk)
               ? formData.agBk
               : "";
+    const isVertical = pumpType === VERTICAL_PUMP_TYPE;
     setFormData({
       ...formData,
       pumpType,
       agBk,
       agBkRemarks: agBk === AG_BK_NOT_REQUIRED ? formData.agBkRemarks ?? "" : "",
+      // A depth captured for a vertical pump means nothing once the type
+      // changes, so it is dropped rather than carried into the quotation.
+      negativeSuctionSize: isVertical ? formData.negativeSuctionSize ?? "" : "",
+      negativeSuctionUnit: isVertical
+        ? formData.negativeSuctionUnit || NEGATIVE_SUCTION_UNITS[0]
+        : "",
       suctionHousing: suctionOpts.includes(formData.suctionHousing)
         ? formData.suctionHousing
         : "",
@@ -95,6 +107,7 @@ const OperatingConditionsStep = ({
   const agBkOptions = agBkOptionsFor(formData.pumpType);
   const suctionHousingOptions = suctionHousingOptionsFor(formData.pumpType);
   const agBkNotRequired = formData.agBk === AG_BK_NOT_REQUIRED;
+  const isVertical = formData.pumpType === VERTICAL_PUMP_TYPE;
 
   // Remarks only belong to "Not Required" - switching back to a real option
   // drops them so a stale justification cannot follow the pump into a
@@ -121,6 +134,14 @@ const OperatingConditionsStep = ({
     bearingHousing: formData.bearingHousing ? "" : "Select a bearing housing.",
     suctionHousing: formData.suctionHousing ? "" : "Select a suction housing.",
     jointType: formData.jointType ? "" : "Select a joint type.",
+    negativeSuctionSize:
+      !isVertical || (formData.negativeSuctionSize ?? "").trim()
+        ? ""
+        : "Negative suction size is required for a vertical pump.",
+    negativeSuctionUnit:
+      !isVertical || formData.negativeSuctionUnit
+        ? ""
+        : "Select a negative suction unit.",
   };
   const errorCount = Object.values(errors).filter(Boolean).length;
 
@@ -256,6 +277,42 @@ const OperatingConditionsStep = ({
             </select>
             <Err show={showErrors} msg={errors.jointType} />
           </div>
+
+          {/* Vertical pumps only: how far the suction hangs below the mounting
+              flange. Entered in metres or millimetres. */}
+          {isVertical && (
+            <div className={fieldWrap}>
+              <label className={label}>Negative Suction Size<Req /></label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  placeholder="Enter Negative Suction Size"
+                  className={control}
+                  value={formData.negativeSuctionSize ?? ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, negativeSuctionSize: e.target.value })
+                  }
+                />
+                <select
+                  className={control}
+                  value={formData.negativeSuctionUnit || NEGATIVE_SUCTION_UNITS[0]}
+                  onChange={(e) =>
+                    setFormData({ ...formData, negativeSuctionUnit: e.target.value })
+                  }
+                >
+                  {NEGATIVE_SUCTION_UNITS.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <Err
+                show={showErrors}
+                msg={errors.negativeSuctionSize || errors.negativeSuctionUnit}
+              />
+            </div>
+          )}
         </div>
 
         <ErrorBanner show={showErrors} count={errorCount} />

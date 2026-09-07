@@ -1,7 +1,7 @@
 import Stepper from "./Stepper";
 import "./GeneralInformationStep.css";
 import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, hint, label } from "./formStyles";
-import { needsBkAg } from "../../lib/suction-discharge-size";
+import { needsBkAg, sizeForViscosityRange } from "../../lib/suction-discharge-size";
 import { toCp } from "../../utils/units";
 import type { FluidMode } from "../../lib/fluid-inputs";
 
@@ -92,6 +92,20 @@ const RangeLabel = ({
 const modeOf = (value: unknown): FluidMode =>
   value === "range" ? "range" : "single";
 
+// Suction & discharge sizes default to the size recommended for the viscosity
+// band. They re-default only when the band actually CHANGES, so a manual
+// override survives further viscosity edits that stay inside the same band.
+// Returns the fields to merge, or null when nothing should be overwritten.
+const sizeDefaultsFor = (
+  prevRange: string,
+  nextRange: string,
+): { suctionSize: string; dischargeSize: string } | null => {
+  if (nextRange === prevRange) return null;
+  const size = sizeForViscosityRange(nextRange);
+  const value = size === null ? "" : String(size);
+  return { suctionSize: value, dischargeSize: value };
+};
+
 
 const FluidPropertiesStep = ({
   onNext,
@@ -140,6 +154,7 @@ const FluidPropertiesStep = ({
       viscosityRange,
       viscosityCp,
       viscosityCpMax,
+      ...(sizeDefaultsFor(formData.viscosityRange ?? "", viscosityRange) ?? {}),
     });
   };
 
@@ -199,6 +214,10 @@ const FluidPropertiesStep = ({
       solidSizeMode: mode,
     });
   };
+
+  // Shown as a hint under the size fields so the table's recommendation stays
+  // visible even after the user types their own value over it.
+  const recommendedSize = sizeForViscosityRange(formData.viscosityRange);
 
   const tempUnit = formData.temperatureUnit;
   const tempRawNum = parseFloat(formData.temperatureRaw ?? "");
@@ -287,7 +306,14 @@ const FluidPropertiesStep = ({
               className={control}
               value={formData.viscosityRange}
               onChange={(e) =>
-                setFormData({ ...formData, viscosityRange: e.target.value })
+                setFormData({
+                  ...formData,
+                  viscosityRange: e.target.value,
+                  ...(sizeDefaultsFor(
+                    formData.viscosityRange ?? "",
+                    e.target.value,
+                  ) ?? {}),
+                })
               }
             >
               <option value="">Select Range</option>
@@ -455,6 +481,47 @@ const FluidPropertiesStep = ({
               <option value="F">°F</option>
               <option value="K">K</option>
             </select>
+          </div>
+
+          {/* Line sizes, inches only. Both are pre-filled with the size the
+              viscosity band recommends and both stay editable — a job can
+              deviate, and suction need not match discharge. */}
+          <div className={fieldWrap}>
+            <label className={label}>Suction Size (inch)</label>
+            <input
+              type="number"
+              placeholder="Enter Suction Size"
+              className={control}
+              value={formData.suctionSize ?? ""}
+              onChange={(e) =>
+                setFormData({ ...formData, suctionSize: e.target.value })
+              }
+            />
+            {recommendedSize !== null && (
+              <span className={hint}>
+                Recommended for this viscosity range:{" "}
+                <b className="mono font-semibold text-fg">{recommendedSize}&quot;</b>
+              </span>
+            )}
+          </div>
+
+          <div className={fieldWrap}>
+            <label className={label}>Discharge Size (inch)</label>
+            <input
+              type="number"
+              placeholder="Enter Discharge Size"
+              className={control}
+              value={formData.dischargeSize ?? ""}
+              onChange={(e) =>
+                setFormData({ ...formData, dischargeSize: e.target.value })
+              }
+            />
+            {recommendedSize !== null && (
+              <span className={hint}>
+                Recommended for this viscosity range:{" "}
+                <b className="mono font-semibold text-fg">{recommendedSize}&quot;</b>
+              </span>
+            )}
           </div>
         </div>
 
