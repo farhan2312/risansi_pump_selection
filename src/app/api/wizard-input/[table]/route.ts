@@ -51,7 +51,8 @@ const FIELDS: Record<TableKey, readonly string[]> = {
   "fluid-properties": [
     "viscosity", "viscosityUnit", "viscosityRange", "viscosityCp",
     // Line sizes (inches), defaulted from the viscosity band but user-editable.
-    "suctionSize", "dischargeSize",
+    "suctionSize", "dischargeSize", "recommendedSize",
+    "suctionSizeRemarks", "dischargeSizeRemarks",
     "solidPercentage", "solidSize", "solidSizeMax", "solidSizeMode", "solidType",
     // Temperature + pH are entered on the Fluid step, so they persist here.
     "ph", "temperature", "temperatureRaw", "temperatureUnit",

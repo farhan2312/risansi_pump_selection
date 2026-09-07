@@ -228,10 +228,23 @@ const RecommendationStep = ({
 
   const pumpDetailsItems: FieldItem[] = confirmedPump
     ? [
-        // Entered on the Fluid step (pre-filled from the viscosity band, then
-        // editable), so the user's own value wins over the derived one.
-        ["Suction Size", sizeText(formData.suctionSize, cardSize)],
-        ["Discharge Size", sizeText(formData.dischargeSize, cardSize)],
+        // Entered on the Fluid step (pre-filled from the recommendation, then
+        // editable), so the user's own value wins over the derived one. Any
+        // remark explains an override and travels with the size.
+        [
+          "Suction Size",
+          withRemarks(
+            sizeText(formData.suctionSize, cardSize),
+            formData.suctionSizeRemarks,
+          ),
+        ],
+        [
+          "Discharge Size",
+          withRemarks(
+            sizeText(formData.dischargeSize, cardSize),
+            formData.dischargeSizeRemarks,
+          ),
+        ],
         ["Pump Speed (RPM)", confirmedPump.rpmRange],
         ["Pump Stage", confirmedPump.stage != null ? String(confirmedPump.stage) : ""],
         [

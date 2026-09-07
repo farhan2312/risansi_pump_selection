@@ -48,7 +48,8 @@ const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
   ],
   "fluid-properties": [
     "viscosity", "viscosityUnit", "viscosityRange", "viscosityCp",
-    "suctionSize", "dischargeSize",
+    "suctionSize", "dischargeSize", "recommendedSize",
+    "suctionSizeRemarks", "dischargeSizeRemarks",
     "solidPercentage", "solidSize", "solidSizeMax", "solidSizeMode", "solidType",
     "ph", "temperature", "temperatureRaw", "temperatureUnit",
   ],
@@ -234,8 +235,11 @@ const PumpSelectionPage = () => {
     viscosity: "",
     viscosityUnit: "",
     viscosityRange: "",
-    suctionSize: "", // inches - defaulted from the viscosity band, editable
+    suctionSize: "", // inches - defaulted from the recommendation, editable
     dischargeSize: "",
+    recommendedSize: "", // baseline the two above are compared against
+    suctionSizeRemarks: "", // mandatory once the value deviates
+    dischargeSizeRemarks: "",
     viscosityCp: "", // canonical cP value (cP = cSt × SG when entered in cSt)
     solidPercentage: "",
     solidSize: "",

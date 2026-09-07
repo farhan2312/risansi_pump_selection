@@ -1,7 +1,14 @@
+import { useState } from "react";
 import Stepper from "./Stepper";
 import "./GeneralInformationStep.css";
 import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, hint, label } from "./formStyles";
-import { needsBkAg, sizeForViscosityRange } from "../../lib/suction-discharge-size";
+import {
+  needsBkAg,
+  sizeDefaultsFor,
+  sizeDeviates,
+  sizeForViscosityRange,
+} from "../../lib/suction-discharge-size";
+import { Err, ErrorBanner, Req, hasErrors } from "./fieldBits";
 import { toCp } from "../../utils/units";
 import type { FluidMode } from "../../lib/fluid-inputs";
 
@@ -92,20 +99,6 @@ const RangeLabel = ({
 const modeOf = (value: unknown): FluidMode =>
   value === "range" ? "range" : "single";
 
-// Suction & discharge sizes default to the size recommended for the viscosity
-// band. They re-default only when the band actually CHANGES, so a manual
-// override survives further viscosity edits that stay inside the same band.
-// Returns the fields to merge, or null when nothing should be overwritten.
-const sizeDefaultsFor = (
-  prevRange: string,
-  nextRange: string,
-): { suctionSize: string; dischargeSize: string } | null => {
-  if (nextRange === prevRange) return null;
-  const size = sizeForViscosityRange(nextRange);
-  const value = size === null ? "" : String(size);
-  return { suctionSize: value, dischargeSize: value };
-};
-
 
 const FluidPropertiesStep = ({
   onNext,
@@ -154,7 +147,14 @@ const FluidPropertiesStep = ({
       viscosityRange,
       viscosityCp,
       viscosityCpMax,
-      ...(sizeDefaultsFor(formData.viscosityRange ?? "", viscosityRange) ?? {}),
+      // A new band means a new recommended size - unless a pump is already
+      // picked, whose own size wins over the flat band table.
+      ...(formData.selectedModel
+        ? {}
+        : sizeDefaultsFor(
+            formData.recommendedSize,
+            sizeForViscosityRange(viscosityRange),
+          ) ?? {}),
     });
   };
 
@@ -215,9 +215,47 @@ const FluidPropertiesStep = ({
     });
   };
 
-  // Shown as a hint under the size fields so the table's recommendation stays
-  // visible even after the user types their own value over it.
-  const recommendedSize = sizeForViscosityRange(formData.viscosityRange);
+  // Shown as a hint under the size fields so the recommendation stays visible
+  // even after the user types their own value over it. Once a pump is picked
+  // this is that model's own size (the live panel writes it); before then it
+  // falls back to the flat viscosity band table.
+  const recommendedSize =
+    (formData.recommendedSize ?? "").trim() ||
+    (() => {
+      const band = sizeForViscosityRange(formData.viscosityRange);
+      return band === null ? "" : String(band);
+    })();
+
+  // Says where the recommendation came from, so an override is a deliberate
+  // choice against a known source rather than against an anonymous number.
+  const recommendedLabel = formData.selectedModel
+    ? `Recommended for ${formData.selectedModel}`
+    : "Recommended for this viscosity range";
+
+  // Overriding a recommended size is allowed, but it has to be justified —
+  // the quotation has to say why the line was sized off-recommendation.
+  const suctionDeviates = sizeDeviates(formData.suctionSize, recommendedSize);
+  const dischargeDeviates = sizeDeviates(formData.dischargeSize, recommendedSize);
+  const [showErrors, setShowErrors] = useState(false);
+  const errors: Record<string, string> = {
+    suctionSizeRemarks:
+      suctionDeviates && !(formData.suctionSizeRemarks ?? "").trim()
+        ? "Explain why the suction size differs from the recommendation."
+        : "",
+    dischargeSizeRemarks:
+      dischargeDeviates && !(formData.dischargeSizeRemarks ?? "").trim()
+        ? "Explain why the discharge size differs from the recommendation."
+        : "",
+  };
+  const errorCount = Object.values(errors).filter(Boolean).length;
+
+  const handleNext = () => {
+    if (hasErrors(errors)) {
+      setShowErrors(true);
+      return;
+    }
+    onNext();
+  };
 
   const tempUnit = formData.temperatureUnit;
   const tempRawNum = parseFloat(formData.temperatureRaw ?? "");
@@ -309,10 +347,12 @@ const FluidPropertiesStep = ({
                 setFormData({
                   ...formData,
                   viscosityRange: e.target.value,
-                  ...(sizeDefaultsFor(
-                    formData.viscosityRange ?? "",
-                    e.target.value,
-                  ) ?? {}),
+                  ...(formData.selectedModel
+                    ? {}
+                    : sizeDefaultsFor(
+                        formData.recommendedSize,
+                        sizeForViscosityRange(e.target.value),
+                      ) ?? {}),
                 })
               }
             >
@@ -483,9 +523,10 @@ const FluidPropertiesStep = ({
             </select>
           </div>
 
-          {/* Line sizes, inches only. Both are pre-filled with the size the
-              viscosity band recommends and both stay editable — a job can
-              deviate, and suction need not match discharge. */}
+          {/* Line sizes, inches only. Both are pre-filled with the recommended
+              size — the confirmed model's own size once a pump is picked — and
+              both stay editable; suction need not match discharge. Overriding
+              either one makes its remarks mandatory. */}
           <div className={fieldWrap}>
             <label className={label}>Suction Size (inch)</label>
             <input
@@ -497,9 +538,9 @@ const FluidPropertiesStep = ({
                 setFormData({ ...formData, suctionSize: e.target.value })
               }
             />
-            {recommendedSize !== null && (
+            {recommendedSize && (
               <span className={hint}>
-                Recommended for this viscosity range:{" "}
+                {recommendedLabel}:{" "}
                 <b className="mono font-semibold text-fg">{recommendedSize}&quot;</b>
               </span>
             )}
@@ -516,14 +557,48 @@ const FluidPropertiesStep = ({
                 setFormData({ ...formData, dischargeSize: e.target.value })
               }
             />
-            {recommendedSize !== null && (
+            {recommendedSize && (
               <span className={hint}>
-                Recommended for this viscosity range:{" "}
+                {recommendedLabel}:{" "}
                 <b className="mono font-semibold text-fg">{recommendedSize}&quot;</b>
               </span>
             )}
           </div>
+
+          {suctionDeviates && (
+            <div className={fieldWrap}>
+              <label className={label}>Suction Size Remarks<Req /></label>
+              <textarea
+                className={control}
+                rows={2}
+                placeholder={`Why ${formData.suctionSize}" instead of the recommended ${recommendedSize}"?`}
+                value={formData.suctionSizeRemarks ?? ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, suctionSizeRemarks: e.target.value })
+                }
+              />
+              <Err show={showErrors} msg={errors.suctionSizeRemarks} />
+            </div>
+          )}
+
+          {dischargeDeviates && (
+            <div className={fieldWrap}>
+              <label className={label}>Discharge Size Remarks<Req /></label>
+              <textarea
+                className={control}
+                rows={2}
+                placeholder={`Why ${formData.dischargeSize}" instead of the recommended ${recommendedSize}"?`}
+                value={formData.dischargeSizeRemarks ?? ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, dischargeSizeRemarks: e.target.value })
+                }
+              />
+              <Err show={showErrors} msg={errors.dischargeSizeRemarks} />
+            </div>
+          )}
         </div>
+
+        <ErrorBanner show={showErrors} count={errorCount} />
 
  {needsBkAg(formData.viscosityRange, formData.solidPercentage) && (
   <div className="mt-4 rounded-lg border border-orange-200 bg-orange-50 p-4">
@@ -553,7 +628,7 @@ const FluidPropertiesStep = ({
           </button>
           <button
             className={`${btnPrimary} disabled:opacity-50 disabled:cursor-not-allowed`}
-            onClick={onNext}
+            onClick={handleNext}
             disabled={!formData.modelConfirmed}
           >
             Next

@@ -218,11 +218,18 @@ export const fluidPropertiesInput = pgTable("fluid_properties_input", {
   temperatureMax: varchar("temperature_max", { length: 50 }), // canonical °C (max)
   temperatureMaxRaw: varchar("temperature_max_raw", { length: 50 }), // as-entered (max)
   temperatureMode: varchar("temperature_mode", { length: 10 }),
-  // Suction & discharge line sizes, always in inches. Both default to the size
-  // recommended for the viscosity band, and both stay editable - a job can
-  // deviate from the table (and the two need not match each other).
+  // Suction & discharge line sizes, always in inches. Both default to the
+  // recommended size and both stay editable - a job can deviate from the
+  // recommendation (and the two need not match each other).
   suctionSize: varchar("suction_size", { length: 20 }),
   dischargeSize: varchar("discharge_size", { length: 20 }),
+  // The size the app recommended, kept so a deviation can be detected later
+  // without re-running the recommendation. It is the CONFIRMED MODEL's own
+  // size once a pump is picked (sizes are per-model), and the flat viscosity
+  // band size before that. Deviating from it makes remarks mandatory.
+  recommendedSize: varchar("recommended_size", { length: 20 }),
+  suctionSizeRemarks: text("suction_size_remarks"),
+  dischargeSizeRemarks: text("discharge_size_remarks"),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });

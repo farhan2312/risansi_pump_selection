@@ -43,6 +43,54 @@ export function sizeForViscosityRange(range: string | null | undefined): number 
   return size === undefined ? null : size;
 }
 
+/**
+ * The formData patch that re-defaults the suction & discharge sizes to a new
+ * recommendation. Both take the recommended value and both remarks are
+ * cleared, because a remark only ever explains a deviation from the baseline
+ * being replaced here.
+ *
+ * Returns null when the recommendation hasn't actually changed, so an
+ * override the user typed survives edits that leave the recommendation alone
+ * (further viscosity keystrokes inside the same band, re-renders, re-picking
+ * the same pump).
+ */
+export function sizeDefaultsFor(
+  previousRecommended: string | null | undefined,
+  recommended: number | null,
+): {
+  recommendedSize: string;
+  suctionSize: string;
+  dischargeSize: string;
+  suctionSizeRemarks: string;
+  dischargeSizeRemarks: string;
+} | null {
+  const value = recommended === null ? "" : String(recommended);
+  if (value === (previousRecommended ?? "")) return null;
+  return {
+    recommendedSize: value,
+    suctionSize: value,
+    dischargeSize: value,
+    suctionSizeRemarks: "",
+    dischargeSizeRemarks: "",
+  };
+}
+
+/** A size differs from the recommendation, so a remark is owed. Blank values
+ * on either side don't count as a deviation — there is nothing to explain
+ * until both a recommendation and a value exist. */
+export function sizeDeviates(
+  value: string | null | undefined,
+  recommended: string | null | undefined,
+): boolean {
+  const a = (value ?? "").trim();
+  const b = (recommended ?? "").trim();
+  if (!a || !b) return false;
+  // Compared numerically so 8 and 8.0 are the same size, not a deviation.
+  const na = parseFloat(a);
+  const nb = parseFloat(b);
+  return Number.isNaN(na) || Number.isNaN(nb) ? a !== b : na !== nb;
+}
+
 /** BK/AG feed-construction options are recommended for very thick media
  * (viscosity > 10 000 cP) OR any solids content (> 0%). Either trigger opens
  * the AG/BK dropdown in the Specifications step and the note in the size box. */

@@ -5,7 +5,11 @@ import "./LivePumpRecommendation.css";
 import { previewRecommendations } from "../../services/recommendationService";
 import { saveWizardInput } from "../../services/wizardInputService";
 import type { HeadPoint, PumpRecommendation } from "../../data/Recommendations";
-import { SIZE_COLUMN_BY_RANGE, sizeForViscosityRange } from "../../lib/suction-discharge-size";
+import {
+  SIZE_COLUMN_BY_RANGE,
+  sizeDefaultsFor,
+  sizeForViscosityRange,
+} from "../../lib/suction-discharge-size";
 import { sealingShort } from "../../lib/sealing";
 import { AG_BK_NOT_REQUIRED } from "./OperatingConditionsStep";
 
@@ -136,10 +140,17 @@ const LivePumpRecommendation = ({
     const already =
       formData.selectedModel === model &&
       String(formData.selectedHead) === String(headMwc);
+    // Sizes are per-model, so picking a pump re-defaults suction & discharge
+    // to that model's size (and unpinning falls back to the flat viscosity
+    // band size). Any remark explaining a deviation from the old baseline is
+    // cleared along with it — see sizeDefaultsFor.
+    const rec = recs.find((r) => r.model === model) ?? null;
+    const recommended = already || !rec ? fallbackSize : perModelSize(rec);
     setFormData({
       ...formData,
       selectedModel: already ? "" : model,
       selectedHead: already ? "" : String(headMwc),
+      ...(sizeDefaultsFor(formData.recommendedSize, recommended) ?? {}),
     });
   };
 
@@ -242,8 +253,15 @@ const LivePumpRecommendation = ({
               {point && point.mechEff != null ? `${point.mechEff}%` : "—"}
             </b>
           </div>
+          {/* Suction and discharge are one figure per model in the master
+              sheet, but they are separate line sizes on the job and the user
+              can size them apart on the Fluid step, so the card lists both. */}
           <div>
-            <span>Size</span>
+            <span>Suction</span>
+            <b className="mono">{size !== null ? `${size}"` : "—"}</b>
+          </div>
+          <div>
+            <span>Discharge</span>
             <b className="mono">{size !== null ? `${size}"` : "—"}</b>
           </div>
         </div>
