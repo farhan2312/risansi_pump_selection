@@ -75,6 +75,18 @@ export function sizeDefaultsFor(
   };
 }
 
+/** The size actually being quoted: what the user entered on the Fluid step,
+ * falling back to the recommendation when they haven't entered anything (or
+ * typed something unparseable). Lets a display show the real number without
+ * having to know whether it was overridden. */
+export function sizeOverride(
+  entered: string | null | undefined,
+  recommended: number | null,
+): number | null {
+  const n = parseFloat((entered ?? "").trim());
+  return Number.isNaN(n) ? recommended : n;
+}
+
 /** A size differs from the recommendation, so a remark is owed. Blank values
  * on either side don't count as a deviation — there is nothing to explain
  * until both a recommendation and a value exist. */

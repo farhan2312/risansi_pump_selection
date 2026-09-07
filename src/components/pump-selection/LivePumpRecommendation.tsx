@@ -8,6 +8,7 @@ import type { HeadPoint, PumpRecommendation } from "../../data/Recommendations";
 import {
   SIZE_COLUMN_BY_RANGE,
   sizeDefaultsFor,
+  sizeOverride,
   sizeForViscosityRange,
 } from "../../lib/suction-discharge-size";
 import { sealingShort } from "../../lib/sealing";
@@ -37,6 +38,15 @@ type Props = {
 };
 
 type Status = "idle" | "loading" | "ready" | "empty" | "error";
+
+// Hover text for a size cell the user has overridden on the Fluid step — the
+// "*" on the label alone doesn't say what the model actually recommends.
+const overrideTitle = (shown: number | null, recommended: number | null) =>
+  shown === recommended
+    ? undefined
+    : `Overridden on the Fluid step — this model's size is ${
+        recommended === null ? "unknown" : `${recommended}"`
+      }`;
 
 // Only the fields the engine actually uses — re-query when any of these
 // change, including selectedModel (a pick must be re-evaluated fresh).
@@ -206,6 +216,12 @@ const LivePumpRecommendation = ({
     const isSelected =
       selectedOverride ?? r.model === formData.selectedModel;
     const size = perModelSize(r);
+    // The picked pump's card shows the sizes actually being quoted, so an
+    // override entered on the Fluid step is reflected here. Every other card
+    // keeps showing its own model's size — that is what picking it would fill
+    // in, and the override belongs to the picked pump, not to a candidate.
+    const suction = isSelected ? sizeOverride(formData.suctionSize, size) : size;
+    const discharge = isSelected ? sizeOverride(formData.dischargeSize, size) : size;
     return (
       <>
         <div className="live-rec-card-badges">
@@ -255,14 +271,16 @@ const LivePumpRecommendation = ({
           </div>
           {/* Suction and discharge are one figure per model in the master
               sheet, but they are separate line sizes on the job and the user
-              can size them apart on the Fluid step, so the card lists both. */}
-          <div>
-            <span>Suction</span>
-            <b className="mono">{size !== null ? `${size}"` : "—"}</b>
+              can size them apart on the Fluid step, so the card lists both.
+              An overridden size is flagged so the card never looks like the
+              model's own recommendation when it isn't. */}
+          <div title={overrideTitle(suction, size)}>
+            <span>Suction{suction !== size && " *"}</span>
+            <b className="mono">{suction !== null ? `${suction}"` : "—"}</b>
           </div>
-          <div>
-            <span>Discharge</span>
-            <b className="mono">{size !== null ? `${size}"` : "—"}</b>
+          <div title={overrideTitle(discharge, size)}>
+            <span>Discharge{discharge !== size && " *"}</span>
+            <b className="mono">{discharge !== null ? `${discharge}"` : "—"}</b>
           </div>
         </div>
         {/* Spec selections (same for every model), combined into one line like
