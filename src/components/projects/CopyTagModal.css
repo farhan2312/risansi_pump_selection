@@ -5,12 +5,20 @@
   max-width: 520px;
 }
 
-.copy-lead {
-  margin: -4px 0 0;
+/* Sits between the gradient header and the form. The header has no bottom
+   padding of its own, so the gap has to come from here; .modal-form's own
+   20px top padding is then trimmed below so the lead doesn't float in the
+   middle of a double gap. */
+.copy-modal .copy-lead {
+  margin: 16px 0 0;
   padding: 0 24px;
   font-size: 12.5px;
   line-height: 1.5;
   color: var(--fg-3, #6e7781);
+}
+
+.copy-modal .modal-form {
+  padding-top: 14px;
 }
 
 /* Shown instead of a dropdown when there's only one tag to copy. */

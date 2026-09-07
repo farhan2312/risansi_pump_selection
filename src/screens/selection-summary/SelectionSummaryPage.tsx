@@ -15,12 +15,9 @@ import { SkeletonRows } from "../../components/ui/Skeleton";
 import Spinner from "../../components/ui/Spinner";
 import {
   downloadSelectionSummaryPdf,
-  downloadEnquiryDocumentPdf,
-  buildEnquiryMatrix,
-  type EnquiryDocumentTag,
   type SelectionSummaryPdfSection,
 } from "../../lib/selection-summary-pdf";
-import { printEnquiryDocument } from "../../lib/enquiry-print";
+import EnquiryDocumentModal from "../../components/reports/EnquiryDocumentModal";
 
 // A saved summary can still carry the retired "Selected Motor" section and the
 // Testing rows; drop them so a regenerated PDF matches the current report spec.
@@ -31,19 +28,6 @@ function normalizeSections(summary: ReportSummary): SelectionSummaryPdfSection[]
       ...s,
       items: s.items.filter(([label]) => !/^testing\b/i.test(label)),
     }));
-}
-
-// Value of the first summary item whose label matches `labelRe`, across all
-// sections — used to pull the liquid/pump type for a tag's divider label.
-function pickItem(summary: ReportSummary, labelRe: RegExp): string | undefined {
-  for (const s of summary.sections) {
-    for (const [label, value] of s.items) {
-      if (labelRe.test(label) && value && String(value).trim() !== "") {
-        return String(value).trim();
-      }
-    }
-  }
-  return undefined;
 }
 
 // Regenerates a tag's PDF from its stored structured summary using the CURRENT
@@ -74,35 +58,6 @@ interface EnquiryGroup {
   created_by_name: string | null;
   latest_generated_at: string | null;
   tags: ReportRecord[];
-}
-
-type LoadedTag = { tag: ReportRecord; summary: ReportSummary | null };
-
-// Maps the fetched per-tag summaries into the tag shape the enquiry document /
-// matrix builder consumes (dropping tags with no saved summary).
-function loadedToTags(loaded: LoadedTag[]): EnquiryDocumentTag[] {
-  return loaded
-    .filter((x): x is { tag: ReportRecord; summary: ReportSummary } => x.summary != null)
-    .map(({ tag, summary }) => ({
-      tagName: tag.tag_name,
-      liquid: pickItem(summary, /^(media|liquid)/i),
-      pumpType: pickItem(summary, /pump type/i),
-      pumpFields: summary.pumpFields,
-      sections: normalizeSections(summary),
-    }));
-}
-
-// Builds the combined multi-tag quotation document for an enquiry from the
-// per-tag summaries already fetched for the View Document modal.
-async function downloadEnquiryDoc(group: EnquiryGroup, loaded: LoadedTag[]): Promise<void> {
-  const tags = loadedToTags(loaded);
-  if (tags.length === 0) return;
-  await downloadEnquiryDocumentPdf({
-    projectCode: group.project_code,
-    projectName: group.project_name ?? undefined,
-    generatedBy: group.created_by_name ?? undefined,
-    tags,
-  });
 }
 
 // Reuses the exact status-pill classes/colors from DashboardPage.css (loaded
@@ -402,7 +357,16 @@ const SelectionSummaryPage = () => {
 
       {viewingEnquiry && (
         <EnquiryDocumentModal
-          group={viewingEnquiry}
+          source={{
+            projectCode: viewingEnquiry.project_code,
+            projectName: viewingEnquiry.project_name,
+            clientCode: viewingEnquiry.client_code,
+            generatedBy: viewingEnquiry.created_by_name,
+            tags: viewingEnquiry.tags.map((t) => ({
+              tagId: t.tag_id,
+              tagName: t.tag_name,
+            })),
+          }}
           onClose={() => setViewingEnquiry(null)}
         />
       )}
@@ -534,175 +498,6 @@ const ReportSummaryModal = ({
             className="summary-download-btn"
             onClick={handleDownload}
             disabled={downloading || isLoading}
-          >
-            {downloading ? "Generating…" : "Download PDF"}
-          </button>
-          <button className="summary-modal-close-btn" onClick={onClose}>
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// --- Enquiry document modal (all tags / liquids side by side) -----------
-
-const EnquiryDocumentModal = ({
-  group,
-  onClose,
-}: {
-  group: EnquiryGroup;
-  onClose: () => void;
-}) => {
-  const [loaded, setLoaded] = useState<LoadedTag[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [downloading, setDownloading] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all(
-      group.tags.map(async (tag) => ({
-        tag,
-        summary: await getReportSummary(tag.tag_id).catch(() => null),
-      })),
-    )
-      .then((rows) => {
-        if (!cancelled) setLoaded(rows);
-      })
-      .catch(() => {
-        if (!cancelled) setError("Couldn't load the enquiry document.");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [group]);
-
-  const [printing, setPrinting] = useState(false);
-
-  const isLoading = loaded === null && error === null;
-  const anySummary = (loaded ?? []).some((x) => x.summary != null);
-  const matrix = useMemo(
-    () => (loaded ? buildEnquiryMatrix(loadedToTags(loaded)) : null),
-    [loaded],
-  );
-
-  const handleDownload = async () => {
-    if (!loaded) return;
-    setDownloading(true);
-    try {
-      await downloadEnquiryDoc(group, loaded);
-    } finally {
-      setDownloading(false);
-    }
-  };
-
-  // Opens the browser's own print dialog, so page size, orientation, page
-  // range and "Save as PDF" are all the user's choice.
-  const handlePrint = async () => {
-    if (!matrix) return;
-    setPrinting(true);
-    try {
-      await printEnquiryDocument(
-        {
-          projectCode: group.project_code,
-          projectName: group.project_name,
-          clientCode: group.client_code,
-          generatedBy: group.created_by_name,
-        },
-        matrix,
-      );
-    } finally {
-      setPrinting(false);
-    }
-  };
-
-  return (
-    <div className="summary-modal-overlay" onClick={onClose}>
-      <div
-        className="summary-modal summary-modal-wide"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-      >
-        <div className="summary-modal-header">
-          <div>
-            <h3>
-              {group.project_code}{" "}
-              <span className="summary-modal-tag">· Technical Quotation</span>
-            </h3>
-            <p>
-              {group.project_name || "—"} · {group.tags.length} tag
-              {group.tags.length === 1 ? "" : "s"}
-            </p>
-          </div>
-          <button className="summary-modal-close" onClick={onClose} aria-label="Close">
-            ✕
-          </button>
-        </div>
-
-        <div className="summary-modal-body">
-          {isLoading && (
-            <div style={{ padding: "24px 0", textAlign: "center" }}>
-              <Spinner caption="Loading document…" />
-            </div>
-          )}
-          {error && <p className="error-message">{error}</p>}
-          {!isLoading && !error && !anySummary && (
-            <EmptyState
-              compact
-              icon="alert"
-              title="No document available yet"
-              description="These tags were confirmed before the structured summary existed — download each tag's PDF from its row instead."
-            />
-          )}
-
-          {!isLoading && !error && anySummary && matrix && (
-            <div className="summary-doc-scroll">
-              <table className="summary-doc-matrix">
-                <tbody>
-                  {matrix.sections.map((section) => (
-                    <React.Fragment key={section.title}>
-                      <tr>
-                        <td
-                          className="summary-doc-band"
-                          colSpan={matrix.tags.length + 1}
-                        >
-                          {section.title.toUpperCase()}
-                        </td>
-                      </tr>
-                      {section.rows.map((row) => (
-                        <tr key={section.title + row.label}>
-                          <th scope="row" className="summary-doc-label">
-                            {row.label}
-                          </th>
-                          {row.values.map((v, i) => (
-                            <td key={i}>{v || "—"}</td>
-                          ))}
-                        </tr>
-                      ))}
-                    </React.Fragment>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        <div className="summary-modal-footer">
-          {/* Native print dialog - lets the user pick paper size, orientation,
-              page range and "Save as PDF" rather than taking a fixed layout. */}
-          <button
-            className="summary-download-btn"
-            onClick={handlePrint}
-            disabled={printing || isLoading || !anySummary}
-          >
-            {printing ? "Preparing…" : "Print / Save as PDF"}
-          </button>
-          <button
-            className="summary-modal-close-btn"
-            onClick={handleDownload}
-            disabled={downloading || isLoading || !anySummary}
           >
             {downloading ? "Generating…" : "Download PDF"}
           </button>

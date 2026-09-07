@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import "./ProjectsPage.css";
 import CreateProjectModal from "../../components/projects/CreateProjectModal";
 import CopyTagModal, { type CopyDestination } from "../../components/projects/CopyTagModal";
+import EnquiryDocumentModal from "../../components/reports/EnquiryDocumentModal";
 import EditProjectModal from "../../components/projects/EditProjectModal";
 import EmptyState from "../../components/ui/EmptyState";
 import ConfirmModal from "../../components/ui/ConfirmModal";
@@ -91,6 +92,10 @@ const ProjectsPage = () => {
   const [copyError, setCopyError] = useState<string | null>(null);
   const [pendingCopyTagId, setPendingCopyTagId] = useState<string | null>(null);
   const [copyingTagId, setCopyingTagId] = useState<string | null>(null);
+  // Technical Quotation for a whole enquiry - the same document the Reports
+  // page shows, reachable from here too.
+  const [viewingDocFor, setViewingDocFor] = useState<ProjectRecord | null>(null);
+  const [docLoadingFor, setDocLoadingFor] = useState<string | null>(null);
 
   // Filters — client name matches project.name (the "Client Name" column;
   // that's what the Create/Edit forms actually call this field), enquiry
@@ -295,6 +300,26 @@ const ProjectsPage = () => {
     } catch {
       // Non-fatal: the list refreshes on the next expand.
     }
+  };
+
+  /** Open the enquiry Technical Quotation. Tags are fetched first when they
+   *  are not cached yet - the modal keys off them, and opening with an empty
+   *  list would flash "no document available" before the fetch landed. */
+  const openDocument = async (project: ProjectRecord) => {
+    if (!tagsByProject[project.id]) {
+      setDocLoadingFor(project.id);
+      try {
+        const rows = await listTags(project.id);
+        setTagsByProject((m) => ({ ...m, [project.id]: rows }));
+      } catch {
+        setTagsErrorFor((e) => ({ ...e, [project.id]: "Couldn't load tags." }));
+        setDocLoadingFor(null);
+        return;
+      } finally {
+        setDocLoadingFor(null);
+      }
+    }
+    setViewingDocFor(project);
   };
 
   /** Copy straight into the same enquiry — the per-tag copy button. */
@@ -534,6 +559,15 @@ const ProjectsPage = () => {
                     <div className="projects-actions">
                       <button
                         className="project-btn"
+                        onClick={() => openDocument(project)}
+                        disabled={docLoadingFor === project.id}
+                        title="View this enquiry's Technical Quotation"
+                      >
+                        <DocumentIcon />{" "}
+                        {docLoadingFor === project.id ? "Loading…" : "View Document"}
+                      </button>
+                      <button
+                        className="project-btn"
                         onClick={() => {
                           setCopyError(null);
                           setCopyingFrom({ project });
@@ -754,6 +788,22 @@ const ProjectsPage = () => {
         onCreate={handleCreateProject}
       />
 
+      {viewingDocFor && (
+        <EnquiryDocumentModal
+          source={{
+            projectCode: viewingDocFor.project_code,
+            projectName: viewingDocFor.name,
+            clientCode: viewingDocFor.client_code,
+            generatedBy: viewingDocFor.created_by_name,
+            tags: (tagsByProject[viewingDocFor.id] ?? []).map((t) => ({
+              tagId: t.id,
+              tagName: t.name,
+            })),
+          }}
+          onClose={() => setViewingDocFor(null)}
+        />
+      )}
+
       {copyingFrom && (
         <CopyTagModal
           sourceProject={copyingFrom.project}
@@ -866,6 +916,25 @@ const TrashIcon = () => (
   <svg viewBox="0 0 24 24" fill="none">
     <path
       d="M4 7h16M9 7V4h6v3M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+// A sheet with lines — the quotation document.
+const DocumentIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none">
+    <path
+      d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M14 3v5h5M9 13h6M9 17h4"
       stroke="currentColor"
       strokeWidth="1.7"
       strokeLinecap="round"
