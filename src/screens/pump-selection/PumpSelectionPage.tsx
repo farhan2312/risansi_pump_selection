@@ -82,7 +82,7 @@ const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
     "mocAiGeneratedAt",
   ],
   "motor-drive": [
-    "driveMotorKw", "driveSystem", "motorRPM",
+    "driveMotorKw", "driveMotorKwRemarks", "driveSystem", "motorRPM",
     "driveMotorSpeed", "driveMotorMake", "driveMotorMounting", "driveStdNonStd",
     "driveMotorEfficiency", "driveMotorProtection", "driveMotorFrequency",
     "driveMotorVoltage",
@@ -335,6 +335,7 @@ const PumpSelectionPage = () => {
     // Step 6 — Motor Rating (KW) — final drive motor rating (manual pick from
     // the pulley-table KW list, defaulted to the recommendation)
     driveMotorKw: "",
+    driveMotorKwRemarks: "", // mandatory once the rating deviates
 
     // Step 7 — V-Belt drive recommendation (only when Drive System = V-Belt)
     driveVbeltGroove: "",

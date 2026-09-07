@@ -41,8 +41,23 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
         setStatus("ready");
         // Default the Drive Motor Rating to the recommendation, once, if unset.
         setFormData((f: typeof formData) => {
-          if (f.driveMotorKw) return f;
-          return { ...f, driveMotorKw: r.recommendedKw !== null ? String(r.recommendedKw) : "" };
+          if (!f.driveMotorKw) {
+            return {
+              ...f,
+              driveMotorKw: r.recommendedKw !== null ? String(r.recommendedKw) : "",
+            };
+          }
+          // The duty may have moved since the rating was picked. If the kept
+          // rating now IS the recommendation, its deviation remark no longer
+          // describes anything, so drop it rather than let stale text reach
+          // the quotation from a field that is no longer even shown.
+          const kw = parseFloat(f.driveMotorKw);
+          const stillOff =
+            r.recommendedKw !== null && Number.isFinite(kw) && kw !== r.recommendedKw;
+          if (!stillOff && f.driveMotorKwRemarks) {
+            return { ...f, driveMotorKwRemarks: "" };
+          }
+          return f;
         });
       })
       .catch(() => {
@@ -84,17 +99,6 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
   // the recommendation - this catches the case where it was cleared, or where
   // no standard ratings exist and it has to be typed in.
   const [showErrors, setShowErrors] = useState(false);
-  const ratingError = (formData.driveMotorKw ?? "").toString().trim()
-    ? ""
-    : "Drive motor rating is required.";
-
-  const handleNext = () => {
-    if (ratingError) {
-      setShowErrors(true);
-      return;
-    }
-    onNext();
-  };
 
   // Picking below the recommendation is allowed (the engineer may have a
   // reason) but it under-powers the duty, so it is called out rather than
@@ -104,6 +108,47 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
     rating?.recommendedKw != null &&
     Number.isFinite(selectedKw) &&
     selectedKw < rating.recommendedKw;
+
+  // Any departure from the calculated rating - oversizing as much as
+  // undersizing - has to be justified, because the quotation has to say why
+  // the motor isn't the one the duty calculates to.
+  const offRecommendation =
+    rating?.recommendedKw != null &&
+    Number.isFinite(selectedKw) &&
+    selectedKw !== rating.recommendedKw;
+
+  // Remarks belong to the deviation: going back to the recommended rating
+  // drops them so a stale justification can't follow a compliant selection
+  // into the quotation.
+  const setKw = (driveMotorKw: string) => {
+    const kw = parseFloat(driveMotorKw);
+    const stillOff =
+      rating?.recommendedKw != null &&
+      Number.isFinite(kw) &&
+      kw !== rating.recommendedKw;
+    setFormData({
+      ...formData,
+      driveMotorKw,
+      driveMotorKwRemarks: stillOff ? formData.driveMotorKwRemarks ?? "" : "",
+    });
+  };
+
+  const ratingError = (formData.driveMotorKw ?? "").toString().trim()
+    ? ""
+    : "Drive motor rating is required.";
+  const remarksError =
+    offRecommendation && !(formData.driveMotorKwRemarks ?? "").trim()
+      ? "Explain why this rating was chosen instead of the recommended one."
+      : "";
+  const errorCount = [ratingError, remarksError].filter(Boolean).length;
+
+  const handleNext = () => {
+    if (errorCount) {
+      setShowErrors(true);
+      return;
+    }
+    onNext();
+  };
 
   return (
     <div className="step-container">
@@ -191,9 +236,7 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
                   <select
                     className={control}
                     value={formData.driveMotorKw ?? ""}
-                    onChange={(e) =>
-                      setFormData({ ...formData, driveMotorKw: e.target.value })
-                    }
+                    onChange={(e) => setKw(e.target.value)}
                   >
                     <option value="">Select KW</option>
                     {kwOptionsForDisplay.map((kw) => (
@@ -210,9 +253,7 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
                     className={control}
                     placeholder="Enter motor KW"
                     value={formData.driveMotorKw ?? ""}
-                    onChange={(e) =>
-                      setFormData({ ...formData, driveMotorKw: e.target.value })
-                    }
+                    onChange={(e) => setKw(e.target.value)}
                   />
                 )}
                 <Err show={showErrors} msg={ratingError} />
@@ -236,11 +277,32 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
                     : "No standard KW ratings available — enter the motor KW manually."}
                 </span>
               </div>
+
+              {/* Any rating other than the recommended one has to be
+                  justified — over-sizing as well as under-sizing. */}
+              {offRecommendation && (
+                <div className={`${fieldWrap} sm:col-span-2`}>
+                  <label className={label}>
+                    Motor Rating Remarks
+                    <Req />
+                  </label>
+                  <textarea
+                    className={control}
+                    rows={2}
+                    placeholder={`Why ${formData.driveMotorKw} kW instead of the recommended ${rating.recommendedKw} kW?`}
+                    value={formData.driveMotorKwRemarks ?? ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, driveMotorKwRemarks: e.target.value })
+                    }
+                  />
+                  <Err show={showErrors} msg={remarksError} />
+                </div>
+              )}
             </div>
           </>
         )}
 
-        <ErrorBanner show={showErrors} count={ratingError ? 1 : 0} />
+        <ErrorBanner show={showErrors} count={errorCount} />
 
         <div className={actions}>
           <button className={btnGhost} onClick={onPrevious}>

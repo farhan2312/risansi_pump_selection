@@ -96,7 +96,7 @@ const FIELDS: Record<TableKey, readonly string[]> = {
     "mocAiGeneratedAt",
   ],
   "motor-drive": [
-    "driveMotorKw", "driveSystem", "motorRPM",
+    "driveMotorKw", "driveMotorKwRemarks", "driveSystem", "motorRPM",
     "driveMotorSpeed", "driveMotorMake", "driveMotorMounting", "driveStdNonStd",
     "driveMotorEfficiency", "driveMotorProtection", "driveMotorFrequency",
     "driveMotorVoltage",

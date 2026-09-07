@@ -409,6 +409,10 @@ export const motorDriveInput = pgTable("motor_drive_input", {
     .unique()
     .references(() => enquiryTags.id, { onDelete: "cascade" }),
   driveMotorKw: varchar("drive_motor_kw", { length: 50 }),
+  // Mandatory once the chosen rating differs from the calculated
+  // recommendation, in either direction - the quotation has to say why the
+  // motor was sized off-recommendation.
+  driveMotorKwRemarks: text("drive_motor_kw_remarks"),
   driveSystem: varchar("drive_system", { length: 50 }),
   // JS field name matches formData.motorRPM exactly (capital RPM) — not the
   // more conventional motorRpm — so autosave field lists don't need a

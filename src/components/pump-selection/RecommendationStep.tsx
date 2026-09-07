@@ -283,14 +283,18 @@ const RecommendationStep = ({
     ["Gland Packing Make", formData.glandPackingMake],
   ];
 
-  const motorRatingItems: FieldItem[] = [
-    ["Drive Motor Rating", formData.driveMotorKw ? `${formData.driveMotorKw} kW` : ""],
-  ];
+  // A rating other than the calculated one carries its justification with it.
+  const motorRatingText = withRemarks(
+    formData.driveMotorKw ? `${formData.driveMotorKw} kW` : "",
+    formData.driveMotorKwRemarks,
+  );
+
+  const motorRatingItems: FieldItem[] = [["Drive Motor Rating", motorRatingText]];
 
   const driveCommonItems: FieldItem[] = [
     ["Drive System", formData.driveSystem],
     ["Motor RPM", formData.motorRPM],
-    ["Drive Motor Rating", formData.driveMotorKw ? `${formData.driveMotorKw} kW` : ""],
+    ["Drive Motor Rating", motorRatingText],
   ];
 
   const isVBelt = formData.driveSystem === "V-Belt Drive";

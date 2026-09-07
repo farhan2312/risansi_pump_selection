@@ -195,6 +195,7 @@ export interface PumpSelectionFormData {
   mocAiSuggestedSealRationale?: string;
   mocAiGeneratedAt?: string;
   driveMotorKw?: string; // final drive motor rating (KW) chosen on the Motor Rating step
+  driveMotorKwRemarks?: string; // mandatory once driveMotorKw deviates from the recommendation
   // V-Belt drive recommendation (Drive step, only when Drive System = V-Belt Drive)
   driveVbeltGroove?: string;
   drivePumpPulley?: string;
