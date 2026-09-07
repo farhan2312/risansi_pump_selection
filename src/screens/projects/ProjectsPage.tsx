@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import "./ProjectsPage.css";
 import CreateProjectModal from "../../components/projects/CreateProjectModal";
@@ -10,10 +10,12 @@ import EditProjectModal from "../../components/projects/EditProjectModal";
 import EmptyState from "../../components/ui/EmptyState";
 import ConfirmModal from "../../components/ui/ConfirmModal";
 import { SkeletonRows } from "../../components/ui/Skeleton";
+import Pagination from "../../components/ui/Pagination";
 import {
   createProject,
   deleteProject,
   listProjects,
+  listProjectsPage,
   updateProject,
   type ProjectRecord,
 } from "../../services/projectService";
@@ -29,6 +31,10 @@ import {
 // Cross-page hand-off replacing react-router's location.state: the selected
 // project is stashed in sessionStorage for PumpSelectionPage to read on load.
 export const SELECTED_PROJECT_KEY = "selectedProject";
+
+// Enquiries per page. The server caps anything larger; this is the value the
+// Enquiries table asks for.
+const PAGE_SIZE = 20;
 
 // Tint the nested tag row and its status pill by lifecycle. Same three
 // values that come out of the tag CRUD list (Pending / In Progress /
@@ -92,6 +98,10 @@ const ProjectsPage = () => {
   const [copyError, setCopyError] = useState<string | null>(null);
   const [pendingCopyTagId, setPendingCopyTagId] = useState<string | null>(null);
   const [copyingTagId, setCopyingTagId] = useState<string | null>(null);
+  // The copy dialog offers EVERY enquiry as a destination, not just the page
+  // on screen, so it loads the full list on open rather than reusing the
+  // paged one. Cached for the life of the page after the first open.
+  const [allProjects, setAllProjects] = useState<ProjectRecord[] | null>(null);
   // Technical Quotation for a whole enquiry - the same document the Reports
   // page shows, reachable from here too.
   const [viewingDocFor, setViewingDocFor] = useState<ProjectRecord | null>(null);
@@ -104,18 +114,74 @@ const ProjectsPage = () => {
   const [clientNameFilter, setClientNameFilter] = useState("");
   const [enquiryCodeFilter, setEnquiryCodeFilter] = useState("");
 
-  const loadProjects = () => {
+  // Server-side pagination. The filters above are applied server-side too:
+  // the client only ever holds one page, so filtering here would search 20
+  // rows rather than the whole table.
+  const [page, setPage] = useState(1);
+  const [pageInfo, setPageInfo] = useState({ total: 0, totalPages: 1 });
+  // Typing is debounced so a filter keystroke doesn't fire a request each.
+  const [debouncedFilters, setDebouncedFilters] = useState({ clientName: "", enquiryCode: "" });
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedFilters((current) => {
+        const next = { clientName: clientNameFilter, enquiryCode: enquiryCodeFilter };
+        if (current.clientName === next.clientName && current.enquiryCode === next.enquiryCode) {
+          // Same text as last time (e.g. typed and undone) — keep the existing
+          // object so the fetch below isn't re-triggered by a new identity.
+          return current;
+        }
+        // Reset the page in the SAME commit as the filter change: a narrowed
+        // filter can leave the current page past the end of the results, and
+        // doing this in a follow-up effect would fire a wasted request for the
+        // old page number first.
+        setPage(1);
+        return next;
+      });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [clientNameFilter, enquiryCodeFilter]);
+
+  const loadProjects = useCallback(() => {
     setIsLoading(true);
     setError(null);
-    listProjects()
-      .then(setProjects)
+    listProjectsPage({
+      page,
+      pageSize: PAGE_SIZE,
+      clientName: debouncedFilters.clientName,
+      enquiryCode: debouncedFilters.enquiryCode,
+    })
+      .then((res) => {
+        setProjects(res.items);
+        setPageInfo({ total: res.total, totalPages: res.totalPages });
+        // Deleting the last row on the last page can strand us past the end;
+        // step back rather than showing an empty table.
+        if (res.items.length === 0 && res.page > 1 && res.total > 0) {
+          setPage(res.totalPages);
+        }
+      })
       .catch(() => setError("Couldn't load enquiries."))
       .finally(() => setIsLoading(false));
-  };
+  }, [page, debouncedFilters]);
 
   useEffect(() => {
     loadProjects();
-  }, []);
+  }, [loadProjects]);
+
+  // Copy dialog's destination list: every enquiry, fetched once on first open.
+  // Falls back to the current page if the fetch fails, which is still usable.
+  useEffect(() => {
+    if (!copyingFrom || allProjects !== null) return;
+    let cancelled = false;
+    listProjects()
+      .then((rows) => {
+        if (!cancelled) setAllProjects(rows);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [copyingFrom, allProjects]);
 
   const handleCreateProject = async (input: {
     projectCode: string;
@@ -128,8 +194,11 @@ const ProjectsPage = () => {
       // createdBy is derived server-side from the session cookie, not sent
       // by the client.
       const created = await createProject(input);
-      setProjects((prev) => [created, ...prev]);
       setIsModalOpen(false);
+      // Newest-first ordering puts it at the top of page 1; re-fetching keeps
+      // the page size and the total honest rather than growing this page.
+      if (page === 1) loadProjects();
+      else setPage(1);
       // Came here from "copy into a new enquiry": land the copy, then drop
       // the empty Default tag the create flow auto-adds, so the new enquiry
       // holds just the copied selection.
@@ -390,16 +459,10 @@ const ProjectsPage = () => {
     }
   };
 
-  const filteredProjects = useMemo(() => {
-    const clientQ = clientNameFilter.trim().toLowerCase();
-    const codeQ = enquiryCodeFilter.trim().toLowerCase();
-    if (!clientQ && !codeQ) return projects;
-    return projects.filter((p) => {
-      const matchesClient = !clientQ || (p.name ?? "").toLowerCase().includes(clientQ);
-      const matchesCode = !codeQ || (p.project_code ?? "").toLowerCase().includes(codeQ);
-      return matchesClient && matchesCode;
-    });
-  }, [projects, clientNameFilter, enquiryCodeFilter]);
+  // `projects` is already the filtered page the server returned — the filter
+  // is no longer applied here. Kept under the old name so the table below is
+  // unchanged.
+  const filteredProjects = projects;
 
   const hasFilter = clientNameFilter !== "" || enquiryCodeFilter !== "";
 
@@ -410,8 +473,10 @@ const ProjectsPage = () => {
     setError(null);
     try {
       await deleteProject(target.id);
-      setProjects((prev) => prev.filter((p) => p.id !== target.id));
       setConfirmingDelete(null);
+      // Re-fetch so the row is backfilled from the next page and the total
+      // drops; loadProjects also steps back if this emptied the last page.
+      loadProjects();
     } catch {
       setError("Couldn't delete the project. Please try again.");
     } finally {
@@ -483,7 +548,7 @@ const ProjectsPage = () => {
         </div>
       )}
 
-      {!isLoading && !error && projects.length === 0 && (
+      {!isLoading && !error && !hasFilter && projects.length === 0 && (
         <EmptyState
           icon="folder"
           title="No enquiries yet"
@@ -496,7 +561,7 @@ const ProjectsPage = () => {
         />
       )}
 
-      {!isLoading && !error && projects.length > 0 && filteredProjects.length === 0 && (
+      {!isLoading && !error && hasFilter && filteredProjects.length === 0 && (
         <EmptyState
           icon="folder"
           title="No enquiries match this filter"
@@ -773,6 +838,16 @@ const ProjectsPage = () => {
               })}
             </tbody>
           </table>
+
+          {/* Server-side: totalItems is the count across the WHOLE filtered
+              table, not the length of this page. */}
+          <Pagination
+            page={page}
+            totalItems={pageInfo.total}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
+            itemLabel="enquiries"
+          />
         </div>
       )}
 
@@ -809,7 +884,9 @@ const ProjectsPage = () => {
           sourceProject={copyingFrom.project}
           tags={tagsByProject[copyingFrom.project.id] ?? []}
           initialTagId={copyingFrom.tagId}
-          projects={projects.filter((p) => p.id !== copyingFrom.project.id)}
+          projects={(allProjects ?? projects).filter(
+            (p) => p.id !== copyingFrom.project.id,
+          )}
           busy={copyBusy}
           error={copyError}
           onCancel={() => {

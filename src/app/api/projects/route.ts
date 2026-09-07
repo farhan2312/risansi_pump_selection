@@ -1,4 +1,4 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql, type SQL } from "drizzle-orm";
 
 import { error, isUniqueViolation, json, projectToDict } from "@/lib/api";
 import { tryDecodeToken } from "@/lib/auth";
@@ -8,7 +8,14 @@ import { enquiryTags, projects, users } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+// Pagination is opt-in: a request with no `page` param returns the plain,
+// unpaginated array it always did. The Dashboard rolls its stat cards up
+// across every enquiry and the Copy-tag picker has to offer all of them, so
+// both still want the whole list; only the Enquiries table pages.
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 100;
+
+export async function GET(req: Request) {
   // Left-join users so the list can show a real "Created By" name - created_by
   // on the project row is just a user id, not a display name.
   //
@@ -35,7 +42,35 @@ export async function GET() {
     WHERE t.project_id = ${projects.id}
   )`;
 
-  const rows = await db
+  // Filters live here rather than in the browser: with pagination the client
+  // only holds one page, so filtering there would search 20 rows instead of
+  // the whole table. Case-insensitive substring on the same two columns the
+  // Enquiries filter bar has always used. `%` and `_` are escaped so a code
+  // containing them is matched literally rather than as a wildcard.
+  const params = new URL(req.url).searchParams;
+  const like = (value: string) =>
+    `%${value.trim().replace(/([\\%_])/g, "\\$1")}%`;
+
+  const conditions: SQL[] = [];
+  const clientName = params.get("clientName");
+  if (clientName && clientName.trim()) {
+    conditions.push(sql`${projects.name} ILIKE ${like(clientName)}`);
+  }
+  const enquiryCode = params.get("enquiryCode");
+  if (enquiryCode && enquiryCode.trim()) {
+    conditions.push(sql`${projects.projectCode} ILIKE ${like(enquiryCode)}`);
+  }
+  const where = conditions.length ? and(...conditions) : undefined;
+
+  const pageRaw = params.get("page");
+  const paginated = pageRaw !== null;
+  const page = Math.max(1, Math.trunc(Number(pageRaw)) || 1);
+  const pageSize = Math.min(
+    MAX_PAGE_SIZE,
+    Math.max(1, Math.trunc(Number(params.get("pageSize"))) || DEFAULT_PAGE_SIZE),
+  );
+
+  const base = db
     .select({
       project: projects,
       derivedStatus: rollup,
@@ -43,16 +78,34 @@ export async function GET() {
     })
     .from(projects)
     .leftJoin(users, eq(projects.createdBy, users.id))
+    .where(where)
     .orderBy(desc(projects.createdAt));
 
-  return json(
-    rows.map((r) => ({
-      ...projectToDict(r.project, r.createdByName),
-      // Overwrite status with the rollup so the Dashboard's status column and
-      // stat cards read the tag-aware value automatically.
-      status: r.derivedStatus,
-    })),
-  );
+  const rows = paginated
+    ? await base.limit(pageSize).offset((page - 1) * pageSize)
+    : await base;
+
+  const items = rows.map((r) => ({
+    ...projectToDict(r.project, r.createdByName),
+    // Overwrite status with the rollup so the Dashboard's status column and
+    // stat cards read the tag-aware value automatically.
+    status: r.derivedStatus,
+  }));
+
+  if (!paginated) return json(items);
+
+  const [{ total }] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(projects)
+    .where(where);
+
+  return json({
+    items,
+    total,
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  });
 }
 
 export async function POST(req: Request) {

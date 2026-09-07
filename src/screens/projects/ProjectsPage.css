@@ -353,13 +353,13 @@
   height: 22px;
   border: 1px solid var(--line, #d0d7de);
   border-radius: 4px;
-  background: var(--paper, #fff);
+  background: var(--bg-paper, #fff);
   color: var(--fg-2, #57606a);
   cursor: pointer;
   transition: transform 120ms ease, background-color 120ms ease;
 }
 .projects-chevron:hover {
-  background: var(--elev, #f6f8fa);
+  background: var(--bg-elev, #edf1f7);
   color: var(--fg, #1f2328);
 }
 .projects-chevron.is-open {
@@ -370,14 +370,14 @@
 /* Nested tag panel sits inside its own <tr>; the panel div gives it padding
    and a slight inset so it visually anchors to its parent enquiry. */
 .projects-tags-row > td {
-  background: var(--elev, #f6f8fa);
+  background: var(--bg-elev, #edf1f7);
   padding: 12px 16px 16px 40px !important;
   border-top: 0 !important;
 }
 .projects-tags-panel {
   border: 1px solid var(--line, #d0d7de);
   border-radius: 6px;
-  background: var(--paper, #fff);
+  background: var(--bg-paper, #fff);
   padding: 12px;
 }
 .projects-tags-heading {
@@ -459,7 +459,7 @@
   border: 1px solid var(--line-strong, #9ea7b3);
   border-radius: 4px;
   font: inherit;
-  background: var(--paper, #fff);
+  background: var(--bg-paper, #fff);
   color: var(--fg, #1f2328);
 }
 
@@ -526,24 +526,25 @@
   border-color: rgba(107, 114, 128, 0.25);
 }
 
-/* Dark-mode readability tweak - use lighter text on the same tinted
-   backgrounds so the row still contrasts against the panel. Only tweaks
-   affected classes; base .projects-tag-status stays the light-theme values. */
-:root[data-theme="dark"] .projects-tag-row-completed td,
-:root:not([data-theme="light"]) .projects-tag-row-completed td {
+/* Dark-mode readability tweak - lighter text on a slightly stronger tint so
+   the row still contrasts against the dark panel.
+
+   Keyed ONLY on [data-theme="dark"]. These rules used to also carry a
+   :root:not([data-theme="light"]) fallback, meaning "system dark" - but this
+   app never derives the theme from prefers-color-scheme; dark is always the
+   explicit attribute (see styles/theme.css). So that half matched plain light
+   mode too and painted these pale dark-mode colours onto the white panel,
+   which left the status pills unreadable. */
+:root[data-theme="dark"] .projects-tag-row-completed td {
   background: rgba(16, 185, 129, 0.14);
 }
-:root[data-theme="dark"] .projects-tag-row-in-progress td,
-:root:not([data-theme="light"]) .projects-tag-row-in-progress td {
+:root[data-theme="dark"] .projects-tag-row-in-progress td {
   background: rgba(37, 99, 235, 0.16);
 }
-:root[data-theme="dark"] .projects-tag-row-pending td,
-:root:not([data-theme="light"]) .projects-tag-row-pending td {
+:root[data-theme="dark"] .projects-tag-row-pending td {
   background: rgba(107, 114, 128, 0.16);
 }
-:root[data-theme="dark"] .projects-tag-status.is-completed,
-:root:not([data-theme="light"]) .projects-tag-status.is-completed { color: #a7f3d0; }
-:root[data-theme="dark"] .projects-tag-status.is-in-progress,
-:root:not([data-theme="light"]) .projects-tag-status.is-in-progress { color: #bfdbfe; }
-:root[data-theme="dark"] .projects-tag-status.is-pending,
-:root:not([data-theme="light"]) .projects-tag-status.is-pending { color: #d1d5db; }
+:root[data-theme="dark"] .projects-tag-status.is-completed { color: #a7f3d0; }
+:root[data-theme="dark"] .projects-tag-status.is-in-progress { color: #bfdbfe; }
+:root[data-theme="dark"] .projects-tag-status.is-pending { color: #d1d5db; }
+:root[data-theme="dark"] .projects-tag-status.is-neutral { color: #d1d5db; }

@@ -375,13 +375,13 @@
   height: 22px;
   border: 1px solid var(--line, #d0d7de);
   border-radius: 4px;
-  background: var(--paper, #fff);
+  background: var(--bg-paper, #fff);
   color: var(--fg-2, #57606a);
   cursor: pointer;
   transition: transform 120ms ease, background-color 120ms ease;
 }
 .summary-chevron:hover {
-  background: var(--elev, #f6f8fa);
+  background: var(--bg-elev, #edf1f7);
   color: var(--fg, #1f2328);
 }
 .summary-chevron.is-open {
@@ -392,14 +392,14 @@
 /* Nested tag panel sits inside its own <tr>. The wrapper div gives it padding
    and an inset border that anchors it visually to its parent enquiry. */
 .summary-tags-row > td {
-  background: var(--elev, #f6f8fa);
+  background: var(--bg-elev, #edf1f7);
   padding: 12px 16px 16px 40px !important;
   border-top: 0 !important;
 }
 .summary-tags-panel {
   border: 1px solid var(--line, #d0d7de);
   border-radius: 6px;
-  background: var(--paper, #fff);
+  background: var(--bg-paper, #fff);
   padding: 12px;
 }
 .summary-tags-heading {

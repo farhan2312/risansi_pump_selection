@@ -17,8 +17,39 @@ export interface ProjectRecord {
   updated_at: string | null;
 }
 
+/** Every enquiry, unpaginated. Used where the whole set is genuinely needed:
+ * the Dashboard's stat cards, and the Copy-tag destination picker. */
 export const listProjects = async (): Promise<ProjectRecord[]> => {
   const { data } = await apiClient.get<ProjectRecord[]>("/projects");
+  return data;
+};
+
+export type ProjectPage = {
+  items: ProjectRecord[];
+  /** Rows matching the filters across the WHOLE table, not just this page. */
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+/** One page of enquiries, filtered and counted server-side. Filtering has to
+ * happen on the server now: the client only holds one page, so filtering
+ * there would search 20 rows rather than the whole table. */
+export const listProjectsPage = async (query: {
+  page: number;
+  pageSize?: number;
+  clientName?: string;
+  enquiryCode?: string;
+}): Promise<ProjectPage> => {
+  const { data } = await apiClient.get<ProjectPage>("/projects", {
+    params: {
+      page: query.page,
+      pageSize: query.pageSize,
+      clientName: query.clientName?.trim() || undefined,
+      enquiryCode: query.enquiryCode?.trim() || undefined,
+    },
+  });
   return data;
 };
 
