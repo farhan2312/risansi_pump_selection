@@ -291,6 +291,27 @@ const DriveDetailsStep = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isGeared, formData.pumpType, formData.gbConstructionType, formData.driveMotorKw]);
 
+  // V-Belt drive: the motor sits on the base plate driving a pulley, so it is
+  // foot mounted. Auto-filled as an editable DEFAULT, with the same two rules
+  // the geared defaults use:
+  //   - switching INTO V-Belt always sets it, so a mounting left over from the
+  //     geared system (Flange / Foot cum Flange) does not stick;
+  //   - arriving already on V-Belt (a reload/restore) keeps whatever was
+  //     saved, so a deliberate manual override survives.
+  const prevDriveRef = useRef<string | null>(null);
+  useEffect(() => {
+    const prev = prevDriveRef.current;
+    prevDriveRef.current = (formData.driveSystem as string) ?? "";
+    if (!isVBelt) return;
+    const switchedIn = prev !== null && prev !== formData.driveSystem;
+    setFormData((f: typeof formData) => {
+      if (!switchedIn && f.driveMotorMounting) return f; // restored - keep it
+      if (f.driveMotorMounting === "Foot B3") return f; // already correct
+      return { ...f, driveMotorMounting: "Foot B3" };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isVBelt, formData.driveSystem]);
+
   // Recheck modal: computes the actual delivered capacity + BKW at the
   // drive-achieved pump RPM (v-belt actual RPM, gearbox output RPM, or motor
   // RPM for direct drive) using the pump's own qth/VE/ME. Fetched lazily on
