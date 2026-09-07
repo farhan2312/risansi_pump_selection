@@ -43,6 +43,11 @@ const SUCTION_HOUSINGS_BY_PUMP_TYPE: Record<string, string[]> = {
   "Horizontal Auger Only": STANDARD_CIP_HOUSINGS,
 };
 
+// Some jobs genuinely do not need a feed aid even when the pump type offers
+// one. "Not Required" is always available alongside the real options, and
+// picking it makes the remarks box mandatory so the reason is on record.
+export const AG_BK_NOT_REQUIRED = "Not Required";
+
 const agBkOptionsFor = (pumpType: string): string[] =>
   AG_BK_OPTIONS_BY_PUMP_TYPE[pumpType] ?? [];
 // Before a pump type is chosen, show every housing so the field isn't empty;
@@ -63,15 +68,24 @@ const OperatingConditionsStep = ({
   const handlePumpTypeChange = (pumpType: string) => {
     const agOpts = agBkOptionsFor(pumpType);
     const suctionOpts = suctionHousingOptionsFor(pumpType);
+    // An explicit "Not Required" survives a pump-type change - it is the
+    // user's decision, not a default we are free to overwrite. Otherwise the
+    // sole valid option is auto-picked and an invalid prior pick is cleared.
+    const agBk =
+      agOpts.length === 0
+        ? ""
+        : formData.agBk === AG_BK_NOT_REQUIRED
+          ? AG_BK_NOT_REQUIRED
+          : agOpts.length === 1
+            ? agOpts[0]
+            : agOpts.includes(formData.agBk)
+              ? formData.agBk
+              : "";
     setFormData({
       ...formData,
       pumpType,
-      agBk:
-        agOpts.length === 1
-          ? agOpts[0]
-          : agOpts.includes(formData.agBk)
-            ? formData.agBk
-            : "",
+      agBk,
+      agBkRemarks: agBk === AG_BK_NOT_REQUIRED ? formData.agBkRemarks ?? "" : "",
       suctionHousing: suctionOpts.includes(formData.suctionHousing)
         ? formData.suctionHousing
         : "",
@@ -80,6 +94,17 @@ const OperatingConditionsStep = ({
 
   const agBkOptions = agBkOptionsFor(formData.pumpType);
   const suctionHousingOptions = suctionHousingOptionsFor(formData.pumpType);
+  const agBkNotRequired = formData.agBk === AG_BK_NOT_REQUIRED;
+
+  // Remarks only belong to "Not Required" - switching back to a real option
+  // drops them so a stale justification cannot follow the pump into a
+  // quotation that does use a feed aid.
+  const handleAgBkChange = (agBk: string) =>
+    setFormData({
+      ...formData,
+      agBk,
+      agBkRemarks: agBk === AG_BK_NOT_REQUIRED ? formData.agBkRemarks ?? "" : "",
+    });
 
   // Every specification is required - they all feed the MOC component split,
   // the quotation and the built pump. AG/BK is the one conditional field: it
@@ -89,6 +114,10 @@ const OperatingConditionsStep = ({
     pumpType: formData.pumpType ? "" : "Select a pump type.",
     agBk:
       agBkOptions.length === 0 || formData.agBk ? "" : "Select an AG / BK option.",
+    agBkRemarks:
+      agBkNotRequired && !(formData.agBkRemarks ?? "").trim()
+        ? "Explain why AG / BK is not required."
+        : "",
     bearingHousing: formData.bearingHousing ? "" : "Select a bearing housing.",
     suctionHousing: formData.suctionHousing ? "" : "Select a suction housing.",
     jointType: formData.jointType ? "" : "Select a joint type.",
@@ -140,9 +169,7 @@ const OperatingConditionsStep = ({
               <select
                 className={control}
                 value={formData.agBk ?? ""}
-                onChange={(e) =>
-                  setFormData({ ...formData, agBk: e.target.value })
-                }
+                onChange={(e) => handleAgBkChange(e.target.value)}
               >
                 {agBkOptions.length > 1 && <option value="">Select AG / BK</option>}
                 {agBkOptions.map((o) => (
@@ -150,9 +177,31 @@ const OperatingConditionsStep = ({
                     {o}
                   </option>
                 ))}
+                <option value={AG_BK_NOT_REQUIRED}>{AG_BK_NOT_REQUIRED}</option>
               </select>
-              <span className={hint}>Set by the selected pump type.</span>
+              <span className={hint}>
+                Suggested by the selected pump type — choose “{AG_BK_NOT_REQUIRED}”
+                if this job does not need a feed aid.
+              </span>
               <Err show={showErrors} msg={errors.agBk} />
+            </div>
+          )}
+
+          {/* Marking AG/BK as not required is a deliberate deviation from what
+              the pump type suggests, so the reason is mandatory. */}
+          {agBkOptions.length > 0 && agBkNotRequired && (
+            <div className={fieldWrap}>
+              <label className={label}>Why AG / BK Is Not Required<Req /></label>
+              <textarea
+                className={control}
+                rows={2}
+                placeholder="Reason for omitting AG / BK"
+                value={formData.agBkRemarks ?? ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, agBkRemarks: e.target.value })
+                }
+              />
+              <Err show={showErrors} msg={errors.agBkRemarks} />
             </div>
           )}
 

@@ -105,6 +105,7 @@ const FluidPropertiesStep = ({
   const phMode = modeOf(formData.phMode);
   const viscosityMode = modeOf(formData.viscosityMode);
   const temperatureMode = modeOf(formData.temperatureMode);
+  const solidSizeMode = modeOf(formData.solidSizeMode);
 
   // Re-derive the viscosity range whenever viscosity or its unit changes, so
   // the range is auto-selected (spec: "when enter viscosity it automatically
@@ -181,6 +182,21 @@ const FluidPropertiesStep = ({
       ph,
       phMax: mode === "range" ? phMax : "",
       phMode: mode,
+    });
+  };
+
+  // Solid size mirrors pH: the base field holds the single value or the range
+  // MIN. Screening reads that base field, so the min is what a pump must pass.
+  const applySolidSize = (
+    solidSize: string,
+    solidSizeMax: string = formData.solidSizeMax ?? "",
+    mode: FluidMode = solidSizeMode,
+  ) => {
+    setFormData({
+      ...formData,
+      solidSize,
+      solidSizeMax: mode === "range" ? solidSizeMax : "",
+      solidSizeMode: mode,
     });
   };
 
@@ -302,16 +318,31 @@ const FluidPropertiesStep = ({
           </div>
 
           <div className={fieldWrap}>
-            <label className={label}>Solid Size (mm)</label>
-            <input
-              type="number"
-              placeholder="Enter Solid Size"
-              className={control}
-              value={formData.solidSize}
-              onChange={(e) =>
-                setFormData({ ...formData, solidSize: e.target.value })
+            <RangeLabel
+              text="Solid Size (mm)"
+              mode={solidSizeMode}
+              onModeChange={(m) =>
+                applySolidSize(formData.solidSize, formData.solidSizeMax ?? "", m)
               }
             />
+            <div className={solidSizeMode === "range" ? "flex gap-2" : undefined}>
+              <input
+                type="number"
+                placeholder={solidSizeMode === "range" ? "Min" : "Enter Solid Size"}
+                className={control}
+                value={formData.solidSize}
+                onChange={(e) => applySolidSize(e.target.value)}
+              />
+              {solidSizeMode === "range" && (
+                <input
+                  type="number"
+                  placeholder="Max"
+                  className={control}
+                  value={formData.solidSizeMax ?? ""}
+                  onChange={(e) => applySolidSize(formData.solidSize, e.target.value)}
+                />
+              )}
+            </div>
           </div>
 
           <div className={fieldWrap}>

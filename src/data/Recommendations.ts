@@ -87,10 +87,13 @@ export interface PumpSelectionFormData {
   selectedHead?: string; // charted head (MWC) picked for the model; drives downstream calcs
   modelConfirmed?: boolean; // true once the picked model is confirmed (gates advancing past Fluid)
   solidPercentage: string;
-  solidSize: string;
+  solidSize: string; // single value, or the MIN of a range (drives screening)
+  solidSizeMax?: string;
+  solidSizeMode?: string;
   solidType?: string; // "Hard Solid" | "Soft Solid" — only relevant when solids > 0
   pumpType: string;
   agBk?: string; // AG / BK feed option — only set when viscosity > 10000 cP
+  agBkRemarks?: string; // required justification when agBk is "Not Required"
   bearingHousing: string;
   suctionHousing: string;
   jointType: string;

@@ -195,6 +195,11 @@ export const fluidPropertiesInput = pgTable("fluid_properties_input", {
   viscosityCp: varchar("viscosity_cp", { length: 50 }),
   solidPercentage: varchar("solid_percentage", { length: 50 }),
   solidSize: varchar("solid_size", { length: 50 }),
+  // Solid size can be a single value or a Min-Max range, like pH / viscosity /
+  // temperature. The base column above holds the single/MIN value - that is
+  // the one pump screening uses.
+  solidSizeMax: varchar("solid_size_max", { length: 50 }),
+  solidSizeMode: varchar("solid_size_mode", { length: 10 }),
   solidType: varchar("solid_type", { length: 20 }),
   ph: varchar("ph", { length: 50 }),
   temperature: varchar("temperature", { length: 50 }), // canonical °C
@@ -233,6 +238,9 @@ export const operatingConditionsInput = pgTable("operating_conditions_input", {
     .references(() => enquiryTags.id, { onDelete: "cascade" }),
   pumpType: varchar("pump_type", { length: 50 }),
   agBk: varchar("ag_bk", { length: 20 }),
+  // AG/BK does not apply to every job. Choosing "Not Required" makes this
+  // justification mandatory, so a deliberate omission is always on record.
+  agBkRemarks: text("ag_bk_remarks"),
   bearingHousing: varchar("bearing_housing", { length: 50 }),
   suctionHousing: varchar("suction_housing", { length: 50 }),
   jointType: varchar("joint_type", { length: 50 }),

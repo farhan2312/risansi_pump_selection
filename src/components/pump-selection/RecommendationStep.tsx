@@ -5,7 +5,12 @@ import Stepper from "./Stepper";
 import { useEffect, useState } from "react";
 import { getRecommendations } from "../../services/recommendationService";
 import { SIZE_COLUMN_BY_RANGE, sizeForViscosityRange } from "../../lib/suction-discharge-size";
-import { phDisplay, temperatureDisplay, viscosityDisplay } from "../../lib/fluid-inputs";
+import {
+  phDisplay,
+  solidSizeDisplay,
+  temperatureDisplay,
+  viscosityDisplay,
+} from "../../lib/fluid-inputs";
 import {
   downloadSelectionSummaryPdf,
   type SelectionSummaryPdfSection,
@@ -191,11 +196,11 @@ const RecommendationStep = ({
     ["Solids", formData.solidPercentage ? `${formData.solidPercentage}%` : ""],
     [
       "Particle Size",
-      formData.solidSize
-        ? `${formData.solidSize} mm${formData.solidType ? ` (${formData.solidType})` : ""}`
+      solidSizeDisplay(formData)
+        ? `${solidSizeDisplay(formData)} mm${formData.solidType ? ` (${formData.solidType})` : ""}`
         : "",
     ],
-    ["AG / BK", formData.agBk],
+    ["AG / BK", withRemarks(formData.agBk, formData.agBkRemarks)],
     ["RPM Range", formData.rpmRange ? RPM_RANGE_LABELS[formData.rpmRange] ?? formData.rpmRange : ""],
   ];
 

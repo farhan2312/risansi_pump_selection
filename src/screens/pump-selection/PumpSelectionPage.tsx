@@ -48,11 +48,11 @@ const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
   ],
   "fluid-properties": [
     "viscosity", "viscosityUnit", "viscosityRange", "viscosityCp",
-    "solidPercentage", "solidSize", "solidType",
+    "solidPercentage", "solidSize", "solidSizeMax", "solidSizeMode", "solidType",
     "ph", "temperature", "temperatureRaw", "temperatureUnit",
   ],
   "operating-conditions": [
-    "pumpType", "agBk", "bearingHousing", "suctionHousing", "jointType",
+    "pumpType", "agBk", "agBkRemarks", "bearingHousing", "suctionHousing", "jointType",
   ],
   "moc-sealing": [
     "sealingType", "sealingSubType", "glandPackingType", "glandPackingMake",
@@ -235,11 +235,14 @@ const PumpSelectionPage = () => {
     viscosityCp: "", // canonical cP value (cP = cSt × SG when entered in cSt)
     solidPercentage: "",
     solidSize: "",
+    solidSizeMax: "",
+    solidSizeMode: "single",
     solidType: "", // "Hard Solid" / "Soft Solid" — only meaningful when solidPercentage > 0
 
     // Step 3
     pumpType: "",
     agBk: "", // AG / BK feed option — only shown when viscosity > 10000 cP
+    agBkRemarks: "", // why AG/BK was marked Not Required (mandatory when it is)
     bearingHousing: "",
     suctionHousing: "",
     jointType: "",

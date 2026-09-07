@@ -1,8 +1,9 @@
 /**
  * Formatting helpers for the Fluid-Properties inputs that can each be a single
- * value OR a Min–Max range: pH, viscosity, and temperature. Each field carries
- * a `<field>Mode` of "single" | "range" (default/absent = single). When
- * ranged, a second "Max" value is stored alongside the base ("Min") value.
+ * value OR a Min–Max range: pH, viscosity, temperature and solid size.
+ * Each field carries a `<field>Mode` of "single" | "range" (default/absent =
+ * single). When ranged, a second "Max" value is stored alongside the base
+ * ("Min") value.
  *
  * These produce the human-readable text used everywhere the value is shown or
  * sent onward — the report summary, the MOC AI prompt, and the PDF — so a
@@ -29,6 +30,11 @@ export interface FluidRangeFields {
   temperatureMaxRaw?: string; // as-entered (max)
   temperatureUnit?: string;
   temperatureMode?: string;
+  /** Solid size in mm. The base field is the single value or the range MIN —
+   *  the min is what pump screening uses (see findCandidates). */
+  solidSize?: string;
+  solidSizeMax?: string;
+  solidSizeMode?: string;
 }
 
 /** "lo–hi" when a range with a distinct hi is set, otherwise "lo" (or "" when
@@ -46,6 +52,10 @@ export function rangeText(
   }
   return a;
 }
+
+/** Solid size in mm — "10" or "10–25". */
+export const solidSizeDisplay = (f: FluidRangeFields): string =>
+  rangeText(f.solidSize, f.solidSizeMax, f.solidSizeMode);
 
 /** pH — "6.5" or "4–9". */
 export const phDisplay = (f: FluidRangeFields): string =>

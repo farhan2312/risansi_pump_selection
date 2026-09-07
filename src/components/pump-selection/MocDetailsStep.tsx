@@ -21,7 +21,12 @@ import {
   uploadClientRequirements,
   uploadMocDocument,
 } from "../../services/wizardInputService";
-import { phDisplay, temperatureCDisplay, viscosityCpDisplay } from "../../lib/fluid-inputs";
+import {
+  phDisplay,
+  solidSizeDisplay,
+  temperatureCDisplay,
+  viscosityCpDisplay,
+} from "../../lib/fluid-inputs";
 
 // Renders the AI's markdown-formatted summary/alternatives/seal-rationale
 // text (headers, "-"/"1." lists, **bold**) in the UI panel — a small,
@@ -493,7 +498,7 @@ const MocDetailsStep = ({
       capacity: formData.capacity || undefined,
       capacityUnit: formData.capacityUnit || undefined,
       solidPct: formData.solidPercentage || undefined,
-      solidSize: formData.solidSize || undefined,
+      solidSize: solidSizeDisplay(formData) || undefined,
       solidType: formData.solidType || undefined,
       // The server reads the uploaded file straight from the DB by projectId
       // rather than having the browser round-trip base64 bytes through JSON.
@@ -598,7 +603,7 @@ const MocDetailsStep = ({
         capacity: formData.capacity || undefined,
         capacityUnit: formData.capacityUnit || undefined,
         solidPct: formData.solidPercentage || undefined,
-        solidSize: formData.solidSize || undefined,
+        solidSize: solidSizeDisplay(formData) || undefined,
         solidType: formData.solidType || undefined,
         // PDF shows the uploaded filename (legacy rows still get their text).
         clientRequirementsFilename: clientRequirementsFilename || undefined,

@@ -7,6 +7,7 @@ import { saveWizardInput } from "../../services/wizardInputService";
 import type { HeadPoint, PumpRecommendation } from "../../data/Recommendations";
 import { SIZE_COLUMN_BY_RANGE, sizeForViscosityRange } from "../../lib/suction-discharge-size";
 import { sealingShort } from "../../lib/sealing";
+import { AG_BK_NOT_REQUIRED } from "./OperatingConditionsStep";
 
 type Props = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -173,6 +174,10 @@ const LivePumpRecommendation = ({
     return v ?? fallbackSize;
   };
   const seal = sealingShort(formData.sealingType);
+  // "Not Required" is an explicit omission, not a feed option, so it is kept
+  // out of the terse spec code line below.
+  const agBkCode =
+    formData.agBk === AG_BK_NOT_REQUIRED ? "" : formData.agBk;
 
   // `point` is the head the user picked (or the confirmed head). Head-specific
   // figures (Head, VOLE, Mech Eff, RPM) come from it; when no head is picked
@@ -245,11 +250,9 @@ const LivePumpRecommendation = ({
         {/* Spec selections (same for every model), combined into one line like
             "Vertical · BK · MS" — Pump Type · AG/BK · Seal. Each part appears
             as it's chosen on its step. */}
-        {(formData.pumpType || formData.agBk || seal) && (
+        {(formData.pumpType || agBkCode || seal) && (
           <span className="live-rec-card-type">
-            {[formData.pumpType, formData.agBk, seal]
-              .filter(Boolean)
-              .join(" · ")}
+            {[formData.pumpType, agBkCode, seal].filter(Boolean).join(" · ")}
           </span>
         )}
         {showAction && (
