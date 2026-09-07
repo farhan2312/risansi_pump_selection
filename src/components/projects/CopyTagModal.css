@@ -14,7 +14,7 @@
 }
 
 /* Shown instead of a dropdown when there's only one tag to copy. */
-.copy-static {
+.copy-modal .copy-static {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -26,57 +26,78 @@
   font-weight: 600;
   color: var(--fg);
 }
-.copy-static-sub {
+.copy-modal .copy-static-sub {
   font-size: 11.5px;
   font-weight: 400;
   color: var(--fg-3, #6e7781);
 }
 
-.copy-choices {
+.copy-modal .copy-choices {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.copy-choice {
+/* These cards are <label>s inside .modal-form, so CreateProjectModal.css's
+   `.modal-form label` (uppercase, small, muted) and `.modal-form input`
+   (width:100%, padding, border — meant for text fields) both land on them.
+   Everything below is scoped under .copy-modal so it outranks those and
+   resets what doesn't belong on a radio card. */
+.copy-modal .copy-choice {
   display: flex;
   align-items: flex-start;
   gap: 10px;
   padding: 10px 12px;
+  margin-bottom: 0;
   border: 1px solid var(--line);
   border-radius: var(--radius-md, 8px);
   background: var(--bg-paper, #fff);
   cursor: pointer;
+  /* Undo the uppercase label treatment — this card holds sentence text. */
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 13.5px;
+  color: var(--fg);
 }
-.copy-choice:hover {
+.copy-modal .copy-choice:hover {
   background: var(--bg-elev, #f7f8fa);
 }
-.copy-choice.is-on {
+.copy-modal .copy-choice.is-on {
   border-color: var(--accent, #0969da);
   background: var(--accent-soft, #eaf2fd);
 }
-.copy-choice input {
-  margin-top: 3px;
+/* Without this the radio inherits the text-input sizing and swallows the row. */
+.copy-modal .copy-choice input[type="radio"] {
+  width: auto;
+  min-width: 0;
   flex: none;
+  margin: 3px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
   accent-color: var(--accent, #0969da);
 }
-.copy-choice span {
+.copy-modal .copy-choice span {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 1px;
   min-width: 0;
+  text-align: left;
 }
-.copy-choice b {
+.copy-modal .copy-choice b {
   font-size: 13.5px;
   font-weight: 600;
   color: var(--fg);
 }
-.copy-choice em {
+.copy-modal .copy-choice em {
   font-style: normal;
   font-size: 11.5px;
   color: var(--fg-3, #6e7781);
 }
-.copy-choice input:disabled + span b,
-.copy-choice input:disabled + span em {
+.copy-modal .copy-choice input:disabled + span b,
+.copy-modal .copy-choice input:disabled + span em {
   opacity: 0.55;
 }
