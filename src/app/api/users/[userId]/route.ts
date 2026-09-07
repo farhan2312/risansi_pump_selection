@@ -1,3 +1,4 @@
+import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 
 import { error, json, userToDict } from "@/lib/api";
@@ -83,6 +84,23 @@ export async function PATCH(
       patch.reviewedBy = claims.sub;
       patch.reviewedAt = new Date();
     }
+  }
+
+  // Admin password reset. Deliberately does NOT require the current password —
+  // the point is to restore access for a user who has lost it. The user is
+  // forced to pick their own on next login, so the admin-issued one is never
+  // a password the admin keeps knowing. Resetting your own password here is
+  // blocked: use Change Password, which verifies the current one first.
+  if ("password" in body) {
+    if (user.id === claims.sub) {
+      return error("Use Change Password to change your own password.", 400);
+    }
+    const password = String(body.password ?? "");
+    if (password.length < 6) {
+      return error("'password' must be at least 6 characters", 400);
+    }
+    patch.passwordHash = await bcrypt.hash(password, 12);
+    patch.mustChangePassword = true;
   }
 
   if (Object.keys(patch).length === 0) {

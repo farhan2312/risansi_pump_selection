@@ -465,6 +465,10 @@ const EditUserModal = ({
   const [name, setName] = useState(row.name ?? "");
   const [role, setRole] = useState<UserRole>(row.role);
   const [status, setStatus] = useState<UserStatus>(row.status);
+  // Password reset is opt-in: an empty box leaves the password alone, so an
+  // ordinary name/role edit can never blank someone out by accident.
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
 
@@ -472,6 +476,12 @@ const EditUserModal = ({
     e.preventDefault();
     if (saving) return;
     if (!name.trim()) return setFormError("Name can't be empty.");
+    if (password && password.length < 6) {
+      return setFormError("Password must be at least 6 characters.");
+    }
+    if (password && password !== confirmPassword) {
+      return setFormError("The two passwords don't match.");
+    }
 
     setSaving(true);
     setFormError("");
@@ -483,6 +493,7 @@ const EditUserModal = ({
         // status alone unless the admin explicitly approves/rejects it from
         // the table row actions instead.
         status: status === "pending" ? undefined : status,
+        password: password || undefined,
       });
       onSaved(updated);
     } catch (err) {
@@ -538,6 +549,39 @@ const EditUserModal = ({
                 ))}
               </select>
             </div>
+          )}
+          {/* Password reset. Hidden for your own row — changing your own
+              password goes through Change Password, which verifies the
+              current one first. */}
+          {!isSelf && (
+            <>
+              <div className="pmm-field" style={{ marginTop: 14, marginBottom: 14 }}>
+                <label>New Password</label>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="Leave blank to keep the current password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+              {password && (
+                <div className="pmm-field">
+                  <label>Confirm New Password</label>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder="Re-enter the new password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                  />
+                  <span className="pmm-field-hint">
+                    {row.name || row.email} will be asked to set their own
+                    password at the next login.
+                  </span>
+                </div>
+              )}
+            </>
           )}
           <div className="pmm-modal-actions">
             <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>

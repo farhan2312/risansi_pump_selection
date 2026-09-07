@@ -52,7 +52,13 @@ export const createUser = async (input: {
  * existing user, not just the original pending-request review. */
 export const updateUser = async (
   userId: string,
-  input: { name?: string; role?: UserRole; status?: "active" | "rejected" | "deactivated" }
+  input: {
+    name?: string;
+    role?: UserRole;
+    status?: "active" | "rejected" | "deactivated";
+    /** Admin password reset. Omit to leave the password untouched. */
+    password?: string;
+  }
 ): Promise<PendingUser> => {
   const { data } = await apiClient.patch<PendingUser>(`/users/${userId}`, input);
   return data;
