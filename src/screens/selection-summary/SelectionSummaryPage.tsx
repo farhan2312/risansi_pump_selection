@@ -18,6 +18,8 @@ import {
   type SelectionSummaryPdfSection,
 } from "../../lib/selection-summary-pdf";
 import EnquiryDocumentModal from "../../components/reports/EnquiryDocumentModal";
+import FormatChoiceModal, { type DownloadFormat } from "../../components/ui/FormatChoiceModal";
+import { downloadSelectionSummaryExcel } from "../../lib/selection-summary-excel";
 
 // A saved summary can still carry the retired "Selected Motor" section and the
 // Testing rows; drop them so a regenerated PDF matches the current report spec.
@@ -34,19 +36,27 @@ function normalizeSections(summary: ReportSummary): SelectionSummaryPdfSection[]
 // generator, so styling/layout changes apply to already-saved reports (the
 // binary saved at Confirm time can be an older format). Falls back to the saved
 // binary when there's no structured summary (pre-feature reports).
-async function downloadReportPdf(record: ReportRecord, summary?: ReportSummary | null): Promise<void> {
+async function downloadReport(
+  record: ReportRecord,
+  format: DownloadFormat,
+  summary?: ReportSummary | null,
+): Promise<void> {
   const data = summary ?? (await getReportSummary(record.tag_id).catch(() => null));
   if (!data) {
+    // Pre-feature report: only the stored PDF binary exists, nothing to
+    // rebuild an Excel sheet from.
     window.open(reportDownloadUrl(record.tag_id), "_blank");
     return;
   }
-  await downloadSelectionSummaryPdf({
+  const input = {
     projectCode: record.project_code,
     projectName: record.project_name ?? undefined,
     pumpFields: data.pumpFields,
     sections: normalizeSections(data),
     generatedBy: record.created_by_name ?? undefined,
-  });
+  };
+  if (format === "excel") downloadSelectionSummaryExcel(input);
+  else await downloadSelectionSummaryPdf(input);
 }
 
 // One enquiry group as loaded/rendered by the page.
@@ -109,6 +119,9 @@ const SelectionSummaryPage = () => {
   const [viewing, setViewing] = useState<ReportRecord | null>(null);
   const [viewingEnquiry, setViewingEnquiry] = useState<EnquiryGroup | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // Row-level download asks PDF or Excel before generating.
+  const [choosingFor, setChoosingFor] = useState<ReportRecord | null>(null);
+  const [choiceBusy, setChoiceBusy] = useState<DownloadFormat | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -317,7 +330,7 @@ const SelectionSummaryPage = () => {
                                         className="summary-download-btn"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          void downloadReportPdf(t);
+                                          setChoosingFor(t);
                                         }}
                                       >
                                         Download
@@ -353,6 +366,28 @@ const SelectionSummaryPage = () => {
 
       {viewing && (
         <ReportSummaryModal report={viewing} onClose={() => setViewing(null)} />
+      )}
+
+      {choosingFor && (
+        <FormatChoiceModal
+          title="Download report"
+          message={`${choosingFor.project_code} · ${choosingFor.tag_name}`}
+          busy={choiceBusy}
+          onCancel={() => {
+            if (choiceBusy) return;
+            setChoosingFor(null);
+          }}
+          onChoose={async (format) => {
+            const record = choosingFor;
+            setChoiceBusy(format);
+            try {
+              await downloadReport(record, format);
+              setChoosingFor(null);
+            } finally {
+              setChoiceBusy(null);
+            }
+          }}
+        />
       )}
 
       {viewingEnquiry && (
@@ -406,7 +441,7 @@ const ReportSummaryModal = ({
   const handleDownload = async () => {
     setDownloading(true);
     try {
-      await downloadReportPdf(report, summary);
+      await downloadReport(report, "excel", summary);
     } finally {
       setDownloading(false);
     }
@@ -499,7 +534,7 @@ const ReportSummaryModal = ({
             onClick={handleDownload}
             disabled={downloading || isLoading}
           >
-            {downloading ? "Generating…" : "Download PDF"}
+            {downloading ? "Generating…" : "Download Excel"}
           </button>
           <button className="summary-modal-close-btn" onClick={onClose}>
             Close

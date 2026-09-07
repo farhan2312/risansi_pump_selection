@@ -12,6 +12,8 @@ import {
 } from "../../lib/selection-summary-pdf";
 import { mechSealDescription } from "./SealingDetailsStep";
 import { getReportSummary, saveReportSummary, uploadFinalReport } from "../../services/reportsService";
+import FormatChoiceModal, { type DownloadFormat } from "../ui/FormatChoiceModal";
+import { downloadSelectionSummaryExcel } from "../../lib/selection-summary-excel";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import type {
   PumpRecommendation,
@@ -383,6 +385,10 @@ const RecommendationStep = ({
   const [confirming, setConfirming] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
+  // Confirm asks PDF or Excel before it generates.
+  const [choosingFormat, setChoosingFormat] = useState(false);
+  // Which format is mid-generation, so the prompt marks the right button.
+  const [confirmFormat, setConfirmFormat] = useState<DownloadFormat | null>(null);
 
   // Persist the "confirmed" (green summary) state across reloads: if this tag
   // already has a saved report summary, the selection was confirmed on an
@@ -402,33 +408,43 @@ const RecommendationStep = ({
     };
   }, [tagId]);
 
-  const handleConfirmSelection = async () => {
+  const handleConfirmSelection = async (format: DownloadFormat) => {
     // Reports live on the tag now (a project can carry N tags, each with its
     // own final report). The Confirm button is gated on projectId AND tagId
     // - if we have a project open but no tag id (legacy handoff), the server
     // wouldn't know which tag's row to write.
     if (!confirmedPump || !projectId || !tagId) return;
     setConfirming(true);
+    setConfirmFormat(format);
     setConfirmError(null);
     try {
-      const { filename, bytes } = await downloadSelectionSummaryPdf({
+      const pdfInput = {
         projectCode: projectCode || "",
         projectName,
         customerName,
         pumpFields,
         sections: pdfSections,
         generatedBy: user?.name || user?.email || undefined,
+      };
+      // The PDF is always built and stored - it is what the Reports page
+      // serves as the saved report. Only the file handed to the user follows
+      // their chosen format.
+      const { filename, bytes } = await downloadSelectionSummaryPdf(pdfInput, {
+        save: format === "pdf",
       });
+      if (format === "excel") downloadSelectionSummaryExcel(pdfInput);
       await uploadFinalReport(tagId, filename, bytes);
       // Structured mirror of the same data, for the Reports list's
       // click-to-view summary — best-effort, doesn't block on the PDF
       // upload above having already succeeded.
       await saveReportSummary(tagId, { pumpFields, sections: pdfSections }).catch(() => {});
       setConfirmed(true);
+      setChoosingFormat(false);
     } catch {
       setConfirmError("Couldn't generate/save the report. Please try again.");
     } finally {
       setConfirming(false);
+      setConfirmFormat(null);
     }
   };
 
@@ -523,7 +539,7 @@ const RecommendationStep = ({
 
           <button
             disabled={!confirmedPump || !projectId || !tagId || confirming}
-            onClick={handleConfirmSelection}
+            onClick={() => setChoosingFormat(true)}
             title={
               !projectId
                 ? "No project open"
@@ -540,6 +556,19 @@ const RecommendationStep = ({
           </button>
         </div>
       </div>
+
+      {choosingFormat && (
+        <FormatChoiceModal
+          title={confirmed ? "Regenerate report" : "Confirm pump selection"}
+          message="The report is saved either way — this chooses the file you get."
+          busy={confirmFormat}
+          onCancel={() => {
+            if (confirming) return;
+            setChoosingFormat(false);
+          }}
+          onChoose={(format) => void handleConfirmSelection(format)}
+        />
+      )}
     </div>
   );
 };

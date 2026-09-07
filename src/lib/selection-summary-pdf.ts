@@ -281,6 +281,10 @@ function safeSlug(s: string): string {
 
 export async function downloadSelectionSummaryPdf(
   input: SelectionSummaryPdfInput,
+  /** Set save:false to build the bytes WITHOUT triggering a browser
+   *  download — used by Confirm Pump Selection, which always stores a PDF
+   *  server-side but may hand the user an Excel file instead. */
+  opts: { save?: boolean } = {},
 ): Promise<SelectionSummaryPdfResult> {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const L = createLayout(doc);
@@ -296,7 +300,7 @@ export async function downloadSelectionSummaryPdf(
 
   const dateSlug = new Date().toISOString().slice(0, 10);
   const filename = `Selection-Summary-${safeSlug(input.projectCode) || "project"}-${dateSlug}.pdf`;
-  doc.save(filename);
+  if (opts.save !== false) doc.save(filename);
 
   return { filename, bytes: doc.output("arraybuffer") };
 }

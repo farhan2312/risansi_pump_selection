@@ -10,10 +10,10 @@ import Spinner from "../ui/Spinner";
 import { getReportSummary, type ReportSummary } from "../../services/reportsService";
 import {
   buildEnquiryMatrix,
-  downloadEnquiryDocumentPdf,
   type EnquiryDocumentTag,
   type SelectionSummaryPdfSection,
 } from "../../lib/selection-summary-pdf";
+import { downloadEnquiryDocumentExcel } from "../../lib/selection-summary-excel";
 import { printEnquiryDocument } from "../../lib/enquiry-print";
 
 /** The minimum a caller has to supply per tag. Deliberately not ReportRecord
@@ -128,7 +128,7 @@ const EnquiryDocumentModal = ({
     if (tags.length === 0) return;
     setDownloading(true);
     try {
-      await downloadEnquiryDocumentPdf({
+      downloadEnquiryDocumentExcel({
         projectCode: source.projectCode,
         projectName: source.projectName ?? undefined,
         generatedBy: source.generatedBy ?? undefined,
@@ -246,7 +246,7 @@ const EnquiryDocumentModal = ({
             onClick={handleDownload}
             disabled={downloading || isLoading || !anySummary}
           >
-            {downloading ? "Generating…" : "Download PDF"}
+            {downloading ? "Generating…" : "Download Excel"}
           </button>
           <button className="summary-modal-close-btn" onClick={onClose}>
             Close
