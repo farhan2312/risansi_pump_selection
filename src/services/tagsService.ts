@@ -45,3 +45,19 @@ export const renameTag = async (tagId: string, name: string): Promise<TagRecord>
 export const deleteTag = async (tagId: string): Promise<void> => {
   await apiClient.delete(`/enquiry-tags/${tagId}`);
 };
+
+/** Duplicates a tag with every wizard step filled in. Omit `targetProjectId`
+ * to copy within the same enquiry; pass one to copy into another enquiry. The
+ * server names the copy ("Tag A (copy)") and de-duplicates against the
+ * destination. Generated reports are NOT carried over — the copy is a fresh
+ * selection run. */
+export const copyTag = async (
+  tagId: string,
+  opts: { targetProjectId?: string; name?: string } = {},
+): Promise<TagRecord & { copied_steps: number }> => {
+  const { data } = await apiClient.post<TagRecord & { copied_steps: number }>(
+    `/enquiry-tags/${tagId}/copy`,
+    opts,
+  );
+  return data;
+};

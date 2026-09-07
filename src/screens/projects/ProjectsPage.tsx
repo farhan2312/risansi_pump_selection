@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import "./ProjectsPage.css";
 import CreateProjectModal from "../../components/projects/CreateProjectModal";
+import CopyTagModal, { type CopyDestination } from "../../components/projects/CopyTagModal";
 import EditProjectModal from "../../components/projects/EditProjectModal";
 import EmptyState from "../../components/ui/EmptyState";
 import ConfirmModal from "../../components/ui/ConfirmModal";
@@ -16,6 +17,7 @@ import {
   type ProjectRecord,
 } from "../../services/projectService";
 import {
+  copyTag,
   createTag,
   deleteTag,
   listTags,
@@ -78,6 +80,17 @@ const ProjectsPage = () => {
   const [renameValue, setRenameValue] = useState("");
   const [confirmingDeleteTag, setConfirmingDeleteTag] = useState<TagRecord | null>(null);
   const [deletingTagId, setDeletingTagId] = useState<string | null>(null);
+  // Copy flow. `copyingFrom` opens the dialog (optionally pre-selecting a tag
+  // when started from a tag row). `pendingCopyTagId` survives the hand-off to
+  // the Create Enquiry form: the tag is copied into whatever that form makes.
+  const [copyingFrom, setCopyingFrom] = useState<{
+    project: ProjectRecord;
+    tagId?: string;
+  } | null>(null);
+  const [copyBusy, setCopyBusy] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
+  const [pendingCopyTagId, setPendingCopyTagId] = useState<string | null>(null);
+  const [copyingTagId, setCopyingTagId] = useState<string | null>(null);
 
   // Filters — client name matches project.name (the "Client Name" column;
   // that's what the Create/Edit forms actually call this field), enquiry
@@ -112,6 +125,28 @@ const ProjectsPage = () => {
       const created = await createProject(input);
       setProjects((prev) => [created, ...prev]);
       setIsModalOpen(false);
+      // Came here from "copy into a new enquiry": land the copy, then drop
+      // the empty Default tag the create flow auto-adds, so the new enquiry
+      // holds just the copied selection.
+      if (pendingCopyTagId) {
+        const tagId = pendingCopyTagId;
+        setPendingCopyTagId(null);
+        try {
+          await copyTag(tagId, { targetProjectId: created.id });
+          const rows = await listTags(created.id);
+          const stray = rows.find((t) => t.name === "Default" && !t.liquid);
+          if (stray && rows.length > 1) {
+            await deleteTag(stray.id).catch(() => {});
+          }
+          await refreshTags(created.id);
+          setExpanded((prev) => new Set(prev).add(created.id));
+        } catch {
+          setTagsErrorFor((e) => ({
+            ...e,
+            [created.id]: "Enquiry created, but the tag copy failed.",
+          }));
+        }
+      }
       return null;
     } catch (err) {
       // Surface the API's specific message (e.g. duplicate Enquiry no.) so the
@@ -247,6 +282,66 @@ const ProjectsPage = () => {
       setConfirmingDeleteTag(null);
     } finally {
       setDeletingTagId(null);
+    }
+  };
+
+
+  // Refresh one enquiry's tag list from the server — used after a copy lands,
+  // since the new tag may belong to a different enquiry than the one open.
+  const refreshTags = async (projectId: string) => {
+    try {
+      const rows = await listTags(projectId);
+      setTagsByProject((m) => ({ ...m, [projectId]: rows }));
+    } catch {
+      // Non-fatal: the list refreshes on the next expand.
+    }
+  };
+
+  /** Copy straight into the same enquiry — the per-tag copy button. */
+  const handleCopyTagHere = async (tag: TagRecord) => {
+    setCopyingTagId(tag.id);
+    setTagsErrorFor((e) => ({ ...e, [tag.project_id]: "" }));
+    try {
+      await copyTag(tag.id);
+      await refreshTags(tag.project_id);
+    } catch (err) {
+      const msg =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+        "Couldn't copy the tag.";
+      setTagsErrorFor((e) => ({ ...e, [tag.project_id]: msg }));
+    } finally {
+      setCopyingTagId(null);
+    }
+  };
+
+  /** Confirm from the copy dialog. "New enquiry" doesn't copy yet — it parks
+   *  the tag id and opens the Create Enquiry form, which finishes the job. */
+  const handleCopyConfirm = async (tagId: string, destination: CopyDestination) => {
+    if (destination.kind === "new") {
+      setPendingCopyTagId(tagId);
+      setCopyingFrom(null);
+      setCopyError(null);
+      setIsModalOpen(true);
+      return;
+    }
+    setCopyBusy(true);
+    setCopyError(null);
+    try {
+      const targetProjectId =
+        destination.kind === "existing" ? destination.projectId : undefined;
+      const created = await copyTag(tagId, { targetProjectId });
+      setCopyingFrom(null);
+      await refreshTags(created.project_id);
+      // Make the destination visible so the new tag isn't copied into a
+      // collapsed row the user never sees.
+      setExpanded((prev) => new Set(prev).add(created.project_id));
+    } catch (err) {
+      const msg =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+        "Couldn't copy the tag.";
+      setCopyError(msg);
+    } finally {
+      setCopyBusy(false);
     }
   };
 
@@ -439,6 +534,23 @@ const ProjectsPage = () => {
                     <div className="projects-actions">
                       <button
                         className="project-btn"
+                        onClick={() => {
+                          setCopyError(null);
+                          setCopyingFrom({ project });
+                          if (!tagsByProject[project.id]) {
+                            listTags(project.id)
+                              .then((rows) =>
+                                setTagsByProject((m) => ({ ...m, [project.id]: rows })),
+                              )
+                              .catch(() => {});
+                          }
+                        }}
+                        title="Copy a tag from this enquiry"
+                      >
+                        <CopyIcon /> Copy
+                      </button>
+                      <button
+                        className="project-btn"
                         onClick={() => setEditing(project)}
                         aria-label={`Edit enquiry ${project.project_code}`}
                       >
@@ -542,6 +654,16 @@ const ProjectsPage = () => {
                                         <OpenIcon /> Open
                                       </button>
                                       <button
+                                        className="project-btn"
+                                        onClick={() => handleCopyTagHere(tag)}
+                                        disabled={copyingTagId === tag.id}
+                                        title="Duplicate this tag with all its pump-selection details"
+                                        aria-label={`Copy tag ${tag.name}`}
+                                      >
+                                        <CopyIcon />
+                                        {copyingTagId === tag.id ? " Copying…" : " Copy"}
+                                      </button>
+                                      <button
                                         className="project-btn project-btn-danger"
                                         onClick={() => setConfirmingDeleteTag(tag)}
                                         disabled={
@@ -622,9 +744,32 @@ const ProjectsPage = () => {
 
       <CreateProjectModal
         isOpen={isModalOpen}
-        onClose={() => !isCreating && setIsModalOpen(false)}
+        onClose={() => {
+          if (isCreating) return;
+          // Backing out of the create form abandons a queued copy too —
+          // otherwise it would silently attach to the next enquiry created.
+          setPendingCopyTagId(null);
+          setIsModalOpen(false);
+        }}
         onCreate={handleCreateProject}
       />
+
+      {copyingFrom && (
+        <CopyTagModal
+          sourceProject={copyingFrom.project}
+          tags={tagsByProject[copyingFrom.project.id] ?? []}
+          initialTagId={copyingFrom.tagId}
+          projects={projects.filter((p) => p.id !== copyingFrom.project.id)}
+          busy={copyBusy}
+          error={copyError}
+          onCancel={() => {
+            if (copyBusy) return;
+            setCopyingFrom(null);
+            setCopyError(null);
+          }}
+          onConfirm={handleCopyConfirm}
+        />
+      )}
 
       <EditProjectModal
         isOpen={editing !== null}
@@ -721,6 +866,28 @@ const TrashIcon = () => (
   <svg viewBox="0 0 24 24" fill="none">
     <path
       d="M4 7h16M9 7V4h6v3M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+// Two offset sheets — the conventional "duplicate" glyph.
+const CopyIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none">
+    <rect
+      x="9"
+      y="9"
+      width="11"
+      height="11"
+      rx="2"
+      stroke="currentColor"
+      strokeWidth="1.7"
+    />
+    <path
+      d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"
       stroke="currentColor"
       strokeWidth="1.7"
       strokeLinecap="round"

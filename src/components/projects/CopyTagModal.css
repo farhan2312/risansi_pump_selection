@@ -1,0 +1,82 @@
+/* Copy-tag dialog. Reuses the Create Enquiry modal shell (CreateProjectModal.css)
+   and only adds the pieces that dialog has no equivalent for: the destination
+   radio cards and the read-only single-tag row. */
+.copy-modal {
+  max-width: 520px;
+}
+
+.copy-lead {
+  margin: -4px 0 0;
+  padding: 0 24px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--fg-3, #6e7781);
+}
+
+/* Shown instead of a dropdown when there's only one tag to copy. */
+.copy-static {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-elev, #f7f8fa);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.copy-static-sub {
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--fg-3, #6e7781);
+}
+
+.copy-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.copy-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-paper, #fff);
+  cursor: pointer;
+}
+.copy-choice:hover {
+  background: var(--bg-elev, #f7f8fa);
+}
+.copy-choice.is-on {
+  border-color: var(--accent, #0969da);
+  background: var(--accent-soft, #eaf2fd);
+}
+.copy-choice input {
+  margin-top: 3px;
+  flex: none;
+  accent-color: var(--accent, #0969da);
+}
+.copy-choice span {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.copy-choice b {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.copy-choice em {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--fg-3, #6e7781);
+}
+.copy-choice input:disabled + span b,
+.copy-choice input:disabled + span em {
+  opacity: 0.55;
+}
