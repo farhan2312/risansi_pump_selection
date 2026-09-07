@@ -1,0 +1,121 @@
+/* Approval step (step 8) — the review-and-send list. */
+
+.approval-empty {
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--fg-3);
+}
+
+.approval-table-wrap {
+  margin-top: 14px;
+  /* Wide content scrolls inside its own box rather than the page. */
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md, 8px);
+}
+
+.approval-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.approval-table th {
+  text-align: left;
+  padding: 10px 14px;
+  background: var(--bg-elev, #f6f8fb);
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-3);
+  white-space: nowrap;
+}
+
+.approval-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  color: var(--fg-2);
+  vertical-align: middle;
+}
+
+.approval-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* The step name doubles as a jump link back to that step. */
+.approval-step-link {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--brand-blue);
+  cursor: pointer;
+  text-align: left;
+}
+
+.approval-step-link:hover {
+  text-decoration: underline;
+}
+
+.approval-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.approval-pill.pending {
+  background: var(--warn-soft, #fff8e6);
+  color: var(--warn, #96601a);
+}
+
+.approval-pill.sent {
+  background: var(--accent-soft, #e7f0fd);
+  color: var(--brand-blue, #0a3d8f);
+}
+
+.approval-pill.ok {
+  background: #e6f6ec;
+  color: #1d6b3a;
+}
+
+.approval-pill.bad {
+  background: #fdeaea;
+  color: #a02020;
+}
+
+.approval-banner {
+  margin-top: 14px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md, 8px);
+  font-size: 13px;
+  border: 1px solid;
+}
+
+.approval-banner.ok {
+  background: #e6f6ec;
+  border-color: #b9e2c8;
+  color: #1d6b3a;
+}
+
+.approval-banner.bad {
+  background: #fdeaea;
+  border-color: #f2c2c2;
+  color: #a02020;
+}
+
+/* Send sits on its own row above Previous/Get Report: it is the action this
+   step exists for, and burying it beside navigation would hide it. */
+.approval-send-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}

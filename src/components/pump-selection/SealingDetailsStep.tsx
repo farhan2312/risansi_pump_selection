@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
+import StepApprovalToggle from "./approval/StepApprovalToggle";
 import { actions, btnGhost, btnPrimary, control, fieldWrap, fullWidth, grid, label } from "./formStyles";
 import { Err, ErrorBanner, Req, hasErrors } from "./fieldBits";
 
@@ -209,7 +210,10 @@ const SealingDetailsStep = ({
       <Stepper currentStep={5} maxStep={formData.wizardMaxStep} onStepClick={onStepClick} />
 
       <div className="step-card">
-        <h2>Sealing Details</h2>
+        <h2>
+          Sealing Details
+          <StepApprovalToggle step={5} />
+        </h2>
         <p>Select the sealing arrangement for this pump.</p>
 
         {/* Sealing recommendation carried over from the MOC step, shown here

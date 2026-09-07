@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Stepper from "./Stepper";
+import StepApprovalToggle from "./approval/StepApprovalToggle";
 import "./GeneralInformationStep.css";
 import { actions, btnGhost, btnPrimary, control } from "./formStyles";
 import { ErrorBanner, hasErrors } from "./fieldBits";
@@ -628,7 +629,10 @@ const MocDetailsStep = ({
       <Stepper currentStep={4} maxStep={formData.wizardMaxStep} onStepClick={onStepClick} />
 
       <div className="step-card">
-        <h2>MOC &amp; Elastomer</h2>
+        <h2>
+          MOC &amp; Elastomer
+          <StepApprovalToggle step={4} />
+        </h2>
         <p>
           Select the material of construction and elastomer
           {media ? (

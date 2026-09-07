@@ -21,6 +21,7 @@ import {
   pgTable,
   text,
   timestamp,
+  unique,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -924,3 +925,38 @@ export const auditLog = pgTable("audit_log", {
   userAgent: text("user_agent"),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
+
+// Per-step approval, one row per (tag, wizard step). A step is put up for
+// approval by ticking the toggle on that step's own header; the Approval step
+// then lists everything ticked and sends them all at once.
+//
+// Unlike the wizard-input tables above this is NOT one row per tag — a tag
+// carries up to seven rows, one per approvable step — so it has its own
+// route (/api/step-approvals) rather than riding the wizard-input autosave.
+export const stepApproval = pgTable(
+  "step_approval",
+  {
+    id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    tagId: uuid("tag_id")
+      .notNull()
+      .references(() => enquiryTags.id, { onDelete: "cascade" }),
+    /** Wizard step number, 1-7 (see APPROVABLE_STEPS in lib/approval.ts). */
+    step: integer("step").notNull(),
+    /** Ticked on the step's own header — i.e. "this step needs approving". */
+    selected: boolean("selected").notNull().default(false),
+    /** "Pending" until sent, then "Awaiting Approval"; an approver later moves
+     *  it to "Approved" / "Rejected". See APPROVAL_STATUSES in lib/approval.ts. */
+    status: varchar("status", { length: 30 }).notNull().default("Pending"),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    sentBy: uuid("sent_by"),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decidedBy: uuid("decided_by"),
+    remarks: text("remarks"),
+    createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
+  },
+  (t) => [unique("step_approval_tag_step_key").on(t.tagId, t.step)],
+);

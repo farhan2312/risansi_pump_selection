@@ -491,7 +491,7 @@ const RecommendationStep = ({
   return (
     <div className="step-container">
       <Stepper
-        currentStep={8}
+        currentStep={9}
         maxStep={formData.wizardMaxStep}
         onStepClick={onStepClick}
         finalCompleted={confirmed}

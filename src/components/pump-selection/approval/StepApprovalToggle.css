@@ -1,0 +1,76 @@
+/* The approval tick sits at the right-hand end of a step's gradient header
+   banner (.step-card h2 is a flex row), so it needs to read clearly against
+   that dark blue rather than inheriting the page's form styling. */
+.step-approval {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  cursor: pointer;
+  /* h2 sets a large heading size; the tick must not inherit it. */
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  line-height: 1.2;
+  white-space: nowrap;
+  transition: background 120ms, border-color 120ms;
+}
+
+.step-approval:hover {
+  background: rgba(255, 255, 255, 0.24);
+  border-color: rgba(255, 255, 255, 0.7);
+}
+
+/* Sent steps can't be un-ticked — show that rather than looking clickable. */
+.step-approval.is-sent {
+  cursor: default;
+  background: rgba(255, 255, 255, 0.92);
+  border-color: transparent;
+  color: #0a3d8f;
+}
+
+.step-approval.is-sent:hover {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: transparent;
+}
+
+.step-approval input[type="checkbox"] {
+  /* Reset: the wizard's global form rules stretch inputs to full width. */
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  margin: 0;
+  padding: 0;
+  accent-color: #ffffff;
+  cursor: inherit;
+}
+
+.step-approval.is-sent input[type="checkbox"] {
+  accent-color: #0a3d8f;
+}
+
+.step-approval input[type="checkbox"]:disabled {
+  opacity: 1;
+}
+
+.step-approval-text {
+  color: inherit;
+}
+
+@media (max-width: 640px) {
+  /* Keep the label from crowding the step title on narrow screens. */
+  .step-approval-text {
+    display: none;
+  }
+
+  .step-approval {
+    padding: 6px 8px;
+  }
+}

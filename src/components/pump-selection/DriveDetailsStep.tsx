@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
+import StepApprovalToggle from "./approval/StepApprovalToggle";
 import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, hint, label } from "./formStyles";
 import { getVBeltDrive, type VBeltDrive, type VBeltOption } from "../../services/vbeltDriveService";
 import {
@@ -764,7 +765,10 @@ const DriveDetailsStep = ({
       <Stepper currentStep={7} maxStep={formData.wizardMaxStep} onStepClick={onStepClick} />
 
       <div className="step-card">
-        <h2>Drive Details</h2>
+        <h2>
+          Drive Details
+          <StepApprovalToggle step={7} />
+        </h2>
         <p>Select the drive system and motor specification.</p>
 
         {/* clear-drive-top-bar: escape hatch for a wrong drive-system pick.
@@ -2070,7 +2074,7 @@ const RecheckModal = ({
             onClick={onProceed}
             disabled={loading || !canCompute}
           >
-            Get Report
+            Next
           </button>
         </div>
       </div>

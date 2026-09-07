@@ -21,6 +21,7 @@ const steps = [
   "Sealing",
   "Motor Rating",
   "Drive",
+  "Approval",
   "Recommendation",
 ];
 

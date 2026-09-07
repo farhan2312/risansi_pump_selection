@@ -3,6 +3,7 @@
 import { useState } from "react";
 import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
+import StepApprovalToggle from "./approval/StepApprovalToggle";
 import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, hint, label } from "./formStyles";
 import { Err, ErrorBanner, Req, hasErrors } from "./fieldBits";
 
@@ -158,7 +159,10 @@ const OperatingConditionsStep = ({
       <Stepper currentStep={3} maxStep={formData.wizardMaxStep} onStepClick={onStepClick} />
 
       <div className="step-card">
-        <h2>Specifications</h2>
+        <h2>
+          Specifications
+          <StepApprovalToggle step={3} />
+        </h2>
         <p>Select the pump&apos;s structural specifications.</p>
 
         <div className={grid}>

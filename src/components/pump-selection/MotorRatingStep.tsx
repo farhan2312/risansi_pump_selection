@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Stepper from "./Stepper";
+import StepApprovalToggle from "./approval/StepApprovalToggle";
 import "./GeneralInformationStep.css";
 import { actions, btnGhost, btnPrimary, control, fieldWrap, hint, label } from "./formStyles";
 import { getMotorRating, type MotorRating } from "../../services/motorRatingService";
@@ -155,7 +156,10 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
       <Stepper currentStep={6} maxStep={formData.wizardMaxStep} onStepClick={onStepClick} />
 
       <div className="step-card">
-        <h2>Motor Rating (KW)</h2>
+        <h2>
+          Motor Rating (KW)
+          <StepApprovalToggle step={6} />
+        </h2>
         <p>
           Calculated from the confirmed pump model
           {model ? (

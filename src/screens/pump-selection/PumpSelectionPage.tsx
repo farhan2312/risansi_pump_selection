@@ -10,6 +10,8 @@ import DriveDetailsStep from "../../components/pump-selection/DriveDetailsStep";
 import SealingDetailsStep from "../../components/pump-selection/SealingDetailsStep";
 import MocDetailsStep from "../../components/pump-selection/MocDetailsStep";
 import MotorRatingStep from "../../components/pump-selection/MotorRatingStep";
+import ApprovalStep from "../../components/pump-selection/ApprovalStep";
+import { ApprovalProvider } from "../../components/pump-selection/approval/ApprovalContext";
 import RecommendationStep from "../../components/pump-selection/RecommendationStep";
 import ProjectHeader from "../../components/projects/ProjectHeader";
 import LivePumpRecommendation from "../../components/pump-selection/LivePumpRecommendation";
@@ -117,7 +119,7 @@ const BOOLEAN_FIELDS = new Set([
 // the "" every other (string) field falls back to.
 const NUMBER_FIELDS = new Set(["wizardStep", "wizardMaxStep"]);
 
-const TOTAL_STEPS = 8;
+const TOTAL_STEPS = 9;
 
 // Keep a restored step inside the wizard's real range — a corrupt/stale value
 // shouldn't strand the user on a step that doesn't exist.
@@ -131,7 +133,9 @@ const clampStep = (n: unknown): number => {
 // (or stepper jump, or Previous) saves ONLY the step being left, not every
 // table. Steps 4+5 both write moc-sealing (MOC and Sealing share one table);
 // step 7's drive-system-specific table is appended conditionally at save time
-// (see stepTablesToSave). Step 8 (read-only Recommendation) writes nothing.
+// (see stepTablesToSave). Step 8 (Approval) keeps its state in step_approval
+// via its own route, and step 9 (read-only Recommendation) writes nothing, so
+// neither has a wizard-input table.
 const STEP_TABLES: Record<number, WizardInputTable[]> = {
   1: ["general-info"],
   2: ["fluid-properties"],
@@ -141,6 +145,7 @@ const STEP_TABLES: Record<number, WizardInputTable[]> = {
   6: ["motor-drive"],
   7: ["motor-drive"],
   8: [],
+  9: [],
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -551,8 +556,18 @@ const PumpSelectionPage = () => {
 
       case 8:
         return (
-          <RecommendationStep
+          <ApprovalStep
             onPrevious={() => goToStep(7)}
+            onNext={() => goToStep(9)}
+            onStepClick={goToStep}
+            formData={formData}
+          />
+        );
+
+      case 9:
+        return (
+          <RecommendationStep
+            onPrevious={() => goToStep(8)}
             formData={formData}
             selectedPump={selectedPump}
             setSelectedPump={setSelectedPump}
@@ -619,7 +634,9 @@ const PumpSelectionPage = () => {
   }
 
   return (
-    <>
+    // Approval state is shared by every step: each step header carries its own
+    // tick, and the Approval step lists them all, so it is fetched once here.
+    <ApprovalProvider tagId={project?.tagId}>
       <ProjectHeader project={project} />
       {renderStep()}
       {/* Live recommendation that refines as the user fills each step. Sits at
@@ -640,7 +657,7 @@ const PumpSelectionPage = () => {
            step is what gates on it). */
         canConfirm={step >= 2}
       />
-    </>
+    </ApprovalProvider>
   );
 };
 

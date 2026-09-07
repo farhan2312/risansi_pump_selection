@@ -3,6 +3,7 @@
 import { useState } from "react";
 import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
+import StepApprovalToggle from "./approval/StepApprovalToggle";
 import MediaSelect from "./MediaSelect";
 import { toM3PerHr, toMwc, fmt } from "../../utils/units";
 import {
@@ -72,7 +73,10 @@ const GeneralInformationStep = ({
       <Stepper currentStep={1} maxStep={formData.wizardMaxStep} onStepClick={onStepClick} />
 
       <div className="step-card">
-        <h2>General Information</h2>
+        <h2>
+          General Information
+          <StepApprovalToggle step={1} />
+        </h2>
         <p>Enter the basic operating parameters required for pump selection.</p>
 
         <div className={grid}>
