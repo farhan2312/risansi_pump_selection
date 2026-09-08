@@ -5,6 +5,7 @@ import Stepper from "./Stepper";
 import { useEffect, useState } from "react";
 import { getRecommendations } from "../../services/recommendationService";
 import { SIZE_COLUMN_BY_RANGE, sizeForViscosityRange } from "../../lib/suction-discharge-size";
+import { RPM_BANDS } from "../../lib/rpm-bands";
 import {
   phDisplay,
   solidSizeDisplay,
@@ -56,13 +57,11 @@ const withRemarks = (value?: string, remarks?: string): string | undefined => {
   return remarks ? `${value} (${remarks})` : value;
 };
 
-const RPM_RANGE_LABELS: Record<string, string> = {
-  vlow: "Very Low (0–50)",
-  low: "Low (50–200)",
-  medium: "Medium (200–320)",
-  high: "High (320–400)",
-  vhigh: "Very High (> 400)",
-};
+// Derived from the single band table in recommendation-engine.ts, so a label
+// here can never disagree with the bounds screening uses.
+const RPM_RANGE_LABELS: Record<string, string> = Object.fromEntries(
+  RPM_BANDS.map((b) => [b.key, b.label]),
+);
 
 type FieldItem = [string, string | undefined];
 

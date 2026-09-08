@@ -1,6 +1,7 @@
 import { error, json, toFloat } from "@/lib/api";
 import { db } from "@/lib/db";
 import { findCandidates, headBandLabel, toM3PerHr, toMwc } from "@/lib/recommendation-engine";
+import { rpmBandByKey, rpmBandOverlaps } from "@/lib/rpm-bands";
 
 export const dynamic = "force-dynamic";
 
@@ -48,33 +49,29 @@ export async function POST(req: Request) {
 
   // Optional manual RPM-band filter from the General Information step (spec
   // Step-3: "final RPM selection is manual on the basis of RPM range, then
-  // system will scan the pump model master for model suggestions"). Bands
-  // classify on rpmAtVoleMax (the best-case, lowest-speed output).
-  const rpmBand = (body.rpmRange as string) || "";
-  const inBand = (rpm: number | null): boolean => {
+  // system will scan the pump model master for model suggestions"). A model
+  // qualifies when its achievable RPM window OVERLAPS the requested band.
+  const rpmBand = rpmBandByKey((body.rpmRange as string) || "");
+  const inBand = (lo: number | null, hi: number | null): boolean => {
     // No band chosen ⇒ every stage model passes (including ones with no
     // computable RPM). When a band IS chosen, a model with no RPM can't be
     // classified, so it's excluded for that filtered view only.
-    if (rpm === null) return rpmBand === "";
-    switch (rpmBand) {
-      // "low" was < 200; it is now split so very slow duties can be picked out
-      // separately: vlow 0-50, low 50-200 (upper bound exclusive, so 200 stays
-      // in "medium" exactly as before).
-      case "vlow":
-        return rpm < 50;
-      case "low":
-        return rpm >= 50 && rpm < 200;
-      case "medium":
-        return rpm >= 200 && rpm <= 320;
-      case "high":
-        return rpm > 320 && rpm <= 400;
-      case "vhigh":
-        return rpm > 400;
-      default:
-        return true;
-    }
+    if (rpmBand === null) return true;
+    if (lo === null && hi === null) return false;
+
+    // Match on the model's whole achievable WINDOW, not one endpoint. The two
+    // RPMs bound the same window: rpmAtVoleMax is the best-case low speed and
+    // rpmAtVoleMin the high one, and the pump can be driven anywhere between.
+    // Classifying only the low end used to drop models that plainly cover the
+    // requested band — e.g. a 158–500 window was called "low" and hidden from
+    // a "medium" search despite running happily at 250 rpm.
+    const windowLo = lo ?? hi!;
+    const windowHi = hi ?? lo!;
+    return rpmBandOverlaps(rpmBand, windowLo, windowHi);
   };
-  const candidates = allCandidates.filter((c) => inBand(c.rpmAtVoleMax));
+  const candidates = allCandidates.filter((c) =>
+    inBand(c.rpmAtVoleMax, c.rpmAtVoleMin),
+  );
 
   const selectedModel = typeof body.selectedModel === "string" ? body.selectedModel : null;
 

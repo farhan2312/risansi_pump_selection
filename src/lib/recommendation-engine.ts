@@ -72,12 +72,11 @@ export function toCp(value: number, unit: string | null, sg: number): number {
   return value;
 }
 
-export function classifyRpm(rpm: number): string {
-  if (rpm < 200) return "Low (<200)";
-  if (rpm <= 320) return "Medium (200-320)";
-  if (rpm <= 400) return "High (320-400)";
-  return "Very High (>400)";
-}
+// RPM bands live in lib/rpm-bands.ts — no DB imports, so client components can
+// read the labels without pulling this engine (and the schema) into the bundle.
+// Re-exported here because callers already import classifyRpm from the engine.
+export { classifyRpm, RPM_BANDS, rpmBandByKey, rpmBandFor, rpmBandOverlaps } from "./rpm-bands";
+import { classifyRpm } from "./rpm-bands";
 
 // --- Drive helpers (not yet wired into a wizard step — no motor-speed input
 // flows through findCandidates right now; kept for the future Drive Details
