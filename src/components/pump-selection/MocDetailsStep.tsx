@@ -6,6 +6,7 @@ import StepApprovalToggle from "./approval/StepApprovalToggle";
 import "./GeneralInformationStep.css";
 import { actions, btnGhost, btnPrimary, control } from "./formStyles";
 import { ErrorBanner, hasErrors } from "./fieldBits";
+import { pumpSupportComponentName } from "../../lib/pump-support";
 import {
   getMocAiSuggestion,
   MOC_AI_ELASTOMERS,
@@ -155,12 +156,12 @@ type ComponentRow = {
 const isVerticalPump = (pumpType: string | undefined): boolean =>
   pumpType === "Vertical";
 
-const BEARING_HOUSING_ROW: ComponentRow = {
+const pumpSupportRow = (bearingHousing: string | undefined): ComponentRow => ({
   key: "mocAiBearingHousing",
-  label: "Bearing Housing",
+  label: pumpSupportComponentName(bearingHousing),
   aiKey: "bearingHousing",
   options: MOC_AI_MATERIALS,
-};
+});
 
 const BASE_PLATE_ROW: ComponentRow = {
   key: "mocAiBasePlate",
@@ -222,7 +223,10 @@ const WETTABLE_BASE_ROWS: ComponentRow[] = [
 
 /** Non-wettable + wettable rows for a pump type. Stator Sleeve appears in
  *  exactly one of the two, never both. */
-const componentGroupsFor = (pumpType: string | undefined) => {
+const componentGroupsFor = (
+  pumpType: string | undefined,
+  bearingHousing: string | undefined,
+) => {
   const vertical = isVerticalPump(pumpType);
   // On a VERTICAL pump the tie rods and fasteners hang in the liquid with the
   // rest of the wet end, so they group with the wettable parts and take the
@@ -230,7 +234,7 @@ const componentGroupsFor = (pumpType: string | undefined) => {
   // house rules in moc-ai-suggestion.ts (applyStructuralMocRules).
   return {
     nonWettable: [
-      BEARING_HOUSING_ROW,
+      pumpSupportRow(bearingHousing),
       vertical ? MOUNTING_PLATE_ROW : BASE_PLATE_ROW,
       ...(vertical ? [] : [TIE_ROD_ROW, NUT_BOLT_ROW, STATOR_SLEEVE_ROW]),
     ],
@@ -259,8 +263,9 @@ const ELASTOMER_ROWS: ComponentRow[] = [
 const applySuggestionToManual = (
   suggestion: MocComponentSuggestions,
   pumpType: string | undefined,
+  bearingHousing: string | undefined,
 ): Record<string, string> => {
-  const groups = componentGroupsFor(pumpType);
+  const groups = componentGroupsFor(pumpType, bearingHousing);
   const rows = [...groups.nonWettable, ...groups.wettable, ...ELASTOMER_ROWS];
   const out: Record<string, string> = {};
   for (const row of rows) {
@@ -336,7 +341,10 @@ const MocDetailsStep = ({
   // Non-wettable / wettable split, recomputed from the pump type: Vertical
   // moves the Stator Sleeve into the wettable group and renames Base Plate to
   // Mounting Plate. Cheap enough to derive on every render.
-  const componentGroups = componentGroupsFor(formData.pumpType as string | undefined);
+  const componentGroups = componentGroupsFor(
+    formData.pumpType as string | undefined,
+    formData.bearingHousing as string | undefined,
+  );
 
   // Every manual MOC must be chosen, and a manual pick that DIFFERS from the
   // AI recommendation must say why - the remarks are the record of that
@@ -486,6 +494,7 @@ const MocDetailsStep = ({
     getMocAiSuggestion({
       media,
       pumpType: formData.pumpType || undefined,
+      pumpSupport: formData.bearingHousing || undefined,
       head: formData.head || undefined,
       headUnit: formData.headUnit || undefined,
       // Single value or Min-Max range, rendered as "6.5" / "4-9" - see
@@ -549,6 +558,7 @@ const MocDetailsStep = ({
           const applied = applySuggestionToManual(
             suggestion,
             formData.pumpType as string | undefined,
+            formData.bearingHousing as string | undefined,
           );
           const saved = { ...aiFields, ...applied };
           setFormData((f: typeof formData) => ({ ...f, ...saved }));

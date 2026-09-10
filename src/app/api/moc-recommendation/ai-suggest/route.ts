@@ -100,6 +100,7 @@ export async function POST(req: Request) {
     {
       media,
       pumpType: str(body.pumpType),
+      pumpSupport: str(body.pumpSupport),
       head: str(body.head),
       headUnit: str(body.headUnit),
       ph: str(body.ph),

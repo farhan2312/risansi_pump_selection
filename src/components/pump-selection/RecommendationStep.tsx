@@ -7,6 +7,10 @@ import { getRecommendations } from "../../services/recommendationService";
 import { SIZE_COLUMN_BY_RANGE, sizeForViscosityRange } from "../../lib/suction-discharge-size";
 import { RPM_BANDS } from "../../lib/rpm-bands";
 import {
+  PUMP_SUPPORT_LABEL,
+  pumpSupportComponentName,
+} from "../../lib/pump-support";
+import {
   phDisplay,
   solidSizeDisplay,
   temperatureDisplay,
@@ -212,7 +216,10 @@ const RecommendationStep = ({
   ];
 
   const materialOfConstructionItems: FieldItem[] = [
-    ["Bearing Housing", withRemarks(formData.mocAiBearingHousing, formData.mocAiBearingHousingRemarks)],
+    [
+      pumpSupportComponentName(formData.bearingHousing),
+      withRemarks(formData.mocAiBearingHousing, formData.mocAiBearingHousingRemarks),
+    ],
     ["Pump Housing", withRemarks(formData.mocAiPumpHousing, formData.mocAiPumpHousingRemarks)],
     ["Shaft", withRemarks(formData.mocAiShaft, formData.mocAiShaftRemarks)],
     ["Rotor", withRemarks(formData.mocAiRotor, formData.mocAiRotorRemarks)],
@@ -253,7 +260,7 @@ const RecommendationStep = ({
             : "",
         ],
         ["Mechanical Efficiency", confirmedPump.mechEff != null ? `${confirmedPump.mechEff}%` : ""],
-        ["Bearing Housing (Type)", formData.bearingHousing],
+        [PUMP_SUPPORT_LABEL, formData.bearingHousing],
         ["Suction Housing", formData.suctionHousing],
         ["Joint Type", formData.jointType],
         // Vertical pumps only - FieldGrid drops the row for every other type.

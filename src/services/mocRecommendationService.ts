@@ -81,6 +81,8 @@ export const getMocAiSuggestion = async (input: {
   media: string;
   /** Operating-Conditions pump type - decides the stator sleeve wetted status. */
   pumpType?: string;
+  /** Pump Support and Drive Arrangement from the Specifications step. */
+  pumpSupport?: string;
   head?: string;
   headUnit?: string;
   ph?: string;

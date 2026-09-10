@@ -6,6 +6,10 @@ import Stepper from "./Stepper";
 import StepApprovalToggle from "./approval/StepApprovalToggle";
 import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, hint, label } from "./formStyles";
 import { Err, ErrorBanner, Req, hasErrors } from "./fieldBits";
+import {
+  PUMP_SUPPORT_LABEL,
+  PUMP_SUPPORT_OPTIONS,
+} from "../../lib/pump-support";
 
 type Props = {
   onNext: () => void;
@@ -52,7 +56,10 @@ export const AG_BK_NOT_REQUIRED = "Not Required";
 // Only vertical pumps hang into the sump, so only they are asked how far the
 // suction reaches below the mounting flange.
 const VERTICAL_PUMP_TYPE = "Vertical";
-const NEGATIVE_SUCTION_UNITS = ["mt", "mm"];
+// Metres or feet — this is a sump depth, so both units are whole-length ones.
+// (It was mt/mm; millimetres were the wrong scale for the measurement.) The
+// first entry is the default for a newly-shown field.
+const NEGATIVE_SUCTION_UNITS = ["mt", "feet"];
 
 const agBkOptionsFor = (pumpType: string): string[] =>
   AG_BK_OPTIONS_BY_PUMP_TYPE[pumpType] ?? [];
@@ -132,7 +139,9 @@ const OperatingConditionsStep = ({
       agBkNotRequired && !(formData.agBkRemarks ?? "").trim()
         ? "Explain why AG / BK is not required."
         : "",
-    bearingHousing: formData.bearingHousing ? "" : "Select a bearing housing.",
+    bearingHousing: formData.bearingHousing
+      ? ""
+      : "Select a pump support and drive arrangement.",
     suctionHousing: formData.suctionHousing ? "" : "Select a suction housing.",
     jointType: formData.jointType ? "" : "Select a joint type.",
     negativeSuctionSize:
@@ -231,7 +240,7 @@ const OperatingConditionsStep = ({
           )}
 
           <div className={fieldWrap}>
-            <label className={label}>Bearing Housing<Req /></label>
+            <label className={label}>{PUMP_SUPPORT_LABEL}<Req /></label>
             <select
               className={control}
               value={formData.bearingHousing}
@@ -239,10 +248,16 @@ const OperatingConditionsStep = ({
                 setFormData({ ...formData, bearingHousing: e.target.value })
               }
             >
-              <option value="">Select Bearing Housing</option>
-              <option value="Bearing Housing">Bearing Housing</option>
-              <option value="Close Coupled">Close Coupled</option>
+              <option value="">Select an arrangement</option>
+              {PUMP_SUPPORT_OPTIONS.map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
             </select>
+            <span className={hint}>
+              Sets what the MOC step calls the drive-end component.
+            </span>
             <Err show={showErrors} msg={errors.bearingHousing} />
           </div>
 

@@ -23,6 +23,7 @@
  * exotic alloy) when the media genuinely calls for it; it's told to say so
  * explicitly rather than being forced into the closest list entry.
  */
+import { pumpSupportComponentName } from "./pump-support";
 
 export const MOC_AI_MATERIALS = [
   "CI IS210 FG 260",
@@ -62,6 +63,11 @@ export interface MocAiContext {
    * wetted part (Vertical) or a dry structural one (the Horizontal
    * variants), which changes the material it needs. */
   pumpType: string | null;
+  /** Pump Support and Drive Arrangement (Specifications step): "Bearing
+   * Housing" or "Close Coupled". Names the drive-end component so the AI
+   * specs the part the pump actually has - a close-coupled pump has no
+   * bearing housing. Stored on operating_conditions_input.bearing_housing. */
+  pumpSupport: string | null;
   head: string | null;
   headUnit: string | null;
   capacity: string | null;
@@ -150,8 +156,8 @@ const DRY =
 // Two components differ by pump type: the plate (Base on Horizontal, Mounting
 // on Vertical) and the Stator Sleeve (dry on Horizontal, wetted on Vertical).
 const HORIZONTAL_WETTABLE_COMP = ["Pump Housing", "Rotor", "Shaft"];
-const HORIZONTAL_NONWETTABLE_COMP = [
-  "Bearing Housing",
+const horizontalNonWettableComp = (driveEnd: string) => [
+  driveEnd,
   "Base Plate",
   "Tie Rod",
   "Nut & Bolt",
@@ -169,7 +175,7 @@ const VERTICAL_WETTABLE_COMP = [
   "Tie Rod",
   "Nut & Bolt",
 ];
-const VERTICAL_NONWETTABLE_COMP = ["Bearing Housing", "Mounting Plate"];
+const verticalNonWettableComp = (driveEnd: string) => [driveEnd, "Mounting Plate"];
 
 // House PREFERENCE for the structural / fastener components — stated in the
 // prompt (see STRUCTURAL_MOC_PREFERENCE below) rather than forced onto the
@@ -213,13 +219,18 @@ const MOC_REFERENCE =
 // pump type: the stator sleeve is wetted only on a Vertical pump, and the
 // base plate (Horizontal) / mounting plate (Vertical) are different parts of
 // which only one actually exists on a given pump.
-function schemaPropertiesFor(pumpType: string | null) {
+function schemaPropertiesFor(pumpType: string | null, pumpSupport: string | null = null) {
   const vertical = pumpType === "Vertical";
   // Only the plate that exists on this pump type is included — no phantom
   // field, so no "not present, repeat the other value" workaround is needed.
   const plateField = activePlateField(pumpType);
   return {
-    bearingHousing: { type: "string", description: DRY },
+    // Field name is historic; the part it refers to is named by the
+    // arrangement (Bearing Housing or Close Coupled).
+    bearingHousing: {
+      type: "string",
+      description: `${DRY} This is the ${pumpSupportComponentName(pumpSupport)}.`,
+    },
     [plateField]: { type: "string", description: DRY },
     tieRod: { type: "string", description: DRY },
     nutBolt: { type: "string", description: DRY },
@@ -295,7 +306,12 @@ function buildPrompt(context: MocAiContext, processData: string): string {
   // Rubber is its own elastomer group: it's wetted, but a metal answer is
   // useless to the UI's rubber dropdown, so it's called out separately.
   const wettable = vertical ? VERTICAL_WETTABLE_COMP : HORIZONTAL_WETTABLE_COMP;
-  const nonWettable = vertical ? VERTICAL_NONWETTABLE_COMP : HORIZONTAL_NONWETTABLE_COMP;
+  // A close-coupled pump has no bearing housing, so the drive-end component
+  // is named for the arrangement the user picked.
+  const driveEnd = pumpSupportComponentName(context.pumpSupport);
+  const nonWettable = vertical
+    ? verticalNonWettableComp(driveEnd)
+    : horizontalNonWettableComp(driveEnd);
   const sleeveClause = context.pumpType
     ? `This is a ${vertical ? "VERTICAL" : "HORIZONTAL"} pump.\n` +
       `WETTABLE (media contact - spec metal for media resistance): ${wettable.join(", ")}.\n` +
@@ -461,7 +477,7 @@ async function getMocAiSuggestionAnthropic(
             "Records the per-component MOC/elastomer/seal recommendation for a progressive cavity pump.",
           input_schema: {
             type: "object",
-            properties: schemaPropertiesFor(context.pumpType),
+            properties: schemaPropertiesFor(context.pumpType, context.pumpSupport),
             required: requiredFieldsFor(context.pumpType),
           },
         },
