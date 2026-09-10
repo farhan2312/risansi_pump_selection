@@ -560,18 +560,15 @@ const MocDetailsStep = ({
       .catch(() => setAiStatus("error"));
   };
 
-  // One entry per row: the manual pick, plus its remarks when that pick
-  // departs from what the AI recommended.
+  // One entry per row: the manual pick is required, and that is the only
+  // check here. Open Remarks stays available on every row but is OPTIONAL,
+  // including when the pick departs from the AI suggestion — deliberate, so
+  // the eight-row MOC table isn't gated on writing eight justifications.
+  // (The Sealing step keeps its own required-remarks rule.)
   const mocErrors: Record<string, string> = {};
   for (const row of activeRows) {
     const manual = (formData[row.key] ?? "").trim();
-    const suggested = (aiSuggestion?.[row.aiKey] ?? "").trim();
-    const remarks = (formData[`${row.key}Remarks`] ?? "").trim();
-    if (!manual) {
-      mocErrors[row.key] = "Required";
-    } else if (suggested && manual !== suggested && !remarks) {
-      mocErrors[`${row.key}Remarks`] = `Remarks required - differs from ${suggested}`;
-    }
+    if (!manual) mocErrors[row.key] = "Required";
   }
   const mocErrorCount = Object.values(mocErrors).filter(Boolean).length;
 
@@ -1063,11 +1060,13 @@ const MocComponentTable = ({
                     <span className="mt-1 block text-[11.5px] text-neg">{errors[row.key]}</span>
                   )}
                 </td>
+                {/* Optional on every row — including when the manual pick
+                    differs from the AI suggestion. Nothing here is validated. */}
                 <td className="px-3 py-2">
                   <input
                     type="text"
                     className={control}
-                    placeholder="Remarks"
+                    placeholder="Remarks (optional)"
                     value={formData[`${row.key}Remarks`] ?? ""}
                     onChange={(e) =>
                       setFormData({
@@ -1076,11 +1075,6 @@ const MocComponentTable = ({
                       })
                     }
                   />
-                  {showErrors && errors[`${row.key}Remarks`] && (
-                    <span className="mt-1 block text-[11.5px] text-neg">
-                      {errors[`${row.key}Remarks`]}
-                    </span>
-                  )}
                 </td>
               </tr>
             );

@@ -25,7 +25,7 @@
  */
 
 export const MOC_AI_MATERIALS = [
-  "Cast Iron",
+  "CI IS210 FG 260",
   "Mild Steel",
   "SS410",
   "SS304",
@@ -196,17 +196,17 @@ const STRUCTURAL_MOC_PREFERENCE =
 const MOC_REFERENCE =
   "It is just an example history for context, no need to follow it blindly. You should recommend the best low cost MOC for the given media and its conditions.\n" +
   "Examples (media -> Pump Housing / Rotor / Shaft / Stator Rubber / Seal):\n" +
-  "Oil+water 15:85, 70C, 5-20cP: Cast Iron / SS420 hardened / SS410 / Nitrile / Single Mechanical Seal (Carbon-SiC, NBR) [SS316 if produced/sea water or high chloride].\n" +
-  "Sewage / STP: Cast Iron / alloy steel hard-chrome / SS410 / Nitrile / Gland Packing.\n" +
+  "Oil+water 15:85, 70C, 5-20cP: CI IS210 FG 260 / SS420 hardened / SS410 / Nitrile / Single Mechanical Seal (Carbon-SiC, NBR) [SS316 if produced/sea water or high chloride].\n" +
+  "Sewage / STP: CI IS210 FG 260 / alloy steel hard-chrome / SS410 / Nitrile / Gland Packing.\n" +
   "Starch slurry, 80-95C, 100-5000cP: SS304 / SS410 hard-chrome / SS304 / EPDM / Single Mechanical Seal (Carbon-Ceramic) [SS316 if chlorides].\n" +
   "Dairy cream + hot CIP (95C caustic/nitric): SS316L (product-contact) / SS410 / SS316L / food-grade HNBR / Single Mechanical Seal (SiC-Carbon).\n" +
-  "CPI feed pump (non-corrosive): Cast Iron / SS304 / SS304 / Nitrile / Single Mechanical Seal (Carbon-Ceramic, SS304, NBR).\n" +
+  "CPI feed pump (non-corrosive): CI IS210 FG 260 / SS304 / SS304 / Nitrile / Single Mechanical Seal (Carbon-Ceramic, SS304, NBR).\n" +
   "Sodium sulfate + NaCl solution, 60C, 35-40% solids: SS316L / SS316L hard-chrome (or 17-4PH) / SS316L / EPDM / Single Mechanical Seal with external flush [Duplex 2205 if chloride high; avoid Super Duplex unless corrosion calc justifies].\n" +
-  "Molasses / sugar A-wash, 65C, Brix~85: Cast Iron / SS420 hardened hard-chrome / SS410 / Nitrile / Single Mechanical Seal (Carbon-SiC) or PTFE-graphite Gland Packing.\n" +
-  "Calcium carbonate slurry, pH7-8: Cast Iron / SS420 hard-chrome / SS410 / Nitrile (Natural Rubber for max abrasion) / Gland Packing (aramid/PTFE) or Single Mechanical Seal SiC-SiC.\n" +
+  "Molasses / sugar A-wash, 65C, Brix~85: CI IS210 FG 260 / SS420 hardened hard-chrome / SS410 / Nitrile / Single Mechanical Seal (Carbon-SiC) or PTFE-graphite Gland Packing.\n" +
+  "Calcium carbonate slurry, pH7-8: CI IS210 FG 260 / SS420 hard-chrome / SS410 / Nitrile (Natural Rubber for max abrasion) / Gland Packing (aramid/PTFE) or Single Mechanical Seal SiC-SiC.\n" +
   "Neutral scrubber slurry, pH7, 60C, fine abrasive: SS304 / SS304 / SS304 / Natural Rubber / Single Mechanical Seal (Carbon-SiC, EPDM).\n" +
-  "Ceramic slurry, 60C, ~50cP, abrasive, high pressure: Cast Iron / SS410 hardened / alloy steel / Nitrile (abrasion grade; EPDM if alkaline) / Single Mechanical Seal SiC-SiC (NBR/EPDM, SS316).\n"+
-  "Recommend Cast Iron for Pump Housing only if it is reliable and suitable for the media"
+  "Ceramic slurry, 60C, ~50cP, abrasive, high pressure: CI IS210 FG 260 / SS410 hardened / alloy steel / Nitrile (abrasion grade; EPDM if alkaline) / Single Mechanical Seal SiC-SiC (NBR/EPDM, SS316).\n"+
+  "Recommend CI IS210 FG 260 for Pump Housing only if it is reliable and suitable for the media"
 
 // JSON-Schema property map driving Anthropic's tool input_schema (structured
 // output). Built per request because two components change meaning with the

@@ -6,7 +6,7 @@ import apiClient from "./apiClient";
 // concerns but keeping the lists independently defined avoids ever needing
 // to import a server-only module from client code).
 export const MOC_AI_MATERIALS = [
-  "Cast Iron",
+  "CI IS210 FG 260",
   "Mild Steel",
   "SS304",
   "SS316",
