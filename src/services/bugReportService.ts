@@ -66,6 +66,11 @@ export interface BugNotification {
   title: string;
   status: BugReportStatus;
   updatedAt: string;
+  /** "status" - a report I filed changed status. "new" - somebody else filed
+   *  a report and I am an admin (the triage feed). */
+  kind: "status" | "new";
+  /** Who filed it. Only set on "new" items; null on my own reports. */
+  reportedByName: string | null;
 }
 
 /** The caller's own unread status-change notifications, for the top-bar bell. */

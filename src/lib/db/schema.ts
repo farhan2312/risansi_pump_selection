@@ -53,6 +53,12 @@ export const users = pgTable("users_pump", {
   // change-password screen and can't reach the rest of the app until they pick
   // their own. Cleared by POST /api/auth/change-password.
   mustChangePassword: boolean("must_change_password").notNull().default(false),
+  // Watermark for the top-bar bell's ADMIN feed: bug reports filed after this
+  // instant are unread for this user. Opening the bell moves it to now().
+  // A watermark rather than a per-report join table because the feed only
+  // ever needs "what is new since I last looked", and it is per-user so one
+  // admin clearing their bell never clears another's.
+  bugFeedSeenAt: timestamp("bug_feed_seen_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
 

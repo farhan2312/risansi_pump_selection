@@ -51,7 +51,10 @@ const NotificationBell = () => {
     // Mark read on open, not on every poll — so the badge count is stable
     // while the user is looking at it, then clears once they've seen it.
     if (next && items.length > 0) {
-      markBugNotificationsRead(items.map((i) => i.id))
+      // No ids: clears BOTH feeds - the reporter flags and the admin watermark.
+      // Passing ids would only clear reports the caller filed, leaving the
+      // "new bug" badge stuck on.
+      markBugNotificationsRead()
         .then(() => setItems([]))
         .catch(() => {
           // Leave the badge as-is if the clear failed — better to re-show a
@@ -76,7 +79,7 @@ const NotificationBell = () => {
         <div className="notif-bell-dropdown">
           <div className="notif-bell-dropdown-header">Notifications</div>
           {items.length === 0 ? (
-            <p className="notif-bell-empty">No new updates on your bug reports.</p>
+            <p className="notif-bell-empty">No new bug reports or updates.</p>
           ) : (
             <ul>
               {items.map((n) => (
@@ -85,7 +88,16 @@ const NotificationBell = () => {
                   <div>
                     <div className="notif-item-title">{n.title}</div>
                     <div className="notif-item-status">
-                      Status changed to <b>{n.status}</b>
+                      {n.kind === "new" ? (
+                        <>
+                          New bug report
+                          {n.reportedByName ? <> from <b>{n.reportedByName}</b></> : null}
+                        </>
+                      ) : (
+                        <>
+                          Status changed to <b>{n.status}</b>
+                        </>
+                      )}
                     </div>
                   </div>
                 </li>
