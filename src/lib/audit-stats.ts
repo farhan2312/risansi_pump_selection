@@ -22,6 +22,7 @@ import { sql, type SQL } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { auditLog, enquiryTags, projects, stepApproval } from "@/lib/db/schema";
+import { startOfIstDay } from "@/lib/ist";
 
 export const IDLE_CUTOFF_SECONDS = 15 * 60;
 
@@ -35,11 +36,9 @@ export const isAuditRange = (v: string): v is AuditRange =>
 /** Start of the window for a range key, or null for "all". */
 export function rangeStart(range: AuditRange): Date | null {
   const now = new Date();
-  if (range === "today") {
-    const d = new Date(now);
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }
+  // "Today" is the IST day, not the server's: on a UTC host, local midnight
+  // would be 05:30 IST and hide everything done overnight in India.
+  if (range === "today") return startOfIstDay(now);
   if (range === "7d") return new Date(now.getTime() - 7 * 86400_000);
   if (range === "30d") return new Date(now.getTime() - 30 * 86400_000);
   return null;
