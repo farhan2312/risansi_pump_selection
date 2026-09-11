@@ -6,11 +6,15 @@ import EmptyState from "../../components/ui/EmptyState";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import {
   getAuditLog,
+  getAuditReport,
   type AuditEventRow,
   type AuditSummary,
   type AuditUsageRow,
 } from "../../services/auditService";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
+import { useCurrentUser } from "../../contexts/CurrentUserContext";
+import { formatDuration } from "../../lib/duration";
+import { downloadAuditReportPdf } from "../../lib/audit-report-pdf";
 
 type TabKey = "usage" | "activity" | "logins" | "access";
 type RangeKey = "today" | "7d" | "30d" | "all";
@@ -61,7 +65,26 @@ const prettyRole = (role: string | null | undefined): string =>
   role ? ROLE_LABELS[role] ?? role : "—";
 
 const AuditLogPage = () => {
+  const { user } = useCurrentUser();
   const [tab, setTab] = useState<TabKey>("usage");
+  const [generating, setGenerating] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
+
+  // The report covers the range picked below, across EVERY section - not just
+  // the tab in view - so it is a complete record for that period.
+  const handleGenerateReport = async () => {
+    if (generating) return;
+    setGenerating(true);
+    setReportError(null);
+    try {
+      const report = await getAuditReport(range);
+      await downloadAuditReportPdf({ report, generatedBy: user?.name || user?.email });
+    } catch {
+      setReportError("Couldn't generate the report. Please try again.");
+    } finally {
+      setGenerating(false);
+    }
+  };
   const [range, setRange] = useState<RangeKey>("7d");
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 300);
@@ -114,9 +137,22 @@ const AuditLogPage = () => {
   return (
     <div className="audit-page">
       <div className="audit-header">
-        <h1>Audit Log</h1>
-        <p>Full activity trail · who signed in, when, and everything they did</p>
+        <div>
+          <h1>Audit Log</h1>
+          <p>Full activity trail · who signed in, when, and everything they did</p>
+        </div>
+        <button
+          type="button"
+          className="audit-report-btn"
+          onClick={() => void handleGenerateReport()}
+          disabled={generating}
+          title={`Download a detailed PDF for: ${RANGES.find((r) => r.key === range)?.label ?? range}`}
+        >
+          {generating ? "Generating…" : "Generate Report"}
+        </button>
       </div>
+
+      {reportError && <p className="error-message">{reportError}</p>}
 
       <div className="audit-cards">
         {cards.map((c) => (
@@ -198,6 +234,12 @@ const AuditLogPage = () => {
                   <tr>
                     <th>User</th>
                     <th>Role</th>
+                    <th
+                      className="num"
+                      title="Estimated from activity: gaps between a user's actions are summed, excluding idle gaps over 15 minutes."
+                    >
+                      Active Time
+                    </th>
                     <th className="num">Actions</th>
                     <th className="num">Sessions</th>
                     <th>Last Active</th>
@@ -208,6 +250,7 @@ const AuditLogPage = () => {
                     <tr key={r.email ?? "unknown"}>
                       <td className="mono">{r.email ?? "—"}</td>
                       <td>{prettyRole(r.role)}</td>
+                      <td className="num mono">{formatDuration(r.activeSeconds)}</td>
                       <td className="num">{r.actions}</td>
                       <td className="num">{r.sessions}</td>
                       <td className="mono">{fmtWhen(r.lastActive)}</td>

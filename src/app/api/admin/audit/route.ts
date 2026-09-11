@@ -4,6 +4,13 @@ import { error, json } from "@/lib/api";
 import { AuthError, requireSystemAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { auditLog } from "@/lib/db/schema";
+import {
+  activityByUser,
+  latestRole,
+  isAuditRange,
+  rangeStart,
+  type AuditRange,
+} from "@/lib/audit-stats";
 
 export const dynamic = "force-dynamic";
 
@@ -15,20 +22,7 @@ export const dynamic = "force-dynamic";
 // — they answer "what is happening right now", which is a different question
 // from the table underneath.
 
-type Range = "today" | "7d" | "30d" | "all";
 
-/** Start of the window for a range key, or null for "all". */
-function rangeStart(range: Range): Date | null {
-  const now = new Date();
-  if (range === "today") {
-    const d = new Date(now);
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }
-  if (range === "7d") return new Date(now.getTime() - 7 * 86400_000);
-  if (range === "30d") return new Date(now.getTime() - 30 * 86400_000);
-  return null;
-}
 
 const MAX_ROWS = 500;
 
@@ -41,7 +35,8 @@ export async function GET(req: Request) {
   }
 
   const url = new URL(req.url);
-  const range = (url.searchParams.get("range") ?? "7d") as Range;
+  const rangeRaw = url.searchParams.get("range") ?? "7d";
+  const range: AuditRange = isAuditRange(rangeRaw) ? rangeRaw : "7d";
   const tab = url.searchParams.get("tab") ?? "usage";
   const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
 
@@ -72,7 +67,7 @@ export async function GET(req: Request) {
     const rows = await db
       .select({
         email: auditLog.userEmail,
-        role: sql<string | null>`max(${auditLog.userRole})`,
+        role: latestRole,
         actions: sql<number>`count(*) filter (where ${auditLog.eventType} = 'action')::int`,
         sessions: sql<number>`count(*) filter (where ${auditLog.eventType} = 'login')::int`,
         lastActive: sql<string>`max(${auditLog.createdAt})`,
@@ -82,8 +77,16 @@ export async function GET(req: Request) {
       .groupBy(auditLog.userEmail)
       .orderBy(desc(sql`max(${auditLog.createdAt})`));
 
+    // Active time comes from the gaps between each user's events - see
+    // lib/audit-stats.ts for why it is not login-to-logout.
+    const activity = await activityByUser(since);
+
     const filtered = rows
       .filter((r) => r.email)
+      .map((r) => ({
+        ...r,
+        activeSeconds: activity.get(r.email as string)?.activeSeconds ?? 0,
+      }))
       .filter(
         (r) =>
           !q ||

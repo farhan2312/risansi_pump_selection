@@ -16,6 +16,10 @@ export interface AuditUsageRow {
   actions: number;
   sessions: number;
   lastActive: string | null;
+  /** Estimated time actively using the app over the range, in seconds —
+   *  summed gaps between consecutive events, idle gaps excluded (see
+   *  lib/audit-stats.ts). */
+  activeSeconds: number;
 }
 
 /** One recorded event (Activity / Logins & Sessions / Access Changes). */
@@ -44,5 +48,48 @@ export const getAuditLog = async (params: {
   q?: string;
 }): Promise<AuditResponse> => {
   const { data } = await apiClient.get<AuditResponse>("/admin/audit", { params });
+  return data;
+};
+
+/** Everything the Audit Log PDF report needs for one range. */
+export interface AuditReport {
+  range: string;
+  since: string | null;
+  generatedAt: string;
+  /** Gaps between events longer than this count as idle, not active. */
+  idleCutoffMinutes: number;
+  totals: {
+    events: number;
+    logins: number;
+    failed: number;
+    actions: number;
+    activeUsers: number;
+    first: string | null;
+    last: string | null;
+    totalActiveSeconds: number;
+  };
+  usage: (AuditUsageRow & {
+    failed: number;
+    firstSeen: string | null;
+    /** Separate stretches of activity (a gap past the idle cutoff starts one). */
+    stretches: number;
+  })[];
+  byAction: { action: string; count: number; users: number }[];
+  logins: AuditReportSection;
+  access: AuditReportSection;
+  activity: AuditReportSection;
+}
+
+export interface AuditReportSection {
+  rows: Omit<AuditEventRow, "entityId">[];
+  /** True when the section hit the server's row cap — the PDF says so. */
+  truncated: boolean;
+}
+
+/** System-admin only. Also records an "audit.report" entry in the trail. */
+export const getAuditReport = async (range: string): Promise<AuditReport> => {
+  const { data } = await apiClient.get<AuditReport>("/admin/audit/report", {
+    params: { range },
+  });
   return data;
 };

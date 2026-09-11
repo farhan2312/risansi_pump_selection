@@ -42,7 +42,7 @@ export interface SelectionSummaryPdfResult {
   bytes: ArrayBuffer;
 }
 
-async function loadImageAsDataUrl(url: string): Promise<{ dataUrl: string; width: number; height: number } | null> {
+export async function loadImageAsDataUrl(url: string): Promise<{ dataUrl: string; width: number; height: number } | null> {
   try {
     const res = await fetch(url);
     if (!res.ok) return null;
