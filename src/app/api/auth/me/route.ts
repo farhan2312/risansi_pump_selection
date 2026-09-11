@@ -23,6 +23,11 @@ export async function GET(req: Request) {
   if (!user) {
     return error("User not found", 401);
   }
+  // middleware.ts already turns away inactive accounts; repeated here because
+  // this is the one route the client asks "am I still signed in?".
+  if (user.status !== "active") {
+    return error("Your session has ended. Please sign in again.", 401);
+  }
 
   return json({
     id: String(user.id),

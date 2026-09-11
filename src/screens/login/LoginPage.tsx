@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import "./LoginPage.css";
 import { login, requestAccess, type RequestableRole } from "../../services/authService";
@@ -136,6 +136,18 @@ const LoginPage = () => {
   const [formError, setFormError] = useState("");
   const [formSuccess, setFormSuccess] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Sent here because the session ended mid-use (see apiClient / middleware):
+  // say so once, then drop the flag so a refresh doesn't repeat it. Read from
+  // window rather than useSearchParams, which would need a Suspense boundary.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("session") !== "ended") return;
+    setFormError("Your session has ended. Please sign in again.");
+    params.delete("session");
+    const query = params.toString();
+    window.history.replaceState(null, "", window.location.pathname + (query ? `?${query}` : ""));
+  }, []);
 
   const switchMode = (next: Mode) => {
     setMode(next);
