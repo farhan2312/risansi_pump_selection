@@ -79,9 +79,7 @@ export async function GET(req: Request) {
     .filter((r) => r.email)
     .map((r) => ({
       ...r,
-      activeSeconds: activity.get(r.email as string)?.activeSeconds ?? 0,
-      stretches: activity.get(r.email as string)?.stretches ?? 0,
-    }))
+      activeSeconds: activity.get(r.email as string)?.activeSeconds ?? 0,    }))
     // Most engaged first - that's the question a usage report is read for.
     .sort((a, b) => b.activeSeconds - a.activeSeconds);
 

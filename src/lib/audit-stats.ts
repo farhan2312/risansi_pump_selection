@@ -9,13 +9,13 @@
  * would be meaningless. Instead, each user's events are ordered in time and
  * the gap between consecutive events is summed, counting only gaps no longer
  * than IDLE_CUTOFF_SECONDS. A longer gap means they walked away, so it is
- * idle rather than active and starts a new stretch of activity.
+ * idle rather than active.
  *
  * The 15-minute cutoff comes from the data: gaps between one user's events
  * cluster heavily under a minute and fall away sharply past 15 minutes.
  *
- * It is a conservative estimate: time spent before the first event of a
- * stretch (reading, filling in a form before saving) is not visible to the
+ * It is a conservative estimate: time spent before the first event after a
+ * break (reading, filling in a form before saving) is not visible to the
  * audit trail, and a lone event contributes nothing.
  */
 import { sql, type SQL } from "drizzle-orm";
@@ -100,31 +100,32 @@ export const latestRole = sql<string | null>`
   (array_agg(${auditLog.userRole} order by ${auditLog.createdAt} desc)
      filter (where ${auditLog.userRole} is not null))[1]`;
 
-/** Per-user activity over the window: active seconds plus how many separate
- *  stretches of activity (a gap past the idle cutoff starts a new one). */
+/** Per-user active seconds over the window.
+ *
+ *  Failed sign-ins are left out. They are not time spent in the app (a
+ *  blocked account never gets in), and anyone can type someone else's email,
+ *  so they are not even reliably that user. They still show on the Logins
+ *  tab and in the Failed counters. */
 export async function activityByUser(
   window: AuditWindow,
-): Promise<Map<string, { activeSeconds: number; stretches: number }>> {
-  const res = await db.execute<{ email: string; active: number; stretches: number }>(sql`
+): Promise<Map<string, { activeSeconds: number }>> {
+  const res = await db.execute<{ email: string; active: number }>(sql`
     with ev as (
       select ${auditLog.userEmail} as email,
              extract(epoch from ${auditLog.createdAt} - lag(${auditLog.createdAt})
                over (partition by ${auditLog.userEmail} order by ${auditLog.createdAt})) as gap
       from ${auditLog}
-      where ${auditLog.userEmail} is not null ${windowClause(window)}
+      where ${auditLog.userEmail} is not null
+        and ${auditLog.eventType} <> 'login_failed' ${windowClause(window)}
     )
     select email,
-           coalesce(sum(gap) filter (where gap <= ${IDLE_CUTOFF_SECONDS}), 0)::float8 as active,
-           (count(*) filter (where gap is null or gap > ${IDLE_CUTOFF_SECONDS}))::int as stretches
+           coalesce(sum(gap) filter (where gap <= ${IDLE_CUTOFF_SECONDS}), 0)::float8 as active
     from ev
     group by email
   `);
-  const out = new Map<string, { activeSeconds: number; stretches: number }>();
+  const out = new Map<string, { activeSeconds: number }>();
   for (const r of res.rows) {
-    out.set(r.email, {
-      activeSeconds: Math.round(Number(r.active) || 0),
-      stretches: Number(r.stretches) || 0,
-    });
+    out.set(r.email, { activeSeconds: Math.round(Number(r.active) || 0) });
   }
   return out;
 }

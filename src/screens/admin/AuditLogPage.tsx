@@ -331,21 +331,20 @@ const AuditLogPage = () => {
                     so session length can’t be measured directly.
                   </p>
                   <ol>
-                    <li>Every action a user takes (saving a step, generating a report, signing in…) is recorded with a time.</li>
+                    <li>Every action a user takes (saving a step, generating a report, signing in…) is recorded with a time. Failed sign-ins are not counted.</li>
                     <li>Those times are put in order and the gap between each one and the next is measured.</li>
                     <li>
                       Gaps of <strong>15 minutes or less</strong> are added up as active time.
-                      A longer gap means they stepped away, so it counts as idle and starts a new
-                      <em> stretch</em> of activity.
+                      A longer gap means they stepped away, so it counts as idle.
                     </li>
                   </ol>
                   <p className="audit-help-example">
                     Example: saves at 10:00, 10:04, 10:09 and then 11:30. The 4 and 5 minute
-                    gaps count (9 min); the 81 minute gap is idle. Active Time = 9m, in 2 stretches.
+                    gaps count (9 min); the 81 minute gap is idle. Active Time = 9m.
                   </p>
                   <p className="audit-help-note">
                     It’s a conservative figure: time spent reading or filling a form before the
-                    first save in a stretch isn’t visible to the audit trail.
+                    first save after a break isn’t visible to the audit trail.
                   </p>
                 </div>
               )}
@@ -380,9 +379,6 @@ const AuditLogPage = () => {
                     >
                       Active Time
                     </th>
-                    <th className="num" title="Separate periods of activity. A gap over 15 minutes starts a new one.">
-                      Stretches
-                    </th>
                     <th className="num">Actions</th>
                     <th className="num">Sessions</th>
                     <th>Last Active</th>
@@ -394,7 +390,6 @@ const AuditLogPage = () => {
                       <td className="mono">{r.email ?? "—"}</td>
                       <td>{prettyRole(r.role)}</td>
                       <td className="num mono">{formatDuration(r.activeSeconds)}</td>
-                      <td className="num">{r.stretches}</td>
                       <td className="num">{r.actions}</td>
                       <td className="num">{r.sessions}</td>
                       <td className="mono">{fmtWhen(r.lastActive)}</td>

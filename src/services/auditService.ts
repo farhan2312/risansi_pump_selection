@@ -20,8 +20,6 @@ export interface AuditUsageRow {
    *  summed gaps between consecutive events, idle gaps excluded (see
    *  lib/audit-stats.ts). */
   activeSeconds: number;
-  /** Separate stretches of activity (a gap past the idle cutoff starts one). */
-  stretches: number;
 }
 
 /** One recorded event (Activity / Logins & Sessions / Access Changes). */

@@ -10,7 +10,7 @@
  *
  * Sections, in order:
  *   1. Summary               headline figures for the selected range
- *   2. Usage by User         active time, stretches, actions, logins, failures
+ *   2. Usage by User         active time, actions, logins, failures
  *   3. How to read Active    how active time is estimated and its limits -
  *      Time                  placed right under the table it explains
  *   4. Activity by Type      what was done, how often, by how many people
@@ -324,7 +324,6 @@ export async function downloadAuditReportPdf(
         "User",
         "Role",
         "Active Time",
-        "Stretches",
         "Actions",
         "Logins",
         "Failed",
@@ -335,7 +334,6 @@ export async function downloadAuditReportPdf(
         u.email ?? "—",
         prettyRole(u.role),
         formatDuration(u.activeSeconds),
-        String(u.stretches),
         String(u.actions),
         String(u.sessions),
         String(u.failed),
@@ -347,10 +345,9 @@ export async function downloadAuditReportPdf(
         3: { halign: "right" },
         4: { halign: "right" },
         5: { halign: "right" },
-        6: { halign: "right" },
       },
       (data) => {
-        if (data.section === "body" && data.column.index === 6 && Number(data.cell.raw) > 0) {
+        if (data.section === "body" && data.column.index === 5 && Number(data.cell.raw) > 0) {
           data.cell.styles.textColor = FAILED_TEXT;
           data.cell.styles.fontStyle = "bold";
         }
@@ -363,9 +360,8 @@ export async function downloadAuditReportPdf(
   band("How to read Active Time");
   bullets([
     `Active time is an estimate built from recorded activity, not from sign-in to sign-out. Sign-outs are rarely recorded (people close the browser tab), so session length cannot be measured directly.`,
-    `Each user's events are placed in time order and the gaps between consecutive events are added up. Only gaps of ${report.idleCutoffMinutes} minutes or less count as active; a longer gap means the person stepped away, so it is treated as idle and starts a new stretch of activity.`,
-    `Stretches is the number of separate periods of activity in the range. It is usually more telling than Logins, because a single sign-in can stay valid across several days.`,
-    `Active time is conservative: time spent before a user's first recorded action in a stretch (reading a page, filling in a form before saving it) is not visible to the audit trail, and a lone event adds nothing.`,
+    `Each user's events are placed in time order (failed sign-ins are left out) and the gaps between consecutive events are added up. Only gaps of ${report.idleCutoffMinutes} minutes or less count as active; a longer gap means the person stepped away, so it is treated as idle.`,
+    `Active time is conservative: time spent before a user's first recorded action after a break (reading a page, filling in a form before saving it) is not visible to the audit trail, and a lone event adds nothing.`,
     `Role is the user's most recent role within this period, as recorded at the time of their activity. Only actions the application records appear here; work done before auditing was switched on is not included.`,
   ]);
 

@@ -87,9 +87,7 @@ export async function GET(req: Request) {
       .filter((r) => r.email)
       .map((r) => ({
         ...r,
-        activeSeconds: activity.get(r.email as string)?.activeSeconds ?? 0,
-        stretches: activity.get(r.email as string)?.stretches ?? 0,
-      }))
+        activeSeconds: activity.get(r.email as string)?.activeSeconds ?? 0,      }))
       .filter(
         (r) =>
           !needle ||
