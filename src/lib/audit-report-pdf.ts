@@ -41,6 +41,7 @@ const RANGE_LABELS: Record<string, string> = {
   "7d": "Last 7 days",
   "30d": "Last 30 days",
   all: "All recorded activity",
+  custom: "Custom range",
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -81,6 +82,17 @@ const fmtWhen = (iso: string | null | undefined): string => {
   });
 };
 
+/** "RIL/EN/26-27/1331 · Tag-1" plus the client on a second line, or "—". */
+const enquiryTag = (r: {
+  enquiryCode: string | null;
+  tagName: string | null;
+  clientName: string | null;
+}): string => {
+  const head = [r.enquiryCode, r.tagName].filter(Boolean).join(" · ");
+  if (!head) return "—";
+  return r.clientName ? `${head}\n${r.clientName}` : head;
+};
+
 const fmtDate = (iso: string | null | undefined): string => {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -116,7 +128,9 @@ export async function downloadAuditReportPdf(
 
   // Full-width dark band with a centred title - same as the quotation.
   const band = (title: string, subtitle?: string) => {
-    ensureSpace(60);
+    // Room for the band, its subtitle, a table header and a few rows - so a
+    // section never starts as a lone heading at the foot of a page.
+    ensureSpace(110);
     doc.setFillColor(...SECTION_BAND);
     doc.rect(MARGIN, y, contentWidth, 20, "F");
     doc.setFont("helvetica", "bold");
@@ -152,6 +166,9 @@ export async function downloadAuditReportPdf(
       margin: { left: MARGIN, right: MARGIN, bottom: MARGIN + 20 },
       theme: "grid",
       showHead: "everyPage",
+      // Two-line cells (enquiry/tag + client) must not be cut in half by a
+      // page break, leaving a stray client name atop the next page.
+      rowPageBreak: "avoid",
       styles: {
         font: "helvetica",
         fontSize: 8,
@@ -234,7 +251,7 @@ export async function downloadAuditReportPdf(
   doc.line(MARGIN, y, pageWidth - MARGIN, y);
   y += 16;
 
-  const periodEnd = fmtDate(report.generatedAt);
+  const periodEnd = report.until ? fmtDate(report.until) : fmtDate(report.generatedAt);
   const periodStart = report.since ? fmtDate(report.since) : fmtDate(report.totals.first);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
@@ -430,15 +447,15 @@ export async function downloadAuditReportPdf(
     emptyNote("No actions were recorded in this period.");
   } else {
     table(
-      ["When", "User", "Action", "Area", "Detail"],
+      ["When", "User", "Action", "Enquiry / Tag", "Detail"],
       report.activity.rows.map((r) => [
         fmtWhen(r.createdAt),
         r.email ?? "—",
         prettyAction(r.action),
-        r.entity ?? "—",
+        enquiryTag(r),
         r.detail ?? "—",
       ]),
-      { 0: { cellWidth: 95 }, 1: { cellWidth: 170 }, 2: { cellWidth: 80 }, 3: { cellWidth: 95 } },
+      { 0: { cellWidth: 95 }, 1: { cellWidth: 165 }, 2: { cellWidth: 70 }, 3: { cellWidth: 175 } },
     );
   }
 

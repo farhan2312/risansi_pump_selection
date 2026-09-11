@@ -1,44 +1,33 @@
-import { and, desc, gte, sql, type SQL } from "drizzle-orm";
+import { and, desc, sql, type SQL } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
 import { AuthError, requireSystemAdmin } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import {
   activityByUser,
-  latestRole,
+  eventSelection,
   IDLE_CUTOFF_SECONDS,
-  isAuditRange,
-  rangeStart,
-  type AuditRange,
+  latestRole,
+  resolveWindow,
+  windowCondition,
+  withEnquiryJoins,
 } from "@/lib/audit-stats";
 import { db } from "@/lib/db";
 import { auditLog } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
 
-// Everything the Audit Log PDF report needs, for ONE date range, in one call.
-// System-admin only.
+// Everything the Audit Log PDF report needs, for ONE window, in one call.
+// System-admin only. Takes the same `from` / `to` / `range` as the page.
 //
 // Differs from /api/admin/audit on purpose:
 //   - every section at once (the page only loads the tab in view);
-//   - the headline figures are for the SELECTED range, not the page's fixed
+//   - the headline figures are for the SELECTED window, not the page's fixed
 //     "last 24h" counters - a report for 30 days should total 30 days;
 //   - a higher row cap per section, and the report says when it was hit
 //     rather than silently truncating.
 
 const SECTION_CAP = 2000;
-
-const eventColumns = {
-  id: auditLog.id,
-  email: auditLog.userEmail,
-  role: auditLog.userRole,
-  eventType: auditLog.eventType,
-  action: auditLog.action,
-  entity: auditLog.entity,
-  detail: auditLog.detail,
-  ip: auditLog.ip,
-  createdAt: auditLog.createdAt,
-};
 
 export async function GET(req: Request) {
   try {
@@ -48,13 +37,14 @@ export async function GET(req: Request) {
     throw err;
   }
 
-  const rangeRaw = new URL(req.url).searchParams.get("range") ?? "7d";
-  const range: AuditRange = isAuditRange(rangeRaw) ? rangeRaw : "7d";
-  const since = rangeStart(range);
-  const scope = since ? gte(auditLog.createdAt, since) : undefined;
-  const within = (extra: SQL) => (scope ? and(scope, extra) : extra);
+  const params = new URL(req.url).searchParams;
+  const rangeKey = params.get("range") ?? "7d";
+  const window = resolveWindow(params);
+  const inWindow = windowCondition(window);
+  const custom = Boolean(params.get("from") || params.get("to"));
+  const within = (extra: SQL) => (inWindow ? and(inWindow, extra) : extra);
 
-  // --- Headline figures, for the selected range ---
+  // --- Headline figures, for the selected window ---
   const [totals] = await db
     .select({
       events: sql<number>`count(*)::int`,
@@ -66,10 +56,10 @@ export async function GET(req: Request) {
       last: sql<string | null>`max(${auditLog.createdAt})`,
     })
     .from(auditLog)
-    .where(scope);
+    .where(inWindow);
 
   // --- Usage by user, with active time ---
-  const activity = await activityByUser(since);
+  const activity = await activityByUser(window);
   const usageRaw = await db
     .select({
       email: auditLog.userEmail,
@@ -81,7 +71,7 @@ export async function GET(req: Request) {
       lastActive: sql<string>`max(${auditLog.createdAt})`,
     })
     .from(auditLog)
-    .where(scope)
+    .where(inWindow)
     .groupBy(auditLog.userEmail)
     .orderBy(desc(sql`max(${auditLog.createdAt})`));
 
@@ -111,9 +101,7 @@ export async function GET(req: Request) {
 
   // --- Row-level sections (+1 so we can tell whether the cap was hit) ---
   const section = async (filter: SQL) => {
-    const rows = await db
-      .select(eventColumns)
-      .from(auditLog)
+    const rows = await withEnquiryJoins(db.select(eventSelection).from(auditLog))
       .where(within(filter))
       .orderBy(desc(auditLog.createdAt))
       .limit(SECTION_CAP + 1);
@@ -127,15 +115,21 @@ export async function GET(req: Request) {
   ]);
 
   // Generating the report is itself worth recording - it exports the trail.
+  const scopeText = custom
+    ? `${window.since?.toISOString().slice(0, 10) ?? "start"} to ${
+        window.until?.toISOString().slice(0, 10) ?? "now"
+      }`
+    : rangeKey;
   await logAudit(req, {
     action: "audit.report",
     entity: "audit_log",
-    detail: `Generated audit report (${range})`,
+    detail: `Generated audit report (${scopeText})`,
   });
 
   return json({
-    range,
-    since: since ? since.toISOString() : null,
+    range: custom ? "custom" : rangeKey,
+    since: window.since ? window.since.toISOString() : null,
+    until: window.until ? window.until.toISOString() : null,
     generatedAt: new Date().toISOString(),
     idleCutoffMinutes: IDLE_CUTOFF_SECONDS / 60,
     totals: {

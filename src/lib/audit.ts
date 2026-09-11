@@ -10,8 +10,10 @@
  *    time), so the trail still reads correctly after a rename/re-role.
  *  - Append-only. Nothing in the app updates or deletes audit rows.
  */
+import { eq } from "drizzle-orm";
+
 import { db } from "./db";
-import { auditLog } from "./db/schema";
+import { auditLog, enquiryTags, projects } from "./db/schema";
 import { tryDecodeToken } from "./auth";
 
 /** login/logout are session events; `action` is everything else. */
@@ -66,5 +68,45 @@ export async function logAudit(req: Request, entry: AuditEntry): Promise<void> {
   } catch (err) {
     // Deliberately swallowed — see the header comment.
     console.error("audit log write failed:", err instanceof Error ? err.message : err);
+  }
+}
+
+// --- Naming what was touched -------------------------------------------------
+
+/** Wizard-input table key -> the step name the user actually sees. */
+export const WIZARD_STEP_LABELS: Record<string, string> = {
+  "general-info": "General Information",
+  "fluid-properties": "Fluid Properties",
+  "operating-conditions": "Specifications",
+  "moc-sealing": "MOC & Sealing",
+  "motor-drive": "Motor Rating & Drive",
+  "drive-direct": "Drive Details (Direct)",
+  "drive-vbelt": "Drive Details (V-Belt)",
+  "drive-geared": "Drive Details (Geared)",
+};
+
+export const wizardStepLabel = (tableKey: string): string =>
+  WIZARD_STEP_LABELS[tableKey] ?? tableKey.replace(/-/g, " ");
+
+/**
+ * "RIL/EN/26-27/1331 · Tag-1" for a tag id, so an audit detail says WHICH
+ * enquiry and tag were touched rather than just "Saved general info step".
+ *
+ * Snapshotted into the detail at write time on purpose: the audit row then
+ * stays readable even if the tag is later renamed or deleted. Never throws —
+ * an unresolvable id just yields null and the caller writes a plainer detail.
+ */
+export async function describeTag(tagId: string | null | undefined): Promise<string | null> {
+  if (!tagId) return null;
+  try {
+    const [row] = await db
+      .select({ code: projects.projectCode, tag: enquiryTags.name })
+      .from(enquiryTags)
+      .innerJoin(projects, eq(projects.id, enquiryTags.projectId))
+      .where(eq(enquiryTags.id, tagId))
+      .limit(1);
+    return row ? `${row.code} · ${row.tag}` : null;
+  } catch {
+    return null;
   }
 }

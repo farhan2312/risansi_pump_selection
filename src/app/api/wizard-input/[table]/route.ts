@@ -2,7 +2,8 @@ import { and, asc, eq } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
 import { db } from "@/lib/db";
-import { logAudit } from "@/lib/audit";
+import { describeTag, logAudit, wizardStepLabel } from "@/lib/audit";
+import { changedFields, describeChanges } from "@/lib/wizard-audit";
 import {
   enquiryTags,
   generalInfoInput,
@@ -136,6 +137,13 @@ function coerceTimestamp(v: unknown): Date | null {
   return null;
 }
 
+/** "RIL/EN/26-27/1331 · Tag-1 — Saved Fluid Properties" for the audit trail;
+ *  falls back to the bare action when the tag can't be resolved. */
+async function tagDetail(tagId: string, what: string): Promise<string> {
+  const where = await describeTag(tagId);
+  return where ? `${where} — ${what}` : what;
+}
+
 function resolveTableKey(key: string): TableKey | null {
   return Object.prototype.hasOwnProperty.call(TABLES, key) ? (key as TableKey) : null;
 }
@@ -258,6 +266,31 @@ export async function PUT(
 
   const values = pickFields(tableKey, body);
 
+  // A save is audited only when a field the user controls actually changed
+  // (see lib/wizard-audit.ts) - every step is re-saved on each Next/Previous,
+  // so read what's stored before overwriting it.
+  //
+  // Only the columns being compared are read. A bare select() would also pull
+  // moc_sealing_input's two bytea columns - the generated MOC PDF and the
+  // uploaded client-requirements file, up to ~0.5 MB - on every MOC save,
+  // just to be ignored.
+  const sentKeys = Object.keys(values);
+  let previous: Record<string, unknown> | undefined;
+  if (sentKeys.length > 0) {
+    const columns = Object.fromEntries(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      sentKeys.map((k) => [k, (table as any)[k]]),
+    );
+    [previous] = await db
+      .select(columns)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .from(table as any)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .where(eq((table as any).tagId, ctx.tagId))
+      .limit(1);
+  }
+  const changes = changedFields(previous, values);
+
   const result = await db
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .insert(table as any)
@@ -301,12 +334,21 @@ export async function PUT(
       .where(and(eq(enquiryTags.id, ctx.tagId), eq(enquiryTags.status, "Pending")));
   }
 
-  await logAudit(req, {
-    action: "wizard.save",
-    entity: tableKey,
-    entityId: ctx.tagId,
-    detail: `Saved ${tableKey.replace(/-/g, " ")} step`,
-  });
+  // A save that changed nothing - the step re-sent unchanged on navigation -
+  // is persisted above but not audited.
+  if (changes.length > 0) {
+    await logAudit(req, {
+      action: "wizard.save",
+      entity: tableKey,
+      entityId: ctx.tagId,
+      // Names the enquiry + tag AND what changed, so the trail says what was
+      // actually worked on rather than just that a save happened.
+      detail: await tagDetail(
+        ctx.tagId,
+        `Updated ${wizardStepLabel(tableKey)}: ${describeChanges(changes)}`,
+      ),
+    });
+  }
 
   return json(row);
 }
@@ -345,7 +387,7 @@ export async function DELETE(
     action: "wizard.clear",
     entity: tableKey,
     entityId: ctx.tagId,
-    detail: `Cleared ${tableKey.replace(/-/g, " ")} step`,
+    detail: await tagDetail(ctx.tagId, `Cleared ${wizardStepLabel(tableKey)}`),
   });
 
   return json({ ok: true });

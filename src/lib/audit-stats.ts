@@ -21,7 +21,7 @@
 import { sql, type SQL } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { auditLog } from "@/lib/db/schema";
+import { auditLog, enquiryTags, projects, stepApproval } from "@/lib/db/schema";
 
 export const IDLE_CUTOFF_SECONDS = 15 * 60;
 
@@ -45,8 +45,48 @@ export function rangeStart(range: AuditRange): Date | null {
   return null;
 }
 
-const sinceClause = (since: Date | null): SQL =>
-  since ? sql`and ${auditLog.createdAt} >= ${since}` : sql``;
+/** The time window a request asks for. Either end may be open. */
+export type AuditWindow = { since: Date | null; until: Date | null };
+
+const parseInstant = (v: string | null): Date | null => {
+  if (!v) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+/**
+ * Resolve `from` / `to` (ISO instants) or else a quick `range` chip into a
+ * window. Explicit dates win over the chip.
+ *
+ * The client sends instants, not bare dates: it converts the From/To dates
+ * the user picked into the start of the From day and the END of the To day in
+ * THEIR time zone. Doing that here would use the server's zone and shift the
+ * window by hours for anyone not in it. A reversed pair is swapped rather than
+ * rejected, since the intent is unambiguous.
+ */
+export function resolveWindow(params: URLSearchParams): AuditWindow {
+  let since = parseInstant(params.get("from"));
+  let until = parseInstant(params.get("to"));
+  if (since || until) {
+    if (since && until && since > until) [since, until] = [until, since];
+    return { since, until };
+  }
+  const raw = params.get("range") ?? "7d";
+  return { since: rangeStart(isAuditRange(raw) ? raw : "7d"), until: null };
+}
+
+/** SQL condition for a window, or undefined when it is open at both ends. */
+export function windowCondition({ since, until }: AuditWindow): SQL | undefined {
+  if (since && until) return sql`${auditLog.createdAt} >= ${since} and ${auditLog.createdAt} <= ${until}`;
+  if (since) return sql`${auditLog.createdAt} >= ${since}`;
+  if (until) return sql`${auditLog.createdAt} <= ${until}`;
+  return undefined;
+}
+
+const windowClause = (w: AuditWindow): SQL => {
+  const c = windowCondition(w);
+  return c ? sql`and ${c}` : sql``;
+};
 
 /**
  * Aggregate: a user's MOST RECENT recorded role within the grouped rows.
@@ -63,7 +103,7 @@ export const latestRole = sql<string | null>`
 /** Per-user activity over the window: active seconds plus how many separate
  *  stretches of activity (a gap past the idle cutoff starts a new one). */
 export async function activityByUser(
-  since: Date | null,
+  window: AuditWindow,
 ): Promise<Map<string, { activeSeconds: number; stretches: number }>> {
   const res = await db.execute<{ email: string; active: number; stretches: number }>(sql`
     with ev as (
@@ -71,7 +111,7 @@ export async function activityByUser(
              extract(epoch from ${auditLog.createdAt} - lag(${auditLog.createdAt})
                over (partition by ${auditLog.userEmail} order by ${auditLog.createdAt})) as gap
       from ${auditLog}
-      where ${auditLog.userEmail} is not null ${sinceClause(since)}
+      where ${auditLog.userEmail} is not null ${windowClause(window)}
     )
     select email,
            coalesce(sum(gap) filter (where gap <= ${IDLE_CUTOFF_SECONDS}), 0)::float8 as active,
@@ -87,4 +127,67 @@ export async function activityByUser(
     });
   }
   return out;
+}
+
+/**
+ * Columns for one audit event, plus the enquiry and tag it touched.
+ *
+ * Resolved at READ time from entity_id, so every historic row is covered -
+ * the 1,300+ wizard saves recorded before details named their tag included.
+ * The audit rows themselves are never rewritten; the trail stays immutable.
+ *
+ *   tag-scoped actions (wizard.save/clear, report.generate, tag.*,
+ *     approval.send)       entity_id IS the tag id
+ *   approval.select       entity_id is a step_approval row -> its tag
+ *   enquiry.create        entity_id is the project itself
+ *
+ * Joined on text: entity_id is free text and also holds user ids etc., so a
+ * uuid cast would throw on those rows. A tag deleted since leaves these null,
+ * which is why new rows also snapshot the names into `detail`.
+ */
+export const eventSelection = {
+  id: auditLog.id,
+  email: auditLog.userEmail,
+  role: auditLog.userRole,
+  eventType: auditLog.eventType,
+  action: auditLog.action,
+  entity: auditLog.entity,
+  entityId: auditLog.entityId,
+  detail: auditLog.detail,
+  ip: auditLog.ip,
+  createdAt: auditLog.createdAt,
+  enquiryCode: projects.projectCode,
+  clientName: projects.name,
+  tagName: enquiryTags.name,
+};
+
+/** Adds the enquiry/tag joins to a query already selecting FROM audit_log. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function withEnquiryJoins<T extends { leftJoin: any }>(q: T) {
+  return q
+    .leftJoin(stepApproval, sql`${stepApproval.id}::text = ${auditLog.entityId}`)
+    .leftJoin(
+      enquiryTags,
+      sql`${enquiryTags.id}::text = coalesce(${stepApproval.tagId}::text, ${auditLog.entityId})`,
+    )
+    .leftJoin(
+      projects,
+      sql`${projects.id}::text = coalesce(${enquiryTags.projectId}::text,
+        case when ${auditLog.entity} = 'projects' then ${auditLog.entityId} end)`,
+    );
+}
+
+/** Free-text search across who, what, and which enquiry/tag. Assumes the
+ *  enquiry joins are present. */
+export function searchCondition(q: string): SQL | undefined {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return undefined;
+  // Escape LIKE wildcards so a search for "50%" or "a_b" is taken literally.
+  const like = `%${needle.replace(/([\\%_])/g, "\\$1")}%`;
+  return sql`(lower(coalesce(${auditLog.userEmail}, '')) like ${like}
+    or lower(coalesce(${auditLog.action}, '')) like ${like}
+    or lower(coalesce(${auditLog.detail}, '')) like ${like}
+    or lower(coalesce(${projects.projectCode}, '')) like ${like}
+    or lower(coalesce(${projects.name}, '')) like ${like}
+    or lower(coalesce(${enquiryTags.name}, '')) like ${like})`;
 }
