@@ -17,9 +17,11 @@ import {
   viscosityDisplay,
 } from "../../lib/fluid-inputs";
 import {
+  downloadRecheckPdf,
   downloadSelectionSummaryPdf,
   type SelectionSummaryPdfSection,
 } from "../../lib/selection-summary-pdf";
+import { computeRecheck, finalPumpRpm, recheckTables } from "../../lib/recheck-calc";
 import { mechSealDescription } from "./SealingDetailsStep";
 import { getReportSummary, saveReportSummary, uploadFinalReport } from "../../services/reportsService";
 import FormatChoiceModal, { type DownloadFormat } from "../ui/FormatChoiceModal";
@@ -428,6 +430,40 @@ const RecommendationStep = ({
     // separate "Selected Motor" section in the PDF.
   ];
 
+  // The Drive step's Recheck popup, recomputed here from the same pump data
+  // (lib/recheck-calc) so it can be downloaded as a PDF. Null until there is
+  // a confirmed pump and a drive with a final pump RPM.
+  const recheck = (() => {
+    if (!confirmedPump) return null;
+    const rpm = finalPumpRpm(formData);
+    return recheckTables(
+      formData,
+      computeRecheck(formData, confirmedPump, rpm.raw),
+      confirmedPump.model,
+      rpm.source,
+    );
+  })();
+  const [downloadingRecheck, setDownloadingRecheck] = useState(false);
+  const [recheckError, setRecheckError] = useState<string | null>(null);
+  const handleRecheckPdf = async () => {
+    if (!recheck) return;
+    setDownloadingRecheck(true);
+    setRecheckError(null);
+    try {
+      await downloadRecheckPdf({
+        projectCode: projectCode || "",
+        projectName,
+        customerName,
+        generatedBy: user?.name || user?.email || undefined,
+        tables: recheck,
+      });
+    } catch {
+      setRecheckError("Couldn't generate the Recheck PDF. Please try again.");
+    } finally {
+      setDownloadingRecheck(false);
+    }
+  };
+
   const [confirming, setConfirming] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -504,7 +540,33 @@ const RecommendationStep = ({
       />
 
       <div className="step-card">
-        <h2>Selection Summary</h2>
+        <h2>
+          Selection Summary
+          <button
+            type="button"
+            className="step-header-action"
+            disabled={!recheck || downloadingRecheck}
+            onClick={() => void handleRecheckPdf()}
+            title={
+              recheck
+                ? "Download the Drive step's Recheck (capacity & BKW at the final pump RPM) as a PDF"
+                : isLoading
+                  ? "Loading pump data…"
+                  : "Needs a confirmed pump and a drive system with its final pump RPM — complete the Drive step first"
+            }
+          >
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            {downloadingRecheck ? "Preparing…" : "Recheck PDF"}
+          </button>
+        </h2>
 
         <p>
           Review your confirmed pump and its configuration. Go back to any step to
@@ -573,6 +635,7 @@ const RecommendationStep = ({
           </>
         )}
 
+        {recheckError && <p className="error-message">{recheckError}</p>}
         {confirmError && <p className="error-message">{confirmError}</p>}
         {confirmed && (
           <p className="mt-2 text-[13px] text-pos">

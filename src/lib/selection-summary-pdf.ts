@@ -17,6 +17,8 @@
 import jsPDF from "jspdf";
 import autoTable, { type RowInput } from "jspdf-autotable";
 
+import { fmtRecheckNum, type RecheckTables } from "./recheck-calc";
+
 export type SelectionSummaryPdfField = [string, string | undefined];
 
 export interface SelectionSummaryPdfSection {
@@ -254,7 +256,11 @@ async function drawReportHeader(
   L.state.y += 16;
 }
 
-function drawFooter(doc: jsPDF, L: Layout) {
+function drawFooter(
+  doc: jsPDF,
+  L: Layout,
+  note = "Pump selection confirmed by the assigned engineer.",
+) {
   const { pageWidth, pageHeight, margin } = L;
   const pageCount = doc.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
@@ -262,7 +268,7 @@ function drawFooter(doc: jsPDF, L: Layout) {
     doc.setFontSize(8);
     doc.setTextColor(140);
     doc.setFont("helvetica", "normal");
-    doc.text("Pump selection confirmed by the assigned engineer.", margin, pageHeight - 18);
+    doc.text(note, margin, pageHeight - 18);
     doc.text(`Page ${i} of ${pageCount}`, pageWidth - margin, pageHeight - 18, {
       align: "right",
     });
@@ -303,6 +309,95 @@ export async function downloadSelectionSummaryPdf(
   if (opts.save !== false) doc.save(filename);
 
   return { filename, bytes: doc.output("arraybuffer") };
+}
+
+// --- Recheck at final selected RPM ------------------------------------------
+
+export interface RecheckPdfInput {
+  projectCode: string;
+  projectName?: string;
+  customerName?: string;
+  generatedBy?: string;
+  /** Same rows the Drive step's Recheck popup shows (lib/recheck-calc). */
+  tables: RecheckTables;
+}
+
+// The app's positive green, as on the popup's highlighted capacity row.
+const POS_SOFT: RGB = [223, 243, 231];
+const POS_STRONG: RGB = [22, 101, 52];
+
+/** The Drive step's Recheck popup as a PDF, downloaded from the Selection
+ * Summary: the inputs it used, then capacity and BKW at the drive-achieved
+ * pump RPM at both VE limits. Download only — not stored on the tag. */
+export async function downloadRecheckPdf(input: RecheckPdfInput): Promise<void> {
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const L = createLayout(doc);
+  const { tables } = input;
+
+  await drawReportHeader(doc, L, {
+    title: "Recheck at Final Selected RPM",
+    projectLine: projectLineOf(input),
+    generatedBy: input.generatedBy,
+  });
+
+  doc.setFontSize(9.5);
+  doc.setTextColor(90);
+  doc.setFont("helvetica", "normal");
+  doc.text(
+    "Delivered capacity & BKW recomputed at the drive-achieved pump RPM.",
+    L.margin,
+    L.state.y,
+  );
+  L.state.y += 14;
+
+  // Inputs: the two-column label/value grid every other section uses. A note
+  // ("at selected head 26 MWC") rides along in brackets, as in the popup.
+  L.drawSectionBand("Inputs");
+  L.drawTable(
+    tables.inputs.map((r): [string, string] => [r.label, r.note ? `${r.value}  (${r.note})` : r.value]),
+  );
+
+  // Results: one row per figure, a column per VE limit.
+  L.ensureSpace(L.BAND_HEIGHT + 110);
+  L.drawSectionBand("Results at Final RPM");
+  const fmt = (n: number, unit?: string) => `${fmtRecheckNum(n)}${unit ? ` ${unit}` : ""}`;
+  autoTable(doc, {
+    startY: L.state.y,
+    margin: { left: L.margin, right: L.margin },
+    head: [["At VE", tables.hiHeading, tables.loHeading]],
+    body: tables.outputs.map((r) => [r.label, fmt(r.hi, r.unit), fmt(r.lo, r.unit)]),
+    theme: "grid",
+    styles: {
+      fontSize: FONT_SIZE,
+      cellPadding: CELL_PADDING,
+      textColor: 40,
+      lineColor: CELL_BORDER,
+      lineWidth: 0.5,
+      valign: "top",
+      overflow: "linebreak",
+    },
+    headStyles: { fillColor: [235, 238, 243], textColor: 60, fontStyle: "bold" },
+    columnStyles: {
+      0: { fontStyle: "bold", cellWidth: L.contentWidth - 2 * 120 },
+      1: { halign: "right", cellWidth: 120 },
+      2: { halign: "right", cellWidth: 120 },
+    },
+    didParseCell: (data) => {
+      if (data.section === "head" && data.column.index > 0) data.cell.styles.halign = "right";
+      if (data.section === "body" && tables.outputs[data.row.index]?.highlight) {
+        data.cell.styles.fillColor = POS_SOFT;
+        data.cell.styles.textColor = POS_STRONG;
+        data.cell.styles.fontStyle = "bold";
+      }
+    },
+  });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  L.state.y = (doc as any).lastAutoTable.finalY + 14;
+
+  drawFooter(doc, L, "Recheck of the confirmed pump at the drive-achieved RPM.");
+
+  const dateSlug = new Date().toISOString().slice(0, 10);
+  doc.save(`Recheck-${safeSlug(input.projectCode) || "project"}-${dateSlug}.pdf`);
 }
 
 // --- Combined enquiry document (all tags / liquids in one sheet) ------------

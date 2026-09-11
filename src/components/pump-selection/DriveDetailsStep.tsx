@@ -18,7 +18,12 @@ import {
 } from "../../services/motorMasterService";
 import { clearWizardInput, saveWizardInput } from "../../services/wizardInputService";
 import type { PumpRecommendation } from "../../data/Recommendations";
-import { toM3PerHr, toMwc } from "../../utils/units";
+import {
+  computeRecheck,
+  finalPumpRpm,
+  fmtRecheckNum,
+  recheckTables,
+} from "../../lib/recheck-calc";
 
 type Props = {
   onNext: () => void;
@@ -323,16 +328,7 @@ const DriveDetailsStep = ({
   const [recheckError, setRecheckError] = useState<string | null>(null);
   const [pumpSpecs, setPumpSpecs] = useState<PumpRecommendation | null>(null);
 
-  const finalPumpRpmRaw: string = isVBelt
-    ? (formData.driveVbeltRpm as string) || ""
-    : isGeared
-      ? (formData.gearboxOutputRpm as string) || ""
-      : (motorRpm as string) || "";
-  const finalPumpRpmSource: string = isVBelt
-    ? "V-Belt achieved pump RPM"
-    : isGeared
-      ? "Gearbox output RPM"
-      : "Motor RPM (direct drive)";
+  const { raw: finalPumpRpmRaw, source: finalPumpRpmSource } = finalPumpRpm(formData);
 
   // Writes the Drive step's own tables: the drive-agnostic motor/rating-plate
   // block plus whichever drive-system-specific table matches the current
@@ -1848,14 +1844,8 @@ const DriveDetailsStep = ({
 };
 
 // --- Recheck modal ---------------------------------------------------------
-// Recomputes the delivered capacity + BKW at the drive-achieved pump RPM
-// (not the entered duty capacity) so the engineer can see whether the
-// selected drive actually lands close to the duty point. Formulas match
-// recommendation-engine.ts:
-//   Q (at 100 rpm, per VE) = qth × VE/100
-//   Cap at final RPM       = Q × final_rpm / 100
-//   BKW                    = Cap × head(MWC) / 367 / (ME/100)
-//   Motor KW               = BKW × 1.2
+// Delivered capacity + BKW at the drive-achieved pump RPM. The maths lives in
+// lib/recheck-calc.ts, shared with the Recheck PDF on the Selection Summary.
 
 type RecheckModalProps = {
   loading: boolean;
@@ -1869,8 +1859,7 @@ type RecheckModalProps = {
   onProceed: () => void;
 };
 
-const fmtNum = (n: number, dp = 2): string =>
-  Number.isFinite(n) ? n.toFixed(dp) : "—";
+const fmtNum = fmtRecheckNum;
 
 const RecheckModal = ({
   loading,
@@ -1882,74 +1871,15 @@ const RecheckModal = ({
   onClose,
   onProceed,
 }: RecheckModalProps) => {
-  const finalRpmNum = Number(finalRpm);
-  const sg = Number(formData.sg) || 1;
-  const headMwc = formData.head
-    ? toMwc(Number(formData.head), formData.headUnit || "MWC", sg)
-    : NaN;
-  const dutyCap = formData.capacity
-    ? toM3PerHr(Number(formData.capacity), formData.capacityUnit || "m3/hr", sg)
-    : NaN;
-
-  // VE / ME / Qth are read at the head the engineer SELECTED for this model,
-  // not the duty-point row — that head's figures are what the recommendation
-  // card showed, and what the motor rating and drive screening already use.
-  // The BKW below still uses the entered duty head (headMwc above).
-  const selectedPoint =
-    (pumpSpecs?.headPoints ?? []).find(
-      (p) => String(p.headMwc) === String(formData.selectedHead),
-    ) ?? null;
-  const specs = {
-    qth: selectedPoint ? selectedPoint.qth : pumpSpecs?.qth ?? null,
-    voleMin: selectedPoint ? selectedPoint.voleMin : pumpSpecs?.voleMin ?? null,
-    voleMax: selectedPoint ? selectedPoint.voleMax : pumpSpecs?.voleMax ?? null,
-    mechEff: selectedPoint ? selectedPoint.mechEff : pumpSpecs?.mechEff ?? null,
-    /** The head those figures came from — shown so the panel says which. */
-    atHeadMwc: selectedPoint ? selectedPoint.headMwc : pumpSpecs?.headMwc ?? null,
-  };
-
-  const atHeadNote =
-    specs.atHeadMwc != null ? `at selected head ${specs.atHeadMwc} MWC` : undefined;
-
-  const canCompute =
-    pumpSpecs !== null &&
-    specs.qth != null &&
-    specs.voleMax != null &&
-    specs.voleMin != null &&
-    specs.mechEff != null &&
-    Number.isFinite(finalRpmNum) &&
-    finalRpmNum > 0 &&
-    Number.isFinite(headMwc);
-
-  let calc: {
-    qAtMax: number;
-    qAtMin: number;
-    capAtMax: number;
-    capAtMin: number;
-    bkwAtMax: number;
-    bkwAtMin: number;
-  } | null = null;
-
-  if (
-    canCompute &&
-    pumpSpecs &&
-    specs.qth != null &&
-    specs.voleMax != null &&
-    specs.voleMin != null &&
-    specs.mechEff != null
-  ) {
-    const qth = specs.qth;
-    const veMax = specs.voleMax;
-    const veMin = specs.voleMin;
-    const me = specs.mechEff;
-    const qAtMax = qth * (veMax / 100);
-    const qAtMin = qth * (veMin / 100);
-    const capAtMax = (qAtMax * finalRpmNum) / 100;
-    const capAtMin = (qAtMin * finalRpmNum) / 100;
-    const bkwAtMax = me > 0 ? (capAtMax * headMwc) / 367 / (me / 100) : NaN;
-    const bkwAtMin = me > 0 ? (capAtMin * headMwc) / 367 / (me / 100) : NaN;
-    calc = { qAtMax, qAtMin, capAtMax, capAtMin, bkwAtMax, bkwAtMin };
-  }
+  const tables = pumpSpecs
+    ? recheckTables(
+        formData,
+        computeRecheck(formData, pumpSpecs, finalRpm),
+        pumpSpecs.model,
+        finalRpmSource,
+      )
+    : null;
+  const canCompute = tables !== null;
 
   return (
     <div
@@ -1994,37 +1924,14 @@ const RecheckModal = ({
             </p>
           )}
 
-          {!loading && !error && canCompute && calc && pumpSpecs && (
+          {!loading && !error && tables && (
             <>
               <div className="overflow-x-auto rounded-md border border-line">
                 <table className="w-full text-[13px]">
                   <tbody>
-                    <RecheckRow label={finalRpmSource} value={String(finalRpmNum)} />
-                    <RecheckRow label="Pump Model" value={pumpSpecs.model} />
-                    <RecheckRow
-                      label="Head (duty, used for BKW)"
-                      value={`${fmtNum(headMwc, 2)} MWC`}
-                      note={
-                        formData.headUnit && formData.headUnit !== "MWC"
-                          ? `entered: ${formData.head} ${formData.headUnit}`
-                          : "as entered"
-                      }
-                    />
-                    <RecheckRow
-                      label="Duty Capacity (entered)"
-                      value={`${fmtNum(dutyCap, 2)} m³/hr`}
-                    />
-                    <RecheckRow
-                      label="VE min / max (%)"
-                      value={`${specs.voleMin} / ${specs.voleMax}`}
-                      note={atHeadNote}
-                    />
-                    <RecheckRow
-                      label="ME (%)"
-                      value={String(specs.mechEff)}
-                      note={atHeadNote}
-                    />
-                    <RecheckRow label="Q th" value={specs.qth != null ? fmtNum(specs.qth, 2) : "—"} />
+                    {tables.inputs.map((row) => (
+                      <RecheckRow key={row.label} label={row.label} value={row.value} note={row.note} />
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -2034,29 +1941,21 @@ const RecheckModal = ({
                   <thead className="bg-elev text-left text-[11px] uppercase tracking-wide text-fg-3">
                     <tr>
                       <th className="px-3 py-2">At VE</th>
-                      <th className="px-3 py-2 text-right">VE max ({specs.voleMax}%)</th>
-                      <th className="px-3 py-2 text-right">VE min ({specs.voleMin}%)</th>
+                      <th className="px-3 py-2 text-right">{tables.hiHeading}</th>
+                      <th className="px-3 py-2 text-right">{tables.loHeading}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <RecheckCalcRow
-                      label="Q"
-                      hi={calc.qAtMax}
-                      lo={calc.qAtMin}
-                    />
-                    <RecheckCalcRow
-                      label={`Cap at ${finalRpmNum} rpm (Q × RPM/100)`}
-                      hi={calc.capAtMax}
-                      lo={calc.capAtMin}
-                      highlight
-                      unit="m³/hr"
-                    />
-                    <RecheckCalcRow
-                      label="BKW = Cap × Head / 367 / (ME/100)"
-                      hi={calc.bkwAtMax}
-                      lo={calc.bkwAtMin}
-                      unit="kW"
-                    />
+                    {tables.outputs.map((row) => (
+                      <RecheckCalcRow
+                        key={row.label}
+                        label={row.label}
+                        hi={row.hi}
+                        lo={row.lo}
+                        unit={row.unit}
+                        highlight={row.highlight}
+                      />
+                    ))}
                   </tbody>
                 </table>
               </div>

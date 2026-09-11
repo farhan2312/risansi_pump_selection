@@ -31,9 +31,15 @@ several formulas/models, e.g. `recommendation_engine.py`). Only the
   the live DB; schema changes are applied directly via one-off Node scripts
   (see "How schema changes are made" below), not `drizzle-kit push`.
 - Auth: JWT in an httpOnly cookie (`src/lib/auth.ts`), verified in
-  `middleware.ts` for **pages** only. **`/api/*` routes are NOT covered by the
-  page middleware** — every API route that needs auth must call
-  `requireAdmin(req)` / `decodeToken(req)` itself.
+  `middleware.ts` (Node.js runtime) for **pages AND `/api/*`**. The API is
+  deny-by-default: only `/api/auth/login`, `/api/auth/logout`,
+  `/api/access-requests` and `/api/health` answer without a session. Every
+  signed-in request also gets a live account check (`src/lib/session-guard.ts`,
+  10 s cache): deactivated/rejected/deleted accounts, a changed role, or an
+  admin password reset end the session on the next request (401 +
+  cookie cleared; the client's axios interceptor sends the user to
+  `/?session=ended`). Role gates (`requireAdmin` / `requireSystemAdmin`) still
+  live in the route handlers — the middleware only establishes "signed in".
 - Styling: Tailwind utility classes for the wizard (`formStyles.ts` shared
   constants) + plain CSS modules for other pages (design system: flat panels,
   hairline borders, no shadows — see `--bg-paper`/`--line`/`--fg` CSS vars).
@@ -70,7 +76,7 @@ src/services/*Service.ts    Client-side fetch wrappers (axios via apiClient.ts, 
 src/components/pump-selection/*Step.tsx   The 8-step wizard's per-step components
 src/screens/**              Page-level components (imported by src/app/**/page.tsx via `export { default } from ...`)
 src/data/Recommendations.ts Shared TS types: PumpSelectionFormData (wizard state), PumpRecommendation (engine output)
-middleware.ts               Page-level auth gate (NOT applied to /api/*)
+middleware.ts               Auth gate for pages and /api/* (see Tech stack → Auth)
 ```
 
 Route files under `src/app/**/page.tsx` are almost always one-liners:
@@ -402,8 +408,13 @@ never auto-filled from the AI result.
   `projectToDict()`/`userToDict()` snake_case serializers (legacy, ported from
   the Python app's `_row_to_dict` convention).
 - **Every `/api/*` route that touches admin-only data self-gates** with
-  `requireAdmin(req)` (or `decodeToken(req)` if just "any logged-in user" is
-  enough) — the page middleware does not cover `/api/*`.
+  `requireAdmin(req)` / `requireSystemAdmin(req)`. Sign-in itself is enforced
+  by the middleware for all of `/api/*`; a new public endpoint must be added
+  to `PUBLIC_API_PATHS` in `middleware.ts` deliberately.
+- **The Drive step's Recheck maths lives in `src/lib/recheck-calc.ts`** and is
+  shared by the Recheck popup and the "Recheck PDF" button on the Selection
+  Summary step (`downloadRecheckPdf` in `selection-summary-pdf.ts`) — change
+  it there, never in only one of them.
 - **Numeric Postgres columns come back as strings** via `pg`/Drizzle;
   `integer` columns come back as real numbers. Don't conflate the two parsing
   helpers (`numOrNull` vs `intOrNull` in the PATCH routes).
