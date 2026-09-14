@@ -121,6 +121,16 @@ export function requireAdmin(req: Request): TokenClaims {
   return claims;
 }
 
+/** Selection heads and system admins — the roles that decide approvals
+ * (APPROVER_ROLES in lib/approval.ts). */
+export function requireApprover(req: Request): TokenClaims {
+  const claims = decodeToken(req);
+  if (claims.role !== "selection_head" && claims.role !== "system_admin") {
+    throw new AuthError("Selection head access required", 403);
+  }
+  return claims;
+}
+
 /** Stricter than requireAdmin — for the handful of routes that "admin"
  * explicitly does NOT get (access-request review), per the 3-role spec. */
 export function requireSystemAdmin(req: Request): TokenClaims {

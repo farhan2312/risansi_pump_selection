@@ -32,13 +32,12 @@ export const isApprovableStep = (step: number): boolean =>
 
 /** Lifecycle of one step's approval.
  *
- * Pending           - ticked for approval, not sent yet (the default).
- * Awaiting Approval - sent; the approver has not decided.
- * Approved/Rejected - the approver's decision. Nothing sets these yet: there
- *                     is no approver screen, and sending is not wired to email
- *                     (deliberate - "no email integration, we will do later").
- *                     They exist so a decision can be recorded without another
- *                     migration.
+ * Pending           - ticked for approval, not sent yet (the default). Also
+ *                     where a sent or decided step returns when its data is
+ *                     changed afterwards (see approvalStepsForChange).
+ * Awaiting Approval - sent; a selection head has not decided.
+ * Approved/Rejected - a selection head's decision (Approvals page). A
+ *                     rejected step can be fixed and sent again.
  */
 export const APPROVAL_STATUSES = [
   "Pending",
@@ -58,6 +57,26 @@ export const DEFAULT_APPROVAL_STATUS: ApprovalStatus = "Pending";
 /** What "Send Approval" moves a Pending step to. */
 export const SENT_APPROVAL_STATUS: ApprovalStatus = "Awaiting Approval";
 
+/** What a selection head can decide. */
+export const DECISION_STATUSES = ["Approved", "Rejected"] as const;
+export type DecisionStatus = (typeof DECISION_STATUSES)[number];
+export const isDecisionStatus = (value: string): value is DecisionStatus =>
+  (DECISION_STATUSES as readonly string[]).includes(value);
+
+/** Sent and not sent back: the engineer can't untick it, and Send skips it. */
+export const isLockedStatus = (status: string): boolean =>
+  status === SENT_APPROVAL_STATUS || status === "Approved";
+
+/** What Send Approval moves to Awaiting Approval: never sent, or rejected and
+ * being sent again after a fix. */
+export const SENDABLE_STATUSES: readonly ApprovalStatus[] = ["Pending", "Rejected"];
+
+/** Roles that can decide approvals. Selection heads are emailed; system
+ * admins can also decide, as they can everything else. */
+export const APPROVER_ROLES = ["selection_head", "system_admin"] as const;
+export const canApprove = (role: string | null | undefined): boolean =>
+  (APPROVER_ROLES as readonly string[]).includes(role ?? "");
+
 /** One step's approval state as it travels over the wire. */
 export type StepApproval = {
   step: number;
@@ -65,7 +84,89 @@ export type StepApproval = {
   status: ApprovalStatus;
   sentAt: string | null;
   decidedAt: string | null;
+  /** Who decided, for "Rejected by …" on the Approval step. */
+  decidedByName?: string | null;
   remarks: string | null;
+};
+
+/** One tag on the selection head's Approvals page (GET /api/approvals). */
+export interface ApprovalInboxItem {
+  tagId: string;
+  tagName: string;
+  enquiryCode: string;
+  projectName: string;
+  customerName: string | null;
+  pumpModel: string | null;
+  sentByName: string | null;
+  /** Most recent send for this tag. */
+  sentAt: string | null;
+  /** Steps still awaiting a decision. */
+  awaiting: number;
+  steps: { step: number; label: string; status: ApprovalStatus }[];
+}
+
+export type ApprovalInboxView = "awaiting" | "decided" | "all";
+
+export interface ApprovalInbox {
+  items: ApprovalInboxItem[];
+  counts: Record<ApprovalInboxView, number>;
+}
+
+// --- Which step a saved change belongs to ---------------------------------
+
+/** Fields of the shared moc-sealing table that belong to Sealing (step 5);
+ * everything else in that table is MOC (step 4). */
+const SEALING_FIELDS = new Set([
+  "sealingType", "sealingSubType", "glandPackingType", "glandPackingMake",
+  "mechSealMoc", "mechSealFace", "mechSealMake", "sealingRemarks",
+]);
+
+/** Fields of the shared motor-drive table that belong to Motor Rating
+ * (step 6); everything else in that table is Drive (step 7). */
+const MOTOR_RATING_FIELDS = new Set(["driveMotorKw", "driveMotorKwRemarks"]);
+
+/** Wizard steps whose approval a change to these fields of a wizard-input
+ * table invalidates. An approval must match what the selection head saw, so
+ * a real change sends the step back to Pending. */
+export function approvalStepsForChange(tableKey: string, changedKeys: string[]): number[] {
+  const steps = new Set<number>();
+  for (const key of changedKeys) {
+    switch (tableKey) {
+      case "general-info":
+        steps.add(1);
+        break;
+      case "fluid-properties":
+        steps.add(2);
+        break;
+      case "operating-conditions":
+        steps.add(3);
+        break;
+      case "moc-sealing":
+        steps.add(SEALING_FIELDS.has(key) ? 5 : 4);
+        break;
+      case "motor-drive":
+        steps.add(MOTOR_RATING_FIELDS.has(key) ? 6 : 7);
+        break;
+      case "drive-direct":
+      case "drive-vbelt":
+      case "drive-geared":
+        steps.add(7);
+        break;
+    }
+  }
+  return [...steps].sort((a, b) => a - b);
+}
+
+/** Every step a whole wizard-input table covers — for clearing the table. */
+export const APPROVAL_STEPS_BY_TABLE: Record<string, number[]> = {
+  "general-info": [1],
+  "fluid-properties": [2],
+  "operating-conditions": [3],
+  "moc-sealing": [4, 5],
+  "motor-drive": [6, 7],
+  "drive-direct": [7],
+  "drive-vbelt": [7],
+  "drive-geared": [7],
 };
 
 /** CSS modifier for a status pill — keeps the colour mapping in one place

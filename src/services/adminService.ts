@@ -5,7 +5,7 @@ import apiClient from "./apiClient";
 // (like /projects), not the hand-built camelCase shape /auth/login uses.
 // Admin-only enforcement is via requireSystemAdmin() server-side, using the
 // httpOnly session cookie sent automatically on these same-origin requests.
-export type UserRole = "user" | "admin" | "system_admin";
+export type UserRole = "user" | "selection_head" | "admin" | "system_admin";
 export type UserStatus = "pending" | "active" | "rejected" | "deactivated";
 
 export interface PendingUser {

@@ -8,10 +8,12 @@ import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import SidebarUserMenu from "./SidebarUserMenu";
 import {
   ADMIN_LINKS,
+  APPROVER_LINKS,
   MAIN_LINKS,
   SYSTEM_ADMIN_LINKS,
   navIcons,
 } from "./navLinks";
+import { canApprove } from "../../lib/approval";
 
 const Sidebar = () => {
   const pathname = usePathname();
@@ -34,6 +36,13 @@ const Sidebar = () => {
       <nav className="flex-1">
         <p className="sidebar-group-label">Main</p>
         {MAIN_LINKS.map((l) => navLink(l.href, l.label, navIcons[l.icon]))}
+
+        {canApprove(user?.role) && (
+          <>
+            <p className="sidebar-group-label">Approvals</p>
+            {APPROVER_LINKS.map((l) => navLink(l.href, l.label, navIcons[l.icon]))}
+          </>
+        )}
 
         {(user?.role === "admin" || user?.role === "system_admin") && (
           <>

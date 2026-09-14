@@ -31,8 +31,11 @@ import {
   PlayIcon,
 } from "../../components/ui/adminIcons";
 
+// Order is the dropdown order. Selection Head = User access plus deciding
+// approvals (lib/approval.ts APPROVER_ROLES).
 const ROLE_LABELS: Record<UserRole, string> = {
   user: "User",
+  selection_head: "Selection Head",
   admin: "Admin",
   system_admin: "System Admin",
 };

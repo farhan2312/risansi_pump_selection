@@ -41,6 +41,10 @@
   background: var(--bg-elev);
   color: var(--fg-3);
 }
+.uap-role-selection_head {
+  background: var(--pos-soft);
+  color: var(--pos-strong);
+}
 .uap-role-admin {
   background: var(--accent-soft);
   color: var(--brand-blue);

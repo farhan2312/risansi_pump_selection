@@ -1,6 +1,8 @@
 import { asc, eq } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
+import { resetApprovals } from "@/lib/approval-server";
+import { describeTag, logAudit } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { enquiryTags, mocSealingInput } from "@/lib/db/schema";
 
@@ -156,7 +158,24 @@ export async function POST(
     });
   const [row] = result;
 
+  // A new client-requirements file changes what the MOC step says.
+  await resetMocApproval(req, ctx.tagId);
+
   return json(row, 201);
+}
+
+/** Sends MOC's approval back to Pending after its attached file changed —
+ *  the same rule as a field change on the step (see /api/wizard-input). */
+async function resetMocApproval(req: Request, tagId: string) {
+  const reset = await resetApprovals(tagId, [4]);
+  if (reset.length === 0) return;
+  const where = await describeTag(tagId);
+  await logAudit(req, {
+    action: "approval.reset",
+    entity: "step_approval",
+    entityId: tagId,
+    detail: `${where ? `${where} — ` : ""}Approval reset to Pending after a change: MOC & Elastomer (client requirements file)`,
+  });
 }
 
 export async function DELETE(
@@ -184,6 +203,8 @@ export async function DELETE(
       updatedAt: new Date(),
     })
     .where(eq(mocSealingInput.tagId, ctx.tagId));
+
+  await resetMocApproval(req, ctx.tagId);
 
   return json({ ok: true });
 }

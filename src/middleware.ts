@@ -26,6 +26,7 @@ const PROTECTED_PREFIXES = [
   "/pump-selection",
   "/pump-details",
   "/selection-summary",
+  "/approvals",
   "/admin",
 ];
 
@@ -186,6 +187,13 @@ export async function middleware(req: NextRequest) {
   // are open to admin and system_admin alike.
   const role = payload.role;
   const isAdminLevel = role === "admin" || role === "system_admin";
+  // Approvals: selection heads and system admins (APPROVER_ROLES).
+  if (pathname === "/approvals" || pathname.startsWith("/approvals/")) {
+    if (role !== "selection_head" && role !== "system_admin") {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+    return NextResponse.next();
+  }
   if (
     pathname.startsWith("/admin/users") ||
     pathname.startsWith("/admin/bug-tracker") ||
@@ -211,6 +219,7 @@ export const config = {
     "/pump-selection/:path*",
     "/pump-details/:path*",
     "/selection-summary/:path*",
+    "/approvals/:path*",
     "/admin/:path*",
   ],
 };

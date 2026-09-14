@@ -430,6 +430,9 @@ const PumpSelectionPage = () => {
     return tables;
   };
 
+  // Bumped after a step's saves land, so ApprovalProvider re-reads statuses.
+  const [approvalRefresh, setApprovalRefresh] = useState(0);
+
   // Persists ONLY the step being left — one PUT per its table(s), not all of
   // them. Called on every navigation (Next / Previous / stepper jump).
   // `data` defaults to the current formData; goToStep passes the
@@ -437,10 +440,15 @@ const PumpSelectionPage = () => {
   // (React state updates aren't visible synchronously).
   const saveStep = (fromStep: number, data: typeof formData = formData) => {
     if (!project?.id || !restored) return;
-    for (const table of stepTablesToSave(fromStep)) {
+    const saves = stepTablesToSave(fromStep).map((table) =>
       saveWizardInput(table, project.id, pickTableFields(table, data), project.tagId).catch(() => {
         // Best-effort — the wizard still works from in-memory state if a save fails.
-      });
+      }),
+    );
+    // A real change can send that step's approval back to Pending on the
+    // server; once the saves land, have the approval state re-read.
+    if (saves.length > 0) {
+      void Promise.all(saves).then(() => setApprovalRefresh((n) => n + 1));
     }
   };
 
@@ -634,9 +642,9 @@ const PumpSelectionPage = () => {
   }
 
   return (
-    // Approval state is shared by every step: each step header carries its own
-    // tick, and the Approval step lists them all, so it is fetched once here.
-    <ApprovalProvider tagId={project?.tagId}>
+    // Approval state is shared by every step: each step header shows its status
+    // badge, and the Approval step lists them all, so it is fetched once here.
+    <ApprovalProvider tagId={project?.tagId} refreshKey={approvalRefresh}>
       <ProjectHeader project={project} />
       {renderStep()}
       {/* Live recommendation that refines as the user fills each step. Sits at

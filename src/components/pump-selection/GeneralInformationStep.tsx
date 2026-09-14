@@ -3,7 +3,7 @@
 import { useState } from "react";
 import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
-import StepApprovalToggle from "./approval/StepApprovalToggle";
+import StepApprovalBadge from "./approval/StepApprovalBadge";
 import MediaSelect from "./MediaSelect";
 import { toM3PerHr, toMwc, fmt } from "../../utils/units";
 import {
@@ -75,7 +75,7 @@ const GeneralInformationStep = ({
       <div className="step-card">
         <h2>
           General Information
-          <StepApprovalToggle step={1} />
+          <StepApprovalBadge step={1} />
         </h2>
         <p>Enter the basic operating parameters required for pump selection.</p>
 

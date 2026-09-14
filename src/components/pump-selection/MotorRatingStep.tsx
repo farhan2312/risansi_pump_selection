@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Stepper from "./Stepper";
-import StepApprovalToggle from "./approval/StepApprovalToggle";
+import StepApprovalBadge from "./approval/StepApprovalBadge";
 import "./GeneralInformationStep.css";
 import { actions, btnGhost, btnPrimary, control, fieldWrap, hint, label } from "./formStyles";
 import { getMotorRating, type MotorRating } from "../../services/motorRatingService";
@@ -158,7 +158,7 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
       <div className="step-card">
         <h2>
           Motor Rating (KW)
-          <StepApprovalToggle step={6} />
+          <StepApprovalBadge step={6} />
         </h2>
         <p>
           Calculated from the confirmed pump model

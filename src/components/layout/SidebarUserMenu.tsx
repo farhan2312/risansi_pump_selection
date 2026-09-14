@@ -36,6 +36,8 @@ const roleLabel = (role: string | undefined) => {
   switch (role) {
     case "system_admin":
       return "System Admin";
+    case "selection_head":
+      return "Selection Head";
     case "admin":
       return "Admin";
     default:

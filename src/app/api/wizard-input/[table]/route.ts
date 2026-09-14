@@ -5,6 +5,12 @@ import { db } from "@/lib/db";
 import { describeTag, logAudit, wizardStepLabel } from "@/lib/audit";
 import { changedFields, describeChanges } from "@/lib/wizard-audit";
 import {
+  APPROVAL_STEPS_BY_TABLE,
+  APPROVAL_STEP_LABELS,
+  approvalStepsForChange,
+} from "@/lib/approval";
+import { resetApprovals } from "@/lib/approval-server";
+import {
   enquiryTags,
   generalInfoInput,
   fluidPropertiesInput,
@@ -348,9 +354,30 @@ export async function PUT(
         `Updated ${wizardStepLabel(tableKey)}: ${describeChanges(changes)}`,
       ),
     });
+
+    // An approval must match what the selection head saw: a real change to a
+    // step that was sent or decided sends it back to Pending (still ticked).
+    const affected = approvalStepsForChange(tableKey, changes.map((c) => c.key));
+    await auditApprovalReset(req, ctx.tagId, await resetApprovals(ctx.tagId, affected));
   }
 
   return json(row);
+}
+
+/** Records steps whose approval a change just reset. */
+async function auditApprovalReset(req: Request, tagId: string, steps: number[]) {
+  if (steps.length === 0) return;
+  await logAudit(req, {
+    action: "approval.reset",
+    entity: "step_approval",
+    entityId: tagId,
+    detail: await tagDetail(
+      tagId,
+      `Approval reset to Pending after a change: ${steps
+        .map((s) => APPROVAL_STEP_LABELS[s] ?? `step ${s}`)
+        .join(", ")}`,
+    ),
+  });
 }
 
 // DELETE the row for one wizard-input table, scoped to a tag. Idempotent -
@@ -389,6 +416,13 @@ export async function DELETE(
     entityId: ctx.tagId,
     detail: await tagDetail(ctx.tagId, `Cleared ${wizardStepLabel(tableKey)}`),
   });
+
+  // Clearing a step's data is a change to it, like any other.
+  await auditApprovalReset(
+    req,
+    ctx.tagId,
+    await resetApprovals(ctx.tagId, APPROVAL_STEPS_BY_TABLE[tableKey] ?? []),
+  );
 
   return json({ ok: true });
 }

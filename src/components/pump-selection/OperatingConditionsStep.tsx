@@ -3,7 +3,7 @@
 import { useState } from "react";
 import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
-import StepApprovalToggle from "./approval/StepApprovalToggle";
+import StepApprovalBadge from "./approval/StepApprovalBadge";
 import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, hint, label } from "./formStyles";
 import { Err, ErrorBanner, Req, hasErrors } from "./fieldBits";
 import {
@@ -170,7 +170,7 @@ const OperatingConditionsStep = ({
       <div className="step-card">
         <h2>
           Specifications
-          <StepApprovalToggle step={3} />
+          <StepApprovalBadge step={3} />
         </h2>
         <p>Select the pump&apos;s structural specifications.</p>
 

@@ -44,7 +44,65 @@
   border-bottom: none;
 }
 
-/* The step name doubles as a jump link back to that step. */
+/* Tick-box column: narrow, and the wizard's global form rules (which stretch
+   inputs to full width) reset for these boxes. */
+.approval-check-col {
+  width: 44px;
+  text-align: center;
+}
+.approval-table input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  margin: 0;
+  padding: 0;
+  vertical-align: middle;
+  accent-color: var(--brand-blue, #0a3d8f);
+  cursor: pointer;
+}
+.approval-table input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+}
+
+/* The step name is the tick box's label, so clicking it ticks too. */
+.approval-step-name {
+  font-weight: 600;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.approval-table tr.is-ticked td {
+  background: var(--accent-soft, #f1f6fe);
+}
+
+/* Who decided, and their remark, under the status pill. */
+.approval-decision {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 5px;
+  font-size: 12px;
+  color: var(--fg-3);
+}
+.approval-decision q {
+  color: var(--fg-2);
+  font-style: italic;
+}
+.approval-decision q.is-rejected {
+  color: var(--neg-strong, #a02020);
+}
+
+.approval-not-selected {
+  font-size: 12px;
+  color: var(--fg-3);
+}
+
+.approval-view-col {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* "View" jumps back to that step. */
 .approval-step-link {
   border: none;
   background: none;

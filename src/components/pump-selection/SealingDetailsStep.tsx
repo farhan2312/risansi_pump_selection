@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
-import StepApprovalToggle from "./approval/StepApprovalToggle";
+import StepApprovalBadge from "./approval/StepApprovalBadge";
 import { actions, btnGhost, btnPrimary, control, fieldWrap, fullWidth, grid, label } from "./formStyles";
 import { Err, ErrorBanner, Req, hasErrors } from "./fieldBits";
+import { mechSealDescription } from "../../lib/mech-seal";
 
 // Sentinel for the "type it in" branch of a make dropdown. Never stored — the
 // field holds either a listed make or whatever was typed.
@@ -27,27 +28,10 @@ const GLAND_PACKING_MAKES = ["Champion"] as const;
 
 // Mechanical Seal options.
 const MECH_SEAL_TYPES = ["MSA", "SCG", "DCG", "MSK"] as const;
-// Auto-shown description for the chosen seal type (read-only guidance). It is
-// derived from the seal type rather than stored, so the Summary step and the
-// PDF report resolve it through mechSealDescription() below instead of reading
-// a persisted column.
-export const MECH_SEAL_DESCRIPTIONS: Record<string, string> = {
-  MSA: "Single Balanced Mechanical Seal with Seal cover, external water quenched.",
-  // Plain ASCII punctuation on purpose: these descriptions now flow into the
-  // Summary step and the generated PDF, and the PDF's standard fonts are
-  // normalised to Latin-1 elsewhere in the app (see UNICODE_REPLACEMENTS in
-  // moc-pdf-report.ts) - a hyphen renders identically everywhere.
-  MSK: "Single Unbalanced spring-loaded O-ring, internally mounted, cooled by liquid - no external water quench.",
-  SCG: "Single cartridge Mechanical Seal, internal quenched & flush (water + liquid).",
-  DCG: "Double cartridge Mechanical Seal, internal quenched & flush (water + liquid).",
-};
-
-/** Description for a Mechanical Seal type, or "" when none applies (no type
- * chosen, or the sealing arrangement is Gland Packing). */
-export function mechSealDescription(sealingSubType: string | undefined | null): string {
-  if (!sealingSubType) return "";
-  return MECH_SEAL_DESCRIPTIONS[sealingSubType] ?? "";
-}
+// Auto-shown description for the chosen seal type (read-only guidance). Moved
+// to lib/mech-seal so server code can use it too; re-exported for existing
+// imports.
+export { MECH_SEAL_DESCRIPTIONS, mechSealDescription } from "../../lib/mech-seal";
 const MECH_SEAL_MOCS = [
   "SS304",
   "SS316",
@@ -212,7 +196,7 @@ const SealingDetailsStep = ({
       <div className="step-card">
         <h2>
           Sealing Details
-          <StepApprovalToggle step={5} />
+          <StepApprovalBadge step={5} />
         </h2>
         <p>Select the sealing arrangement for this pump.</p>
 

@@ -411,6 +411,23 @@ never auto-filled from the AI result.
   `requireAdmin(req)` / `requireSystemAdmin(req)`. Sign-in itself is enforced
   by the middleware for all of `/api/*`; a new public endpoint must be added
   to `PUBLIC_API_PATHS` in `middleware.ts` deliberately.
+- **Step approvals** (table `step_approval`, one row per tag × step 1–7):
+  roles are `user` / `selection_head` / `admin` / `system_admin`. Engineers
+  tick steps on the wizard's Approval step (8) and Send → status "Awaiting
+  Approval" and every active selection head is emailed. Selection heads (and
+  system admins) decide per step on `/approvals` (review popup; a rejection
+  needs a remark) → "Approved"/"Rejected" and the engineer is emailed. A
+  rejected step can be fixed and re-sent; a **real change** to a sent or
+  decided step (wizard-input PUT/DELETE via `approvalStepsForChange`, or the
+  client-requirements file) resets it to "Pending". Steps 1–7 show a read-only
+  `StepApprovalBadge` once sent. Popup/email field formatting:
+  `src/lib/approval-details.ts`; server helpers: `src/lib/approval-server.ts`.
+- **Email** goes through Resend's HTTP API (`src/lib/email/resend.ts`, plain
+  fetch, never throws). `RESEND_API_KEY` in `.env.local` is the placeholder
+  `re_dummy_replace_me` until the user adds a real key — sends are skipped and
+  the audit detail says "email skipped". Templates (table-based, inline
+  styles, escaped): `src/lib/email/approval-emails.ts`. `APP_BASE_URL` sets
+  the links in emails.
 - **The Drive step's Recheck maths lives in `src/lib/recheck-calc.ts`** and is
   shared by the Recheck popup and the "Recheck PDF" button on the Selection
   Summary step (`downloadRecheckPdf` in `selection-summary-pdf.ts`) — change

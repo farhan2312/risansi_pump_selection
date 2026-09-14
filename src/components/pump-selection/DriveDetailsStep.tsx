@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
-import StepApprovalToggle from "./approval/StepApprovalToggle";
+import StepApprovalBadge from "./approval/StepApprovalBadge";
 import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, hint, label } from "./formStyles";
 import { getVBeltDrive, type VBeltDrive, type VBeltOption } from "../../services/vbeltDriveService";
 import {
@@ -763,7 +763,7 @@ const DriveDetailsStep = ({
       <div className="step-card">
         <h2>
           Drive Details
-          <StepApprovalToggle step={7} />
+          <StepApprovalBadge step={7} />
         </h2>
         <p>Select the drive system and motor specification.</p>
 

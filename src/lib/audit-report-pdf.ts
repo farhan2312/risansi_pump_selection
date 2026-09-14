@@ -47,6 +47,7 @@ const RANGE_LABELS: Record<string, string> = {
 const ROLE_LABELS: Record<string, string> = {
   system_admin: "System Admin",
   admin: "Admin",
+  selection_head: "Selection Head",
   user: "User",
 };
 

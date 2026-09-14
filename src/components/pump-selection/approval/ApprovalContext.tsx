@@ -23,10 +23,10 @@ import {
 /**
  * Approval state for the open tag, shared by every wizard step.
  *
- * Each step renders its own toggle (see StepApprovalToggle) and the Approval
- * step renders the whole list; both read from here rather than each fetching
- * on their own, so ticking a box on step 3 is visible on the Approval step
- * without a round-trip.
+ * Steps are ticked and sent on the Approval step; each step's header shows a
+ * read-only status badge (see StepApprovalBadge). Both read from here rather
+ * than each fetching on their own, so a send on the Approval step shows on
+ * every step's badge without a round-trip.
  */
 
 type ApprovalContextValue = {
@@ -34,8 +34,8 @@ type ApprovalContextValue = {
   approvals: Record<number, StepApproval>;
   /** True once the initial fetch has settled (success or failure). */
   loaded: boolean;
-  /** Null when there is no tag open — the toggles hide themselves then,
-   *  since there is nothing to save against. */
+  /** Null when there is no tag open — the badges hide themselves then, and
+   *  the Approval step has nothing to save against. */
   tagId: string | null;
   selected: (step: number) => boolean;
   statusOf: (step: number) => ApprovalStatus;
@@ -56,9 +56,14 @@ const byStep = (rows: StepApproval[]): Record<number, StepApproval> =>
 
 export const ApprovalProvider = ({
   tagId,
+  refreshKey = 0,
   children,
 }: {
   tagId?: string | null;
+  /** Bumped after the wizard saves a step: a real change can send a step's
+   *  approval back to Pending on the server, so re-read quietly (no loading
+   *  flash) to keep the badges and the Approval list honest. */
+  refreshKey?: number;
   children: React.ReactNode;
 }) => {
   const [approvals, setApprovals] = useState<Record<number, StepApproval>>({});
@@ -91,6 +96,21 @@ export const ApprovalProvider = ({
     };
   }, [tagId]);
 
+  useEffect(() => {
+    if (!tagId || refreshKey === 0) return;
+    let cancelled = false;
+    listStepApprovals(tagId)
+      .then((rows) => {
+        if (!cancelled) setApprovals(byStep(rows));
+      })
+      .catch(() => {
+        // Keep what's shown; the next refresh or reload will catch up.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tagId, refreshKey]);
+
   const toggle = useCallback(
     async (step: number, selected: boolean) => {
       if (!tagId) return;
@@ -114,8 +134,11 @@ export const ApprovalProvider = ({
       try {
         const saved = await setStepApproval(tagId, step, selected);
         setApprovals((current) => ({ ...current, [step]: saved }));
-      } catch {
-        setError("Couldn't save the approval selection. Check your connection.");
+      } catch (e) {
+        setError(
+          (e as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+            "Couldn't save the approval selection. Check your connection.",
+        );
         setApprovals((current) => {
           const next = { ...current };
           if (previous) next[step] = previous;

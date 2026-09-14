@@ -1,6 +1,6 @@
 import { useState } from "react";
 import Stepper from "./Stepper";
-import StepApprovalToggle from "./approval/StepApprovalToggle";
+import StepApprovalBadge from "./approval/StepApprovalBadge";
 import "./GeneralInformationStep.css";
 import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, hint, label } from "./formStyles";
 import {
@@ -273,7 +273,7 @@ const FluidPropertiesStep = ({
       <div className="step-card">
         <h2>
           Fluid Properties
-          <StepApprovalToggle step={2} />
+          <StepApprovalBadge step={2} />
         </h2>
         <p>Enter the fluid characteristics required for pump selection.</p>
 

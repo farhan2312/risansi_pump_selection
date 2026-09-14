@@ -60,6 +60,12 @@ export const navIcons: Record<string, ReactNode> = {
       <path d="M4 11v6a8 3 0 0 0 16 0v-6" />
     </>,
   ),
+  approvals: icon(
+    <>
+      <path d="M12 3.5 5 6v5.5c0 4.2 2.9 7.4 7 8.9 4.1-1.5 7-4.7 7-8.9V6l-7-2.5Z" />
+      <path d="m9.2 12 2 2 3.6-3.8" />
+    </>,
+  ),
 };
 
 export type NavLink = {
@@ -92,10 +98,17 @@ export const SYSTEM_ADMIN_LINKS: NavLink[] = [
   { href: "/admin/bug-tracker", label: "Bug Tracker", icon: "database" },
 ];
 
+/** Selection heads and system admins — whoever decides approvals
+ * (APPROVER_ROLES in lib/approval.ts). */
+export const APPROVER_LINKS: NavLink[] = [
+  { href: "/approvals", label: "Approvals", icon: "approvals" },
+];
+
 /** Every non-Main link the given role can see, flattened for the mobile
  * "More" sheet (which doesn't split them into separate groups). */
 export const adminLinksFor = (role: string | undefined): NavLink[] => {
-  if (role === "system_admin") return [...ADMIN_LINKS, ...SYSTEM_ADMIN_LINKS];
+  if (role === "system_admin") return [...APPROVER_LINKS, ...ADMIN_LINKS, ...SYSTEM_ADMIN_LINKS];
+  if (role === "selection_head") return APPROVER_LINKS;
   if (role === "admin") return ADMIN_LINKS;
   return [];
 };

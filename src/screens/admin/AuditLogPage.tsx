@@ -63,6 +63,7 @@ const prettyAction = (action: string): string => {
 const ROLE_LABELS: Record<string, string> = {
   system_admin: "System Admin",
   admin: "Admin",
+  selection_head: "Selection Head",
   user: "User",
 };
 const prettyRole = (role: string | null | undefined): string =>

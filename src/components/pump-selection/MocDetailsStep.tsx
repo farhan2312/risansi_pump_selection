@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Stepper from "./Stepper";
-import StepApprovalToggle from "./approval/StepApprovalToggle";
+import StepApprovalBadge from "./approval/StepApprovalBadge";
 import "./GeneralInformationStep.css";
 import { actions, btnGhost, btnPrimary, control } from "./formStyles";
 import { ErrorBanner, hasErrors } from "./fieldBits";
@@ -638,7 +638,7 @@ const MocDetailsStep = ({
       <div className="step-card">
         <h2>
           MOC &amp; Elastomer
-          <StepApprovalToggle step={4} />
+          <StepApprovalBadge step={4} />
         </h2>
         <p>
           Select the material of construction and elastomer
