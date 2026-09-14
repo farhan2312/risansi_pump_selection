@@ -386,8 +386,8 @@ const RecommendationStep = ({
   ];
   const gearedInputItems: FieldItem[] = [
     ["Configuration", formData.gearedConfigType],
-    ["GB Type", formData.gbConstructionType],
     ["Gear Box Shaft Type", formData.gearBoxType],
+    ["GB Type", formData.gbConstructionType],
     ["Gear Box Mounting", formData.gearBoxMounting],
     ["Coupling", formData.driveCoupling],
     // Only populated when a real coupling is present; FieldGrid drops empties.

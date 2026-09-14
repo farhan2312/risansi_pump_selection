@@ -197,8 +197,8 @@ export function approvalStepGroups(step: number, f: ApprovalForm): DetailGroup[]
             ...(isGeared
               ? ([
                   ["Configuration", f.gearedConfigType],
-                  ["GB Type", f.gbConstructionType],
                   ["Gear Box Shaft Type", f.gearBoxType],
+                  ["GB Type", f.gbConstructionType],
                   ["Gear Box Mounting", f.gearBoxMounting],
                   ["Coupling", f.driveCoupling],
                   ["Coupling Type", f.couplingType],

@@ -135,35 +135,41 @@ const STARTER_TYPES = ["Star-Delta", "DOL"];
 const POWER_SUPPLIES = ["Single Phase", "Three Phase"];
 const STD_OPTIONS = ["Standard", "Non-Standard"];
 
-// Gear-box construction type. "IN LINE HELICAL" / "PLANTERY" match the
-// gear_box_type strings stored in pbl_gearbox/ptl_gearbox/top_gear_gearbox
-// ("PLANTERY", not "PLANETARY") since the gearbox screening filters on an
-// exact match. "PARALLEL SHAFT" was added per spec; it shares the planetary
-// auto-fill branch below.
-const GB_CONSTRUCTION_TYPES = ["IN LINE HELICAL", "PLANTERY", "PARALLEL SHAFT"];
+// Gear-box construction type, offered per SHAFT type — the shaft type is
+// picked first and decides what the gear box can be. "IN LINE HELICAL" /
+// "PLANTERY" match the gear_box_type strings stored in
+// pbl_gearbox/ptl_gearbox/top_gear_gearbox ("PLANTERY", not "PLANETARY") —
+// the gearbox screening filters on an exact match. "PARALLEL SHAFT" and
+// "WORM REDUCTION" have no rows in those masters yet, so choosing one leaves
+// the gearbox recommendation empty until that data is loaded.
+const GB_TYPES_BY_SHAFT: Record<string, string[]> = {
+  SISO: ["PLANTERY", "PARALLEL SHAFT", "WORM REDUCTION"],
+  HISO: ["PLANTERY", "IN LINE HELICAL"],
+};
+const gbTypesFor = (shaftType: string | undefined): string[] =>
+  GB_TYPES_BY_SHAFT[shaftType ?? ""] ?? [];
 
 // --- Geared drive auto-fill -------------------------------------------------
-// Shaft type, coupling and both mountings are DERIVED from the pump type
-// (Operating Conditions step), the GB construction type and the motor KW, per
-// the drive-selection spec:
-//   Vertical            -> HISO, No Coupling, GB Flange, Motor Flange
-//                          (and GB construction forced to IN LINE HELICAL)
-//   Horizontal + inline -> HISO, Driven Coupling, GB Foot,
-//                          Motor Foot cum Flange if KW >= 15 else Flange
-//   Horizontal + planetary/parallel
-//                       -> SISO, Drive + Driven Coupling, GB Foot, Motor Foot
+// Coupling and both mountings are DERIVED from the pump type (Operating
+// Conditions step), the gear-box SHAFT type and the motor KW, per the
+// drive-selection spec:
+//   Vertical          -> No Coupling, GB Flange, Motor Flange (with the shaft
+//                        forced to HISO and the GB type to IN LINE HELICAL)
+//   Horizontal + SISO -> Drive + Driven Coupling, GB Foot, Motor Foot
+//   Horizontal + HISO -> Driven Coupling, GB Foot,
+//                        Motor Foot cum Flange if KW >= 15 else Flange
 // These are auto-filled as editable DEFAULTS (see the effect in the
 // component) — the engineer can still override any of them.
 type GearedDefaults = {
   gbConstructionType?: string; // only forced for Vertical
-  gearBoxType: string;
+  gearBoxType?: string; // only forced for Vertical
   driveCoupling: string;
   gearBoxMounting: string;
   driveMotorMounting: string;
 };
 function deriveGearedDefaults(
   pumpType: string | undefined,
-  gbConstructionType: string | undefined,
+  gearBoxType: string | undefined,
   driveMotorKw: string | undefined,
 ): GearedDefaults | null {
   if (pumpType === "Vertical") {
@@ -175,26 +181,25 @@ function deriveGearedDefaults(
       driveMotorMounting: "Flange B5",
     };
   }
-  // Horizontal variants (pumpType starts with "Horizontal") — depends on GB type.
-  if (gbConstructionType === "IN LINE HELICAL") {
+  // Horizontal variants (pumpType starts with "Horizontal") — the shaft type
+  // decides how the gear box and the motor are mounted.
+  if (gearBoxType === "SISO") {
+    return {
+      driveCoupling: "Drive + Driven Coupling",
+      gearBoxMounting: "Foot Mount B3",
+      driveMotorMounting: "Foot B3",
+    };
+  }
+  if (gearBoxType === "HISO") {
     const kw = parseFloat(driveMotorKw ?? "");
     return {
-      gearBoxType: "HISO",
       driveCoupling: "Driven Coupling",
       gearBoxMounting: "Foot Mount B3",
       driveMotorMounting:
         Number.isFinite(kw) && kw >= 15 ? "Foot cum Flange B35" : "Flange B5",
     };
   }
-  if (gbConstructionType === "PLANTERY" || gbConstructionType === "PARALLEL SHAFT") {
-    return {
-      gearBoxType: "SISO",
-      driveCoupling: "Drive + Driven Coupling",
-      gearBoxMounting: "Foot Mount B3",
-      driveMotorMounting: "Foot B3",
-    };
-  }
-  // Horizontal but no GB construction type chosen yet — nothing to derive.
+  // Horizontal but no shaft type chosen yet — nothing to derive.
   return null;
 }
 
@@ -254,16 +259,14 @@ const DriveDetailsStep = ({
       return;
     }
     const vertical = formData.pumpType === "Vertical";
-    // Vertical forces IN LINE HELICAL, so the basis uses the effective GB type
-    // (keeps the basis stable when the effect itself sets gbConstructionType).
-    const effectiveGbType = vertical
-      ? "IN LINE HELICAL"
-      : (formData.gbConstructionType as string) || "";
-    const basis = `${vertical}|${effectiveGbType}|${formData.driveMotorKw ?? ""}`;
+    // Vertical forces HISO, so the basis uses the effective shaft type (keeps
+    // the basis stable when the effect itself sets gearBoxType).
+    const effectiveShaftType = vertical ? "HISO" : (formData.gearBoxType as string) || "";
+    const basis = `${vertical}|${effectiveShaftType}|${formData.driveMotorKw ?? ""}`;
 
-    const hasSaved = Boolean(
-      formData.gearBoxType || formData.driveCoupling || formData.gearBoxMounting,
-    );
+    // The shaft type is now an input, not a derived value, so it can't stand
+    // in for "this tag already has saved geared values".
+    const hasSaved = Boolean(formData.driveCoupling || formData.gearBoxMounting);
     if (!gearedInitRef.current) {
       gearedInitRef.current = true;
       gearedBasisRef.current = basis;
@@ -275,10 +278,10 @@ const DriveDetailsStep = ({
 
     const defaults = deriveGearedDefaults(
       formData.pumpType,
-      effectiveGbType,
+      effectiveShaftType,
       formData.driveMotorKw,
     );
-    if (!defaults) return; // horizontal with no GB type yet — nothing to fill
+    if (!defaults) return; // horizontal with no shaft type yet — nothing to fill
 
     const noCoupling = defaults.driveCoupling === "No Coupling";
     setFormData((f: typeof formData) => ({
@@ -286,7 +289,7 @@ const DriveDetailsStep = ({
       ...(defaults.gbConstructionType
         ? { gbConstructionType: defaults.gbConstructionType }
         : {}),
-      gearBoxType: defaults.gearBoxType,
+      ...(defaults.gearBoxType ? { gearBoxType: defaults.gearBoxType } : {}),
       driveCoupling: defaults.driveCoupling,
       gearBoxMounting: defaults.gearBoxMounting,
       driveMotorMounting: defaults.driveMotorMounting,
@@ -295,7 +298,7 @@ const DriveDetailsStep = ({
       ...(noCoupling ? { couplingType: "", couplingMake: "" } : {}),
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isGeared, formData.pumpType, formData.gbConstructionType, formData.driveMotorKw]);
+  }, [isGeared, formData.pumpType, formData.gearBoxType, formData.driveMotorKw]);
 
   // V-Belt drive: the motor sits on the base plate driving a pulley, so it is
   // foot mounted. Auto-filled as an editable DEFAULT, with the same two rules
@@ -904,16 +907,49 @@ const DriveDetailsStep = ({
               </div>
 
               <div className={fieldWrap}>
+                <label className={label}>Gear Box Shaft Type</label>
+                <select
+                  className={control}
+                  value={formData.gearBoxType}
+                  onChange={(e) => {
+                    const shaftType = e.target.value;
+                    const allowed = gbTypesFor(shaftType);
+                    const gbType = (formData.gbConstructionType as string) || "";
+                    setFormData({
+                      ...formData,
+                      gearBoxType: shaftType,
+                      // GB Type is offered per shaft type — drop a pick the
+                      // new shaft type doesn't offer rather than leaving a
+                      // value that isn't in the list.
+                      ...(gbType && !allowed.includes(gbType)
+                        ? { gbConstructionType: "" }
+                        : {}),
+                    });
+                  }}
+                >
+                  <option value="">Select Gear Box Shaft Type</option>
+                  <option value="HISO">HISO (Hollow Input Solid Output)</option>
+                  <option value="SISO">SISO (Solid Input Solid Output)</option>
+                </select>
+                <span className={hint}>
+                  {formData.pumpType === "Vertical"
+                    ? "Vertical pump — defaults to HISO."
+                    : "Sets the GB Type list, the mountings and the coupling below."}
+                </span>
+              </div>
+
+              <div className={fieldWrap}>
                 <label className={label}>GB Type</label>
                 <select
                   className={control}
                   value={formData.gbConstructionType ?? ""}
+                  disabled={!formData.gearBoxType}
                   onChange={(e) =>
                     setFormData({ ...formData, gbConstructionType: e.target.value })
                   }
                 >
                   <option value="">Select GB Type</option>
-                  {GB_CONSTRUCTION_TYPES.map((t) => (
+                  {gbTypesFor(formData.gearBoxType as string).map((t) => (
                     <option key={t} value={t}>
                       {t}
                     </option>
@@ -922,25 +958,9 @@ const DriveDetailsStep = ({
                 <span className={hint}>
                   {formData.pumpType === "Vertical"
                     ? "Vertical pump — defaults to In Line Helical."
-                    : "Pick the gear-box construction; the fields below auto-fill from it."}
-                </span>
-              </div>
-
-              <div className={fieldWrap}>
-                <label className={label}>Gear Box Shaft Type</label>
-                <select
-                  className={control}
-                  value={formData.gearBoxType}
-                  onChange={(e) =>
-                    setFormData({ ...formData, gearBoxType: e.target.value })
-                  }
-                >
-                  <option value="">Select Gear Box Shaft Type</option>
-                  <option value="HISO">HISO (Hollow Input Solid Output)</option>
-                  <option value="SISO">SISO (Solid Input Solid Output)</option>
-                </select>
-                <span className={hint}>
-                  Auto-filled from pump type &amp; GB type — override if needed.
+                    : !formData.gearBoxType
+                      ? "Pick the shaft type first."
+                      : "Narrows the gearbox recommendation below."}
                 </span>
               </div>
 
@@ -961,7 +981,7 @@ const DriveDetailsStep = ({
                   ))}
                 </select>
                 <span className={hint}>
-                  Auto-filled from pump type &amp; GB type — override if needed.
+                  Auto-filled from pump type &amp; shaft type — override if needed.
                 </span>
               </div>
 
@@ -992,7 +1012,7 @@ const DriveDetailsStep = ({
                   ))}
                 </select>
                 <span className={hint}>
-                  Auto-filled from pump type &amp; GB type — override if needed.
+                  Auto-filled from pump type &amp; shaft type — override if needed.
                 </span>
               </div>
 
