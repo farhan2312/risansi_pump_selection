@@ -93,6 +93,7 @@ const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
     "driveMotorPriceUplifted",
     "driveMotorConfirmed",
     "driveStarterType", "drivePowerSupply",
+    "vfdRequired", "vfdStdHz", "vfdMinHz", "vfdMaxHz",
   ],
   "drive-direct": [],
   "drive-vbelt": [
@@ -373,6 +374,12 @@ const PumpSelectionPage = () => {
     driveMotorConfirmed: false, // motor card picked, then explicitly confirmed
     driveStarterType: "",
     drivePowerSupply: "",
+    // VFD: off unless asked for; the Hz boxes get their usual defaults when
+    // it's switched on (see DriveDetailsStep).
+    vfdRequired: "",
+    vfdStdHz: "",
+    vfdMinHz: "",
+    vfdMaxHz: "",
   });
 
   // Whether the autosaved draft has been loaded (or confirmed absent) for the

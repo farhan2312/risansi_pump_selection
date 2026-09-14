@@ -31,7 +31,20 @@ type RecheckForm = Pick<
   | "capacityUnit"
   | "sg"
   | "selectedHead"
+  | "vfdRequired"
+  | "vfdStdHz"
+  | "vfdMinHz"
+  | "vfdMaxHz"
 >;
+
+/** VFD answer that turns the Hz range (and the range recheck) on. */
+export const VFD_YES = "Yes";
+export const VFD_OPTIONS = ["Yes", "No"] as const;
+/** Defaults filled in when VFD is switched on — the usual Indian supply and
+ *  a 30-60 Hz window; all three stay editable. */
+export const DEFAULT_VFD_STD_HZ = "50";
+export const DEFAULT_VFD_MIN_HZ = "30";
+export const DEFAULT_VFD_MAX_HZ = "60";
 
 /** The pump RPM the chosen drive actually delivers, and where it comes from:
  *  the V-belt's achieved RPM, the gearbox output RPM, or the motor RPM for a
@@ -64,6 +77,19 @@ export interface RecheckCalc {
   bkwAtMin: number;
 }
 
+/** One end of the VFD Hz range, with the pump speed it produces. */
+export interface RecheckVfdEnd {
+  hz: number;
+  rpm: number;
+  calc: RecheckCalc | null;
+}
+
+export interface RecheckVfdRange {
+  stdHz: number;
+  min: RecheckVfdEnd;
+  max: RecheckVfdEnd;
+}
+
 export interface RecheckResult {
   finalRpm: number;
   /** Duty head in MWC — BKW uses this, not the selected charted head. */
@@ -73,6 +99,61 @@ export interface RecheckResult {
   specs: RecheckSpecs;
   /** Null when there isn't enough data to recompute. */
   calc: RecheckCalc | null;
+  /** Null unless VFD is "Yes" with a usable Hz range. */
+  vfd: RecheckVfdRange | null;
+}
+
+/**
+ * Pump speed at a given supply frequency. The selected speed (belt-achieved,
+ * gearbox output, or motor RPM) is what the drive delivers at the nameplate
+ * frequency, and speed is proportional to frequency:
+ *   rpm at N Hz = final pump RPM × N / std Hz
+ */
+export const rpmAtHz = (finalRpm: number, hz: number, stdHz: number): number =>
+  stdHz > 0 ? (finalRpm * hz) / stdHz : NaN;
+
+/** Capacity + BKW at one pump speed, at both VE limits. */
+function calcAtRpm(specs: RecheckSpecs, rpm: number, headMwc: number): RecheckCalc | null {
+  const { qth, voleMax: veMax, voleMin: veMin, mechEff: me } = specs;
+  if (
+    qth == null ||
+    veMax == null ||
+    veMin == null ||
+    me == null ||
+    !Number.isFinite(rpm) ||
+    rpm <= 0 ||
+    !Number.isFinite(headMwc)
+  ) {
+    return null;
+  }
+  const qAtMax = qth * (veMax / 100);
+  const qAtMin = qth * (veMin / 100);
+  const capAtMax = (qAtMax * rpm) / 100;
+  const capAtMin = (qAtMin * rpm) / 100;
+  const bkwAtMax = me > 0 ? (capAtMax * headMwc) / 367 / (me / 100) : NaN;
+  const bkwAtMin = me > 0 ? (capAtMin * headMwc) / 367 / (me / 100) : NaN;
+  return { qAtMax, qAtMin, capAtMax, capAtMin, bkwAtMax, bkwAtMin };
+}
+
+/** The VFD range for this form, or null when it is off / not filled in. */
+function vfdRange(
+  form: RecheckForm,
+  specs: RecheckSpecs,
+  finalRpm: number,
+  headMwc: number,
+): RecheckVfdRange | null {
+  if (form.vfdRequired !== VFD_YES) return null;
+  const stdHz = parseFloat(form.vfdStdHz ?? "");
+  const minHz = parseFloat(form.vfdMinHz ?? "");
+  const maxHz = parseFloat(form.vfdMaxHz ?? "");
+  if (![stdHz, minHz, maxHz].every((v) => Number.isFinite(v) && v > 0)) return null;
+  const minRpm = rpmAtHz(finalRpm, minHz, stdHz);
+  const maxRpm = rpmAtHz(finalRpm, maxHz, stdHz);
+  return {
+    stdHz,
+    min: { hz: minHz, rpm: minRpm, calc: calcAtRpm(specs, minRpm, headMwc) },
+    max: { hz: maxHz, rpm: maxRpm, calc: calcAtRpm(specs, maxRpm, headMwc) },
+  };
 }
 
 export function computeRecheck(
@@ -102,29 +183,10 @@ export function computeRecheck(
     atHeadMwc: selectedPoint ? selectedPoint.headMwc : pumpSpecs?.headMwc ?? null,
   };
 
-  const { qth, voleMax: veMax, voleMin: veMin, mechEff: me } = specs;
-  const canCompute =
-    pumpSpecs !== null &&
-    qth != null &&
-    veMax != null &&
-    veMin != null &&
-    me != null &&
-    Number.isFinite(finalRpm) &&
-    finalRpm > 0 &&
-    Number.isFinite(headMwc);
+  const calc = pumpSpecs !== null ? calcAtRpm(specs, finalRpm, headMwc) : null;
+  const vfd = calc ? vfdRange(form, specs, finalRpm, headMwc) : null;
 
-  let calc: RecheckCalc | null = null;
-  if (canCompute && qth != null && veMax != null && veMin != null && me != null) {
-    const qAtMax = qth * (veMax / 100);
-    const qAtMin = qth * (veMin / 100);
-    const capAtMax = (qAtMax * finalRpm) / 100;
-    const capAtMin = (qAtMin * finalRpm) / 100;
-    const bkwAtMax = me > 0 ? (capAtMax * headMwc) / 367 / (me / 100) : NaN;
-    const bkwAtMin = me > 0 ? (capAtMin * headMwc) / 367 / (me / 100) : NaN;
-    calc = { qAtMax, qAtMin, capAtMax, capAtMin, bkwAtMax, bkwAtMin };
-  }
-
-  return { finalRpm, headMwc, dutyCap, specs, calc };
+  return { finalRpm, headMwc, dutyCap, specs, calc, vfd };
 }
 
 export const fmtRecheckNum = (n: number, dp = 2): string =>
@@ -146,12 +208,46 @@ export interface RecheckOutputRow {
   highlight?: boolean;
 }
 
+/** One line of the VFD table: the same figure at each end of the Hz range. */
+export interface RecheckVfdRow {
+  label: string;
+  min: string;
+  max: string;
+}
+
+export interface RecheckVfdTable {
+  minHeading: string;
+  maxHeading: string;
+  rows: RecheckVfdRow[];
+}
+
 export interface RecheckTables {
   inputs: RecheckInputRow[];
   outputs: RecheckOutputRow[];
   /** Column headings for the results table's two value columns. */
   hiHeading: string;
   loHeading: string;
+  /** Null unless the motor runs on a VFD with a usable Hz range. */
+  vfd: RecheckVfdTable | null;
+}
+
+/** Capacity and BKW at each end of the VFD range, at both VE limits. */
+function vfdTable(vfd: RecheckVfdRange | null): RecheckVfdTable | null {
+  if (!vfd || !vfd.min.calc || !vfd.max.calc) return null;
+  const minC = vfd.min.calc;
+  const maxC = vfd.max.calc;
+  const num = (v: number, unit?: string) => `${fmtRecheckNum(v)}${unit ? ` ${unit}` : ""}`;
+  return {
+    minHeading: `Min ${fmtRecheckNum(vfd.min.hz, 0)} Hz`,
+    maxHeading: `Max ${fmtRecheckNum(vfd.max.hz, 0)} Hz`,
+    rows: [
+      { label: "Pump RPM", min: fmtRecheckNum(vfd.min.rpm, 0), max: fmtRecheckNum(vfd.max.rpm, 0) },
+      { label: "Cap at VE max", min: num(minC.capAtMax, "m³/hr"), max: num(maxC.capAtMax, "m³/hr") },
+      { label: "Cap at VE min", min: num(minC.capAtMin, "m³/hr"), max: num(maxC.capAtMin, "m³/hr") },
+      { label: "BKW at VE max", min: num(minC.bkwAtMax, "kW"), max: num(maxC.bkwAtMax, "kW") },
+      { label: "BKW at VE min", min: num(minC.bkwAtMin, "kW"), max: num(maxC.bkwAtMin, "kW") },
+    ],
+  };
 }
 
 /** The rows the Recheck popup and the Recheck PDF both show, or null when
@@ -182,6 +278,16 @@ export function recheckTables(
       { label: "VE min / max (%)", value: `${specs.voleMin} / ${specs.voleMax}`, note: atHeadNote },
       { label: "ME (%)", value: String(specs.mechEff), note: atHeadNote },
       { label: "Q th", value: specs.qth != null ? fmtRecheckNum(specs.qth, 2) : "—" },
+      {
+        label: "VFD",
+        value:
+          form.vfdRequired === VFD_YES && result.vfd
+            ? `Yes — ${fmtRecheckNum(result.vfd.min.hz, 0)} to ${fmtRecheckNum(
+                result.vfd.max.hz,
+                0,
+              )} Hz (std ${fmtRecheckNum(result.vfd.stdHz, 0)} Hz)`
+            : form.vfdRequired || "",
+      },
     ],
     outputs: [
       { label: "Q", hi: calc.qAtMax, lo: calc.qAtMin },
@@ -201,5 +307,6 @@ export function recheckTables(
     ],
     hiHeading: `VE max (${specs.voleMax}%)`,
     loHeading: `VE min (${specs.voleMin}%)`,
+    vfd: vfdTable(result.vfd),
   };
 }

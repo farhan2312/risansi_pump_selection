@@ -23,6 +23,7 @@ import {
 } from "../../lib/selection-summary-pdf";
 import { computeRecheck, finalPumpRpm, recheckTables } from "../../lib/recheck-calc";
 import { mechSealDescription } from "./SealingDetailsStep";
+import { frequencyText, voltageText } from "../../lib/rating-plate";
 import { getReportSummary, saveReportSummary, uploadFinalReport } from "../../services/reportsService";
 import FormatChoiceModal, { type DownloadFormat } from "../ui/FormatChoiceModal";
 import { downloadSelectionSummaryExcel } from "../../lib/selection-summary-excel";
@@ -56,6 +57,17 @@ type Props = {
 const sizeText = (entered: string | undefined, derived: number | null): string => {
   const value = (entered ?? "").trim() || (derived !== null ? String(derived) : "");
   return value ? `${value}"` : "";
+};
+
+// "30–60 Hz (std 50 Hz)" — empty unless the motor is on a VFD with a range.
+const vfdRangeText = (f: {
+  vfdRequired?: string;
+  vfdMinHz?: string;
+  vfdMaxHz?: string;
+  vfdStdHz?: string;
+}): string => {
+  if (f.vfdRequired !== "Yes" || !f.vfdMinHz || !f.vfdMaxHz) return "";
+  return `${f.vfdMinHz}–${f.vfdMaxHz} Hz${f.vfdStdHz ? ` (std ${f.vfdStdHz} Hz)` : ""}`;
 };
 
 const withRemarks = (value?: string, remarks?: string): string | undefined => {
@@ -345,17 +357,19 @@ const RecommendationStep = ({
     [
       "Frequency",
       isNonStd
-        ? withPct(formData.driveMotorFrequency, formData.driveMotorFrequencyPct)
-        : formData.driveMotorFrequency,
+        ? withPct(frequencyText(formData.driveMotorFrequency), formData.driveMotorFrequencyPct)
+        : frequencyText(formData.driveMotorFrequency),
     ],
     [
       "Voltage",
       isNonStd
-        ? withPct(formData.driveMotorVoltage, formData.driveMotorVoltagePct)
-        : formData.driveMotorVoltage,
+        ? withPct(voltageText(formData.driveMotorVoltage), formData.driveMotorVoltagePct)
+        : voltageText(formData.driveMotorVoltage),
     ],
     ["Starter Type", formData.driveStarterType],
     ["Power Supply", formData.drivePowerSupply],
+    ["VFD Required", formData.vfdRequired],
+    ["VFD Hz Range", vfdRangeText(formData)],
   ];
 
   // The motor actually picked from the motor master — surfaced in its own

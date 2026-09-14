@@ -230,6 +230,13 @@ export interface PumpSelectionFormData {
   driveMotorConfirmed?: boolean;
   driveStarterType?: string; // Star-Delta / DOL
   drivePowerSupply?: string; // Single Phase / Three Phase
+  // VFD (variable frequency drive). "Yes" means the motor runs on a VFD, so
+  // the pump speed varies with the supply frequency between min and max Hz;
+  // the Recheck reports capacity + BKW at both ends (see lib/recheck-calc.ts).
+  vfdRequired?: string; // Yes / No
+  vfdStdHz?: string; // nameplate frequency the selected speed is quoted at
+  vfdMinHz?: string;
+  vfdMaxHz?: string;
 }
 
 // Output shape — matches what RecommendationTable / PumpDetailsCard render.

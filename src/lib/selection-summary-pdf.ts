@@ -394,6 +394,46 @@ export async function downloadRecheckPdf(input: RecheckPdfInput): Promise<void> 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   L.state.y = (doc as any).lastAutoTable.finalY + 14;
 
+  // On a VFD the pump runs across a speed range, so the same figures are
+  // reported at both ends of it.
+  if (tables.vfd) {
+    L.ensureSpace(L.BAND_HEIGHT + 110);
+    L.drawSectionBand("On VFD — Hz Range");
+    autoTable(doc, {
+      startY: L.state.y,
+      margin: { left: L.margin, right: L.margin },
+      head: [["At frequency", tables.vfd.minHeading, tables.vfd.maxHeading]],
+      body: tables.vfd.rows.map((r) => [r.label, r.min, r.max]),
+      theme: "grid",
+      styles: {
+        fontSize: FONT_SIZE,
+        cellPadding: CELL_PADDING,
+        textColor: 40,
+        lineColor: CELL_BORDER,
+        lineWidth: 0.5,
+        valign: "top",
+        overflow: "linebreak",
+      },
+      headStyles: { fillColor: [235, 238, 243], textColor: 60, fontStyle: "bold" },
+      columnStyles: {
+        0: { fontStyle: "bold", cellWidth: L.contentWidth - 2 * 120 },
+        1: { halign: "right", cellWidth: 120 },
+        2: { halign: "right", cellWidth: 120 },
+      },
+      didParseCell: (data) => {
+        if (data.section === "head" && data.column.index > 0) data.cell.styles.halign = "right";
+        // The speed line is what the two capacities follow from.
+        if (data.section === "body" && tables.vfd?.rows[data.row.index]?.label === "Pump RPM") {
+          data.cell.styles.fillColor = POS_SOFT;
+          data.cell.styles.textColor = POS_STRONG;
+          data.cell.styles.fontStyle = "bold";
+        }
+      },
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    L.state.y = (doc as any).lastAutoTable.finalY + 14;
+  }
+
   drawFooter(doc, L, "Recheck of the confirmed pump at the drive-achieved RPM.");
 
   const dateSlug = new Date().toISOString().slice(0, 10);

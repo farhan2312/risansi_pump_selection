@@ -4,7 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
 import StepApprovalBadge from "./approval/StepApprovalBadge";
-import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, hint, label } from "./formStyles";
+import {
+  actions,
+  btnGhost,
+  btnPrimary,
+  control,
+  fieldWrap,
+  grid,
+  hint,
+  hintError,
+  label,
+} from "./formStyles";
 import { getVBeltDrive, type VBeltDrive, type VBeltOption } from "../../services/vbeltDriveService";
 import {
   getGearboxOptions,
@@ -17,12 +27,19 @@ import {
   type MotorMasterRow,
 } from "../../services/motorMasterService";
 import { clearWizardInput, saveWizardInput } from "../../services/wizardInputService";
+import { ratingPlateNumber } from "../../lib/rating-plate";
 import type { PumpRecommendation } from "../../data/Recommendations";
 import {
+  DEFAULT_VFD_MAX_HZ,
+  DEFAULT_VFD_MIN_HZ,
+  DEFAULT_VFD_STD_HZ,
+  VFD_OPTIONS,
+  VFD_YES,
   computeRecheck,
   finalPumpRpm,
   fmtRecheckNum,
   recheckTables,
+  rpmAtHz,
 } from "../../lib/recheck-calc";
 
 type Props = {
@@ -214,6 +231,7 @@ const MOTOR_DRIVE_FIELDS = [
   "driveMotorFrameSize", "driveMotorLpPrice", "driveMotorFinalPrice",
   "driveMotorPriceUplifted", "driveMotorConfirmed",
   "driveStarterType", "drivePowerSupply",
+  "vfdRequired", "vfdStdHz", "vfdMinHz", "vfdMaxHz",
 ] as const;
 
 const DRIVE_VBELT_FIELDS = [
@@ -226,6 +244,16 @@ const DRIVE_GEARED_FIELDS = [
   "driveCoupling", "couplingType", "couplingMake", "asfRange", "gearboxSource", "gearboxModel",
   "gearboxOutputRpm", "gearboxServiceFactor", "gearboxRatePerNos", "gearboxConfirmed",
 ] as const;
+
+// A field whose unit never changes (Hz, V): the unit sits in the box, so the
+// engineer types the number alone.
+const unitFieldWrap = "relative flex items-center";
+// The spinner arrows would sit under the unit text, so they are hidden for
+// these two fields (the value is still typed/validated as a number).
+const unitFieldInput =
+  "pr-[46px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
+const unitSuffix =
+  "pointer-events-none absolute right-[14px] text-[13.5px] font-medium text-fg-3";
 
 const DriveDetailsStep = ({
   onNext,
@@ -332,6 +360,31 @@ const DriveDetailsStep = ({
   const [pumpSpecs, setPumpSpecs] = useState<PumpRecommendation | null>(null);
 
   const { raw: finalPumpRpmRaw, source: finalPumpRpmSource } = finalPumpRpm(formData);
+
+  // VFD range: pump speed is proportional to frequency, so show what the two
+  // ends come to as soon as a final pump speed is known.
+  const vfdStd = parseFloat(formData.vfdStdHz ?? "");
+  const vfdMin = parseFloat(formData.vfdMinHz ?? "");
+  const vfdMax = parseFloat(formData.vfdMaxHz ?? "");
+  const vfdRangeError =
+    formData.vfdRequired === VFD_YES &&
+    Number.isFinite(vfdMin) &&
+    Number.isFinite(vfdMax) &&
+    vfdMin >= vfdMax
+      ? "Min Hz must be less than Max Hz."
+      : "";
+  const finalRpmNumForVfd = Number(finalPumpRpmRaw);
+  const vfdSpeedHint =
+    formData.vfdRequired === VFD_YES &&
+    !vfdRangeError &&
+    Number.isFinite(finalRpmNumForVfd) &&
+    finalRpmNumForVfd > 0 &&
+    [vfdStd, vfdMin, vfdMax].every((v) => Number.isFinite(v) && v > 0)
+      ? `Pump runs ${fmtRecheckNum(rpmAtHz(finalRpmNumForVfd, vfdMin, vfdStd), 0)}–${fmtRecheckNum(
+          rpmAtHz(finalRpmNumForVfd, vfdMax, vfdStd),
+          0,
+        )} rpm. Recheck shows capacity & BKW at both.`
+      : "";
 
   // Writes the Drive step's own tables: the drive-agnostic motor/rating-plate
   // block plus whichever drive-system-specific table matches the current
@@ -1566,15 +1619,20 @@ const DriveDetailsStep = ({
 
                   <div className={fieldWrap}>
                     <label className={label}>Frequency</label>
-                    <input
-                      type="text"
-                      className={control}
-                      placeholder="e.g. 50 Hz"
-                      value={formData.driveMotorFrequency ?? ""}
-                      onChange={(e) =>
-                        setFormData({ ...formData, driveMotorFrequency: e.target.value })
-                      }
-                    />
+                    <div className={unitFieldWrap}>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        className={`${control} ${unitFieldInput}`}
+                        placeholder="50"
+                        value={ratingPlateNumber(formData.driveMotorFrequency)}
+                        onChange={(e) =>
+                          setFormData({ ...formData, driveMotorFrequency: e.target.value })
+                        }
+                      />
+                      <span className={unitSuffix}>Hz</span>
+                    </div>
                   </div>
                   {isNonStandard && (
                     <div className={fieldWrap}>
@@ -1597,15 +1655,20 @@ const DriveDetailsStep = ({
 
                   <div className={fieldWrap}>
                     <label className={label}>Voltage</label>
-                    <input
-                      type="text"
-                      className={control}
-                      placeholder="e.g. 415 V"
-                      value={formData.driveMotorVoltage ?? ""}
-                      onChange={(e) =>
-                        setFormData({ ...formData, driveMotorVoltage: e.target.value })
-                      }
-                    />
+                    <div className={unitFieldWrap}>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        className={`${control} ${unitFieldInput}`}
+                        placeholder="415"
+                        value={ratingPlateNumber(formData.driveMotorVoltage)}
+                        onChange={(e) =>
+                          setFormData({ ...formData, driveMotorVoltage: e.target.value })
+                        }
+                      />
+                      <span className={unitSuffix}>V</span>
+                    </div>
                   </div>
                   {isNonStandard && (
                     <div className={fieldWrap}>
@@ -1663,6 +1726,93 @@ const DriveDetailsStep = ({
                   ))}
                 </select>
               </div>
+
+              {/* VFD: a "Yes" opens the Hz range the pump will be run across.
+                  The Recheck then reports capacity + BKW at both ends of it. */}
+              <div className={fieldWrap}>
+                <label className={label}>VFD Required</label>
+                <select
+                  className={control}
+                  value={formData.vfdRequired ?? ""}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setFormData({
+                      ...formData,
+                      vfdRequired: next,
+                      // Switching it on seeds the usual frequencies (all
+                      // editable); switching it off clears them so nothing
+                      // stale lingers hidden and leaks into the report.
+                      ...(next === VFD_YES
+                        ? {
+                            vfdStdHz: formData.vfdStdHz || DEFAULT_VFD_STD_HZ,
+                            vfdMinHz: formData.vfdMinHz || DEFAULT_VFD_MIN_HZ,
+                            vfdMaxHz: formData.vfdMaxHz || DEFAULT_VFD_MAX_HZ,
+                          }
+                        : { vfdStdHz: "", vfdMinHz: "", vfdMaxHz: "" }),
+                    });
+                  }}
+                >
+                  <option value="">Select</option>
+                  {VFD_OPTIONS.map((o) => (
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
+                  ))}
+                </select>
+                <span className={hint}>
+                  On a VFD the pump runs across a speed range, so the Recheck
+                  reports capacity &amp; BKW at both ends.
+                </span>
+              </div>
+
+              {formData.vfdRequired === VFD_YES && (
+                <>
+                  <div className={fieldWrap}>
+                    <label className={label}>Std Hz</label>
+                    <input
+                      type="number"
+                      min="1"
+                      step="any"
+                      className={control}
+                      value={formData.vfdStdHz ?? ""}
+                      onChange={(e) => setFormData({ ...formData, vfdStdHz: e.target.value })}
+                      placeholder="50"
+                    />
+                    <span className={hint}>
+                      Supply frequency the selected speed ({finalPumpRpmRaw || "—"} rpm) is quoted at.
+                    </span>
+                  </div>
+
+                  <div className={fieldWrap}>
+                    <label className={label}>VFD Hz Range</label>
+                    <div className="flex items-center gap-[10px]">
+                      <input
+                        type="number"
+                        min="1"
+                        step="any"
+                        className={control}
+                        value={formData.vfdMinHz ?? ""}
+                        onChange={(e) => setFormData({ ...formData, vfdMinHz: e.target.value })}
+                        placeholder="Min 30"
+                        aria-label="VFD minimum Hz"
+                      />
+                      <span className="text-[13px] text-fg-3">to</span>
+                      <input
+                        type="number"
+                        min="1"
+                        step="any"
+                        className={control}
+                        value={formData.vfdMaxHz ?? ""}
+                        onChange={(e) => setFormData({ ...formData, vfdMaxHz: e.target.value })}
+                        placeholder="Max 60"
+                        aria-label="VFD maximum Hz"
+                      />
+                    </div>
+                    {vfdSpeedHint && <span className={hint}>{vfdSpeedHint}</span>}
+                    {vfdRangeError && <span className={hintError}>{vfdRangeError}</span>}
+                  </div>
+                </>
+              )}
 
             </div>
 
@@ -1979,6 +2129,50 @@ const RecheckModal = ({
                   </tbody>
                 </table>
               </div>
+
+              {tables.vfd && (
+                <div className="mt-4 overflow-x-auto rounded-md border border-line">
+                  <table className="w-full text-[13px]">
+                    <thead className="bg-elev text-left text-[11px] uppercase tracking-wide text-fg-3">
+                      <tr>
+                        <th className="px-3 py-2">On VFD</th>
+                        <th className="px-3 py-2 text-right">{tables.vfd.minHeading}</th>
+                        <th className="px-3 py-2 text-right">{tables.vfd.maxHeading}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tables.vfd.rows.map((row) => (
+                        <tr
+                          key={row.label}
+                          className={`border-t border-line ${
+                            row.label === "Pump RPM" ? "bg-[var(--pos-soft)]" : ""
+                          }`}
+                        >
+                          <td className="px-3 py-2 text-fg">{row.label}</td>
+                          <td
+                            className={`px-3 py-2 text-right font-mono ${
+                              row.label === "Pump RPM"
+                                ? "font-semibold text-[var(--pos-strong)]"
+                                : "text-fg"
+                            }`}
+                          >
+                            {row.min}
+                          </td>
+                          <td
+                            className={`px-3 py-2 text-right font-mono ${
+                              row.label === "Pump RPM"
+                                ? "font-semibold text-[var(--pos-strong)]"
+                                : "text-fg"
+                            }`}
+                          >
+                            {row.max}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
 
             </>
           )}

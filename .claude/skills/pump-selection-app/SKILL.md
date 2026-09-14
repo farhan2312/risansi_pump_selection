@@ -428,6 +428,16 @@ never auto-filled from the AI result.
   the audit detail says "email skipped". Templates (table-based, inline
   styles, escaped): `src/lib/email/approval-emails.ts`. `APP_BASE_URL` sets
   the links in emails.
+- **Geared drive cascade**: the Gear Box SHAFT type (HISO/SISO) is picked
+  first and drives everything else — GB Type options (SISO: PLANTERY/PARALLEL
+  SHAFT/WORM REDUCTION; HISO: PLANTERY/IN LINE HELICAL), GB + motor mounting
+  and coupling (see deriveGearedDefaults in DriveDetailsStep). Vertical pumps
+  still force HISO + IN LINE HELICAL + flange mounts + No Coupling. Only
+  PLANTERY/IN LINE HELICAL exist in the gearbox masters, so the other two GB
+  types screen to an empty recommendation.
+- **VFD** (motor_drive_input.vfd_required/std/min/max Hz): "Yes" opens an Hz
+  range, and the Recheck (popup + PDF) adds a table of pump RPM, capacity and
+  BKW at both ends — rpm at N Hz = final pump RPM x N / std Hz.
 - **The Drive step's Recheck maths lives in `src/lib/recheck-calc.ts`** and is
   shared by the Recheck popup and the "Recheck PDF" button on the Selection
   Summary step (`downloadRecheckPdf` in `selection-summary-pdf.ts`) — change

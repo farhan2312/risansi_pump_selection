@@ -11,6 +11,7 @@ import type { ApprovalStatus } from "./approval";
 import { phDisplay, solidSizeDisplay, temperatureDisplay, viscosityDisplay } from "./fluid-inputs";
 import { mechSealDescription } from "./mech-seal";
 import { PUMP_SUPPORT_LABEL, pumpSupportComponentName } from "./pump-support";
+import { frequencyText, voltageText } from "./rating-plate";
 import { RPM_BANDS } from "./rpm-bands";
 
 /** The tag's wizard values, every field as a string ("" when unset). */
@@ -217,10 +218,27 @@ export function approvalStepGroups(step: number, f: ApprovalForm): DetailGroup[]
             ["Std / Non-Std", f.driveStdNonStd],
             ["Efficiency", f.driveMotorEfficiency],
             ["Protection", isNonStd ? withPct(f.driveMotorProtection, f.driveMotorProtectionPct) : f.driveMotorProtection],
-            ["Frequency", isNonStd ? withPct(f.driveMotorFrequency, f.driveMotorFrequencyPct) : f.driveMotorFrequency],
-            ["Voltage", isNonStd ? withPct(f.driveMotorVoltage, f.driveMotorVoltagePct) : f.driveMotorVoltage],
+            [
+              "Frequency",
+              isNonStd
+                ? withPct(frequencyText(f.driveMotorFrequency), f.driveMotorFrequencyPct)
+                : frequencyText(f.driveMotorFrequency),
+            ],
+            [
+              "Voltage",
+              isNonStd
+                ? withPct(voltageText(f.driveMotorVoltage), f.driveMotorVoltagePct)
+                : voltageText(f.driveMotorVoltage),
+            ],
             ["Starter Type", f.driveStarterType],
             ["Power Supply", f.drivePowerSupply],
+            ["VFD Required", f.vfdRequired],
+            [
+              "VFD Hz Range",
+              f.vfdRequired === "Yes" && f.vfdMinHz && f.vfdMaxHz
+                ? `${f.vfdMinHz}–${f.vfdMaxHz} Hz${f.vfdStdHz ? ` (std ${f.vfdStdHz} Hz)` : ""}`
+                : "",
+            ],
           ],
         },
         isVBelt

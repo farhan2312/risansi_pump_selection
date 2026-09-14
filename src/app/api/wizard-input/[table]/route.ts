@@ -112,6 +112,7 @@ const FIELDS: Record<TableKey, readonly string[]> = {
     "driveMotorPriceUplifted",
     "driveMotorConfirmed",
     "driveStarterType", "drivePowerSupply",
+    "vfdRequired", "vfdStdHz", "vfdMinHz", "vfdMaxHz",
   ],
   // No fields today — the table exists for structural symmetry (see
   // schema.ts). PUT still succeeds, it just creates/touches an empty row.

@@ -456,6 +456,15 @@ export const motorDriveInput = pgTable("motor_drive_input", {
   driveMotorConfirmed: boolean("drive_motor_confirmed").default(false),
   driveStarterType: varchar("drive_starter_type", { length: 20 }),
   drivePowerSupply: varchar("drive_power_supply", { length: 20 }),
+  // --- VFD (variable frequency drive) ---
+  // "Yes" puts the motor on a VFD, so the pump runs anywhere between the min
+  // and max Hz rather than at one fixed speed. The Recheck then reports
+  // delivered capacity + BKW at both ends of that range:
+  //   rpm at N Hz = final pump RPM x N / std Hz   (see lib/recheck-calc.ts)
+  vfdRequired: varchar("vfd_required", { length: 10 }),
+  vfdStdHz: varchar("vfd_std_hz", { length: 10 }),
+  vfdMinHz: varchar("vfd_min_hz", { length: 10 }),
+  vfdMaxHz: varchar("vfd_max_hz", { length: 10 }),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
