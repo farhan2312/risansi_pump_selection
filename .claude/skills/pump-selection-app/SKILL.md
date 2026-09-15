@@ -435,6 +435,14 @@ never auto-filled from the AI result.
   still force HISO + IN LINE HELICAL + flange mounts + No Coupling. Only
   PLANTERY/IN LINE HELICAL exist in the gearbox masters, so the other two GB
   types screen to an empty recommendation.
+- **Rating-plate dropdowns** (Frequency / Voltage / Efficiency / Protection)
+  read their options from `drive_option_master` (one table, `kind` column;
+  UNIQUE on (kind, lower(value))). Seeded 50 / 415 / IE2+IE3 / IP55+IP56.
+  Each dropdown offers "Other", which POSTs to /api/drive-options and adds the
+  typed value to that list for everyone (any signed-in user; audited). Std /
+  Non-Std = "Standard" fills STANDARD_RATING_PLATE (50, 415, IE2, IP55).
+  Frequency/voltage store the BARE number - the unit is fixed and appended on
+  display (src/lib/rating-plate.ts); legacy "50 Hz"-style rows were backfilled.
 - **VFD** (motor_drive_input.vfd_required/std/min/max Hz): "Yes" opens an Hz
   range, and the Recheck (popup + PDF) adds a table of pump RPM, capacity and
   BKW at both ends — rpm at N Hz = final pump RPM x N / std Hz.

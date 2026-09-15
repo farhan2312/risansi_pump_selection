@@ -582,6 +582,29 @@ export const driveGearedInput = pgTable("drive_geared_input", {
 // yet. The two Barrel* models have no "H" prefix at all but were classified
 // stage 1 too — their own charted head range (0-60) matches the single-stage
 // band and there's no 2Barrel/4Barrel counterpart.
+// Option lists behind the Drive step's rating-plate dropdowns (Frequency,
+// Voltage, Efficiency, Protection). A list is seeded with the usual values and
+// grows when an engineer picks "Other" and types a new one, so the next
+// enquiry can choose it from the list instead of retyping.
+//
+// Frequency and voltage hold the bare number — the unit never varies (Hz / V)
+// and is added when the value is shown (src/lib/rating-plate.ts).
+//
+// One table with a `kind` column rather than four near-identical tables: the
+// rows carry no per-kind attributes, and the Drive step reads all four lists
+// in one request. UNIQUE (kind, lower(value)) keeps a list free of duplicates
+// that differ only in case ("ip55" vs "IP55").
+export const driveOptionMaster = pgTable("drive_option_master", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  /** frequency | voltage | efficiency | protection (DRIVE_OPTION_KINDS). */
+  kind: varchar("kind", { length: 20 }).notNull(),
+  value: varchar("value", { length: 50 }).notNull(),
+  /** Seeded values sort first; anything added later falls in after them. */
+  sortOrder: integer("sort_order").notNull().default(100),
+  createdBy: uuid("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+});
+
 export const pumpModelMaster = pgTable(
   "pump_model_master",
   {

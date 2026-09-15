@@ -7,7 +7,9 @@ import StepApprovalBadge from "./approval/StepApprovalBadge";
 import {
   actions,
   btnGhost,
+  btnGhostSm,
   btnPrimary,
+  btnPrimarySm,
   control,
   fieldWrap,
   grid,
@@ -28,6 +30,14 @@ import {
 } from "../../services/motorMasterService";
 import { clearWizardInput, saveWizardInput } from "../../services/wizardInputService";
 import { ratingPlateNumber } from "../../lib/rating-plate";
+import {
+  OTHER_OPTION,
+  STANDARD_RATING_PLATE,
+  emptyDriveOptions,
+  type DriveOptionKind,
+  type DriveOptions,
+} from "../../lib/drive-options";
+import { addDriveOption, getDriveOptions } from "../../services/driveOptionsService";
 import type { PumpRecommendation } from "../../data/Recommendations";
 import {
   DEFAULT_VFD_MAX_HZ,
@@ -255,6 +265,145 @@ const unitFieldInput =
 const unitSuffix =
   "pointer-events-none absolute right-[14px] text-[13.5px] font-medium text-fg-3";
 
+type RatingOptionFieldProps = {
+  kind: DriveOptionKind;
+  fieldLabel: string;
+  value: string;
+  options: string[];
+  /** Fixed unit (Hz / V) — shown in the option labels and in the Other box. */
+  unit?: string;
+  emptyLabel?: string;
+  fieldHint?: string;
+  onChange: (value: string) => void;
+  onOptionsChange: (options: DriveOptions) => void;
+};
+
+/**
+ * One rating-plate dropdown, backed by drive_option_master. Picking "Other"
+ * swaps the list for a box: what is typed there is saved to the list, so the
+ * next enquiry can pick it instead of retyping it.
+ */
+const RatingOptionField = ({
+  kind,
+  fieldLabel,
+  value,
+  options,
+  unit,
+  emptyLabel = "Select",
+  fieldHint,
+  onChange,
+  onOptionsChange,
+}: RatingOptionFieldProps) => {
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [addError, setAddError] = useState("");
+
+  // A value saved before it reached the list (or added by someone else since
+  // this page loaded) still has to show in the box.
+  const shown = !value || options.includes(value) ? options : [...options, value];
+
+  const save = async () => {
+    const next = draft.trim();
+    if (!next) {
+      setAddError(`Enter a ${fieldLabel.toLowerCase()}.`);
+      return;
+    }
+    setSaving(true);
+    setAddError("");
+    try {
+      const res = await addDriveOption(kind, next);
+      onOptionsChange(res.options);
+      // The server returns the stored spelling, so "ip55" selects "IP55"
+      // rather than adding a near-duplicate.
+      onChange(res.value);
+      setAdding(false);
+      setDraft("");
+    } catch {
+      setAddError("Couldn't save it. Check your connection and try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (adding) {
+    return (
+      <div className={fieldWrap}>
+        <label className={label}>{fieldLabel}</label>
+        <div className="flex items-center gap-[8px]">
+          <div className={`${unit ? unitFieldWrap : ""} flex-1`}>
+            <input
+              autoFocus
+              type={unit ? "number" : "text"}
+              min={unit ? "0" : undefined}
+              step={unit ? "any" : undefined}
+              className={`${control} ${unit ? unitFieldInput : ""}`}
+              value={draft}
+              placeholder={`New ${fieldLabel.toLowerCase()}`}
+              onChange={(e) => {
+                setDraft(e.target.value);
+                if (addError) setAddError("");
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void save();
+                }
+              }}
+            />
+            {unit && <span className={unitSuffix}>{unit}</span>}
+          </div>
+          <button type="button" className={btnPrimarySm} onClick={() => void save()} disabled={saving}>
+            {saving ? "Adding…" : "Add"}
+          </button>
+          <button
+            type="button"
+            className={btnGhostSm}
+            onClick={() => {
+              setAdding(false);
+              setDraft("");
+              setAddError("");
+            }}
+            disabled={saving}
+          >
+            Cancel
+          </button>
+        </div>
+        <span className={hint}>Saved to the {fieldLabel.toLowerCase()} list for future enquiries.</span>
+        {addError && <span className={hintError}>{addError}</span>}
+      </div>
+    );
+  }
+
+  return (
+    <div className={fieldWrap}>
+      <label className={label}>{fieldLabel}</label>
+      <select
+        className={control}
+        value={value}
+        onChange={(e) => {
+          const next = e.target.value;
+          if (next === OTHER_OPTION) {
+            setAdding(true);
+            setDraft("");
+            return;
+          }
+          onChange(next);
+        }}
+      >
+        <option value="">{emptyLabel}</option>
+        {shown.map((o) => (
+          <option key={o} value={o}>
+            {unit ? `${o} ${unit}` : o}
+          </option>
+        ))}
+        <option value={OTHER_OPTION}>{OTHER_OPTION}…</option>
+      </select>
+      {fieldHint && <span className={hint}>{fieldHint}</span>}
+    </div>
+  );
+};
+
 const DriveDetailsStep = ({
   onNext,
   onPrevious,
@@ -358,6 +507,42 @@ const DriveDetailsStep = ({
   const [recheckLoading, setRecheckLoading] = useState(false);
   const [recheckError, setRecheckError] = useState<string | null>(null);
   const [pumpSpecs, setPumpSpecs] = useState<PumpRecommendation | null>(null);
+
+  // Rating-plate option lists. A failed fetch leaves them empty: the
+  // dropdowns still offer "Other", so the step keeps working.
+  const [driveOptions, setDriveOptions] = useState<DriveOptions>(emptyDriveOptions);
+  useEffect(() => {
+    let cancelled = false;
+    getDriveOptions()
+      .then((o) => {
+        if (!cancelled) setDriveOptions(o);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // A draft saved as Standard before these defaults existed (or with a field
+  // left blank) gets the standard plate filled in once, without overwriting
+  // anything already chosen.
+  const stdPlateRef = useRef(false);
+  useEffect(() => {
+    if (formData.driveStdNonStd !== "Standard") {
+      stdPlateRef.current = false;
+      return;
+    }
+    if (stdPlateRef.current) return;
+    stdPlateRef.current = true;
+    setFormData((f: typeof formData) => {
+      const patch: Record<string, string> = {};
+      for (const [field, value] of Object.entries(STANDARD_RATING_PLATE)) {
+        if (!f[field]) patch[field] = value;
+      }
+      return Object.keys(patch).length > 0 ? { ...f, ...patch } : f;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.driveStdNonStd]);
 
   const { raw: finalPumpRpmRaw, source: finalPumpRpmSource } = finalPumpRpm(formData);
 
@@ -1548,9 +1733,16 @@ const DriveDetailsStep = ({
                 <select
                   className={control}
                   value={formData.driveStdNonStd ?? ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, driveStdNonStd: e.target.value })
-                  }
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setFormData({
+                      ...formData,
+                      driveStdNonStd: next,
+                      // "Standard" IS the standard rating plate, so choosing it
+                      // fills those four in (all still editable).
+                      ...(next === "Standard" ? STANDARD_RATING_PLATE : {}),
+                    });
+                  }}
                 >
                   <option value="">Select</option>
                   {STD_OPTIONS.map((s) => (
@@ -1567,37 +1759,29 @@ const DriveDetailsStep = ({
                   motor type (IE class) the candidate list is filtered to. */}
               {formData.driveStdNonStd && (
                 <>
-                  <div className={fieldWrap}>
-                    <label className={label}>Efficiency</label>
-                    <select
-                      className={control}
-                      value={formData.driveMotorEfficiency ?? ""}
-                      onChange={(e) =>
-                        setFormData({ ...formData, driveMotorEfficiency: e.target.value })
-                      }
-                    >
-                      <option value="">All efficiency classes</option>
-                      {MOTOR_EFFICIENCY_CLASSES.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
-                    <span className={hint}>Filters the motor list by type.</span>
-                  </div>
+                  <RatingOptionField
+                    kind="efficiency"
+                    fieldLabel="Efficiency"
+                    emptyLabel="All efficiency classes"
+                    fieldHint="Filters the motor list by type."
+                    value={(formData.driveMotorEfficiency as string) ?? ""}
+                    options={
+                      driveOptions.efficiency.length > 0
+                        ? driveOptions.efficiency
+                        : MOTOR_EFFICIENCY_CLASSES
+                    }
+                    onChange={(v) => setFormData({ ...formData, driveMotorEfficiency: v })}
+                    onOptionsChange={setDriveOptions}
+                  />
 
-                  <div className={fieldWrap}>
-                    <label className={label}>Protection</label>
-                    <input
-                      type="text"
-                      className={control}
-                      placeholder="e.g. IP55"
-                      value={formData.driveMotorProtection ?? ""}
-                      onChange={(e) =>
-                        setFormData({ ...formData, driveMotorProtection: e.target.value })
-                      }
-                    />
-                  </div>
+                  <RatingOptionField
+                    kind="protection"
+                    fieldLabel="Protection"
+                    value={(formData.driveMotorProtection as string) ?? ""}
+                    options={driveOptions.protection}
+                    onChange={(v) => setFormData({ ...formData, driveMotorProtection: v })}
+                    onOptionsChange={setDriveOptions}
+                  />
                   {isNonStandard && (
                     <div className={fieldWrap}>
                       <label className={label}>Protection %</label>
@@ -1617,23 +1801,15 @@ const DriveDetailsStep = ({
                     </div>
                   )}
 
-                  <div className={fieldWrap}>
-                    <label className={label}>Frequency</label>
-                    <div className={unitFieldWrap}>
-                      <input
-                        type="number"
-                        min="0"
-                        step="any"
-                        className={`${control} ${unitFieldInput}`}
-                        placeholder="50"
-                        value={ratingPlateNumber(formData.driveMotorFrequency)}
-                        onChange={(e) =>
-                          setFormData({ ...formData, driveMotorFrequency: e.target.value })
-                        }
-                      />
-                      <span className={unitSuffix}>Hz</span>
-                    </div>
-                  </div>
+                  <RatingOptionField
+                    kind="frequency"
+                    fieldLabel="Frequency"
+                    unit="Hz"
+                    value={ratingPlateNumber(formData.driveMotorFrequency)}
+                    options={driveOptions.frequency}
+                    onChange={(v) => setFormData({ ...formData, driveMotorFrequency: v })}
+                    onOptionsChange={setDriveOptions}
+                  />
                   {isNonStandard && (
                     <div className={fieldWrap}>
                       <label className={label}>Frequency %</label>
@@ -1653,23 +1829,15 @@ const DriveDetailsStep = ({
                     </div>
                   )}
 
-                  <div className={fieldWrap}>
-                    <label className={label}>Voltage</label>
-                    <div className={unitFieldWrap}>
-                      <input
-                        type="number"
-                        min="0"
-                        step="any"
-                        className={`${control} ${unitFieldInput}`}
-                        placeholder="415"
-                        value={ratingPlateNumber(formData.driveMotorVoltage)}
-                        onChange={(e) =>
-                          setFormData({ ...formData, driveMotorVoltage: e.target.value })
-                        }
-                      />
-                      <span className={unitSuffix}>V</span>
-                    </div>
-                  </div>
+                  <RatingOptionField
+                    kind="voltage"
+                    fieldLabel="Voltage"
+                    unit="V"
+                    value={ratingPlateNumber(formData.driveMotorVoltage)}
+                    options={driveOptions.voltage}
+                    onChange={(v) => setFormData({ ...formData, driveMotorVoltage: v })}
+                    onOptionsChange={setDriveOptions}
+                  />
                   {isNonStandard && (
                     <div className={fieldWrap}>
                       <label className={label}>Voltage %</label>
