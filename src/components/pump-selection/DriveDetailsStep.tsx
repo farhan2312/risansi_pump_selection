@@ -154,10 +154,11 @@ const COUPLING_MAKES = ["Rathi", "Fenner"];
 // user selection now - it no longer cascades mounting/coupling (those derive
 // from pump type + GB type; see deriveGearedDefaults).
 const GEARED_CONFIG_TYPES = ["Gear Box + Motor", "Geared Motor"];
-// Motor efficiency (IE) classes — matched against motor_master.motor_type to
-// filter the motor candidates. The master currently only holds IE2 rows; IE3
-// is listed ahead of time so it works as soon as those rows are added.
-const MOTOR_EFFICIENCY_CLASSES = ["IE2", "IE3"];
+// Motor efficiency classes — matched against motor_master.motor_type to filter
+// the motor candidates ("FLP IE2" offers only flameproof IE2 motors). The live
+// list comes from drive_option_master; this is only the fallback if that fetch
+// fails, so keep it in step with the seeded values.
+const MOTOR_EFFICIENCY_CLASSES = ["IE2", "IE3", "FLP IE2", "FLP IE3"];
 const STARTER_TYPES = ["Star-Delta", "DOL"];
 const POWER_SUPPLIES = ["Single Phase", "Three Phase"];
 const STD_OPTIONS = ["Standard", "Non-Standard"];

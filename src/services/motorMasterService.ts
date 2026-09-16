@@ -17,6 +17,8 @@ export interface MotorMasterRow {
   frameSize: string | null;
   lpPrice: string | null;
   finalPrice: string | null;
+  /** Price-list effective date, "YYYY-MM-DD" (date column), or null. */
+  effectiveDate: string | null;
 }
 
 export type MotorMasterPatch = Partial<Omit<MotorMasterRow, "id">>;

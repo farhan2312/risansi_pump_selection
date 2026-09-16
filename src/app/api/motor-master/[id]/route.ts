@@ -31,6 +31,18 @@ function textOrNull(v: unknown): string | null {
   return String(v).trim();
 }
 
+// effective_date is a DATE column: accept "YYYY-MM-DD" (what <input
+// type="date"> sends), NULL on blank. Anything else is rejected rather than
+// silently stored as NULL.
+function dateOrNull(v: unknown): string | null | undefined {
+  if (v === null || v === undefined || String(v).trim() === "") return null;
+  const s = String(v).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || Number.isNaN(Date.parse(`${s}T00:00:00Z`))) {
+    return undefined;
+  }
+  return s;
+}
+
 function guardAdmin(req: Request): Response | null {
   try {
     requireAdmin(req);
@@ -77,6 +89,11 @@ export async function PATCH(
   if ("motorRpm" in body) patch.motorRpm = intOrNull(body.motorRpm);
   for (const f of TEXT_FIELDS) {
     if (f in body) patch[f] = textOrNull(body[f]);
+  }
+  if ("effectiveDate" in body) {
+    const d = dateOrNull(body.effectiveDate);
+    if (d === undefined) return error("'effectiveDate' must be a date (YYYY-MM-DD)", 400);
+    patch.effectiveDate = d;
   }
 
   if (Object.keys(patch).length === 0) {

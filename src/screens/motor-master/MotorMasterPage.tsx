@@ -26,7 +26,7 @@ import {
   AlertIcon,
 } from "../../components/ui/adminIcons";
 
-type FieldDef = { key: keyof MotorMasterRow; label: string; numeric: boolean };
+type FieldDef = { key: keyof MotorMasterRow; label: string; numeric: boolean; date?: boolean };
 
 // Editable columns, in form/details order. `id` is never editable.
 const FIELDS: FieldDef[] = [
@@ -39,12 +39,20 @@ const FIELDS: FieldDef[] = [
   { key: "frameSize", label: "Frame Size", numeric: false },
   { key: "lpPrice", label: "LP Price", numeric: true },
   { key: "finalPrice", label: "Final Price", numeric: true },
+  { key: "effectiveDate", label: "Effective Date", numeric: false, date: true },
 ];
 
 // Required identifiers (mirrors the API: brand + motorKw NOT nullable in intent).
 const REQUIRED_KEYS = new Set<keyof MotorMasterRow>(["brand", "motorKw"]);
 
 const val = (v: string | number | null) => (v === null || v === "" ? "—" : v);
+
+// "2026-05-22" -> "22-05-2026", the way the price lists print it. Built from
+// the parts, not new Date(), so it can't shift a day across time zones.
+const fmtDate = (v: string | null): string => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v ?? "");
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : "—";
+};
 
 // Group by rating (kW) ascending, then brand — matches the source sheet order.
 const sortRows = (a: MotorMasterRow, b: MotorMasterRow) => {
@@ -179,6 +187,7 @@ const MotorMasterPage = () => {
                   <th>Frame Size</th>
                   <th>LP Price</th>
                   <th>Final Price</th>
+                  <th>Effective Date</th>
                   <th className="pmm-actions-col">Actions</th>
                 </tr>
               </thead>
@@ -193,6 +202,7 @@ const MotorMasterPage = () => {
                     <td className="mono">{val(r.frameSize)}</td>
                     <td className="mono">{val(r.lpPrice)}</td>
                     <td className="mono">{val(r.finalPrice)}</td>
+                    <td className="mono">{fmtDate(r.effectiveDate)}</td>
                     <td>
                       <div className="pmm-row-actions">
                         <button className="pmm-btn" onClick={() => setDetailsRow(r)}>
@@ -279,7 +289,9 @@ const DetailsModal = ({ row, onClose }: { row: MotorMasterRow; onClose: () => vo
         {FIELDS.map((f) => (
           <div key={f.key}>
             <span>{f.label}</span>
-            <strong className={f.numeric ? "mono" : undefined}>{val(row[f.key])}</strong>
+            <strong className={f.numeric || f.date ? "mono" : undefined}>
+              {f.date ? fmtDate(row[f.key] as string | null) : val(row[f.key])}
+            </strong>
           </div>
         ))}
       </div>
@@ -368,7 +380,7 @@ const CreateModal = ({
                   {REQUIRED_KEYS.has(f.key) ? " *" : ""}
                 </label>
                 <input
-                  type={f.numeric ? "number" : "text"}
+                  type={f.date ? "date" : f.numeric ? "number" : "text"}
                   step={f.numeric ? "any" : undefined}
                   value={form[f.key]}
                   onChange={(e) => set(f.key, e.target.value)}
@@ -459,7 +471,7 @@ const EditModal = ({
                   {REQUIRED_KEYS.has(f.key) ? " *" : ""}
                 </label>
                 <input
-                  type={f.numeric ? "number" : "text"}
+                  type={f.date ? "date" : f.numeric ? "number" : "text"}
                   step={f.numeric ? "any" : undefined}
                   value={form[f.key]}
                   onChange={(e) => set(f.key, e.target.value)}

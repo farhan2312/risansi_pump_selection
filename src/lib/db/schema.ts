@@ -789,6 +789,10 @@ export const motorMaster = pgTable("motor_master", {
   frameSize: varchar("frame_size", { length: 50 }),
   lpPrice: numeric("lp_price", { precision: 14, scale: 2 }), // list price
   finalPrice: numeric("final_price", { precision: 14, scale: 2 }), // discounted/final
+  // Date the brand's price list took effect (e.g. ABB FRSM-69 = 2026-05-22), so
+  // a quote can say which price list it used. NULL for rows loaded before this
+  // column existed. mode "string" keeps it as "YYYY-MM-DD" (no timezone shift).
+  effectiveDate: date("effective_date", { mode: "string" }),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
 
