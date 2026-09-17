@@ -243,22 +243,23 @@ select.pmm-search {
   color: var(--fg-3);
 }
 
-/* Header and cells of the Actions column both sit right, over the buttons. */
+/* The Actions column is only as wide as its buttons; the header starts where
+   the buttons start. */
 .pmm-table th.pmm-actions-col,
 .pmm-actions-col {
-  text-align: right;
+  text-align: left;
   width: 1%;
 }
 
 .pmm-table td:last-child {
-  text-align: right;
+  text-align: left;
 }
 
 .pmm-row-actions {
   display: flex;
   flex-wrap: nowrap;
   gap: 4px;
-  justify-content: flex-end;
+  justify-content: flex-start;
   align-items: center;
 }
 
@@ -305,6 +306,10 @@ select.pmm-search {
 }
 .pmm-btn-danger {
   color: var(--neg);
+}
+/* Icon-only button (Delete): square, no label. */
+.pmm-btn-icon {
+  padding: 6px;
 }
 .pmm-btn-danger:hover:not(:disabled) {
   background: var(--neg-soft);

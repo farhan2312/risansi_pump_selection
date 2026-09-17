@@ -305,12 +305,13 @@ const UsersAccessPage = () => {
                             <EditIcon /> Edit
                           </button>
                           <button
-                            className="pmm-btn pmm-btn-danger"
+                            className="pmm-btn pmm-btn-danger pmm-btn-icon"
                             disabled={isSelf}
-                            title={isSelf ? "You can't delete your own account." : undefined}
+                            title={isSelf ? "You can't delete your own account." : "Delete user"}
+                            aria-label="Delete user"
                             onClick={() => setDeleteRow(row)}
                           >
-                            <TrashIcon /> Delete
+                            <TrashIcon />
                           </button>
                         </div>
                       </td>

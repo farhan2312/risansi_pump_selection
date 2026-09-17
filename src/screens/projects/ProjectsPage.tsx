@@ -598,7 +598,9 @@ const ProjectsPage = () => {
 
       {!isLoading && !error && filteredProjects.length > 0 && (
         <div className="mt-4 overflow-hidden rounded-xl border border-line bg-paper shadow-[0_1px_2px_rgba(10,22,40,0.04),0_8px_24px_rgba(10,22,40,0.04)]">
-          <div className={`hidden border-b border-line bg-elev px-4 py-2.5 lg:grid lg:grid-cols-[28px_minmax(230px,2.4fr)_minmax(110px,0.9fr)_minmax(100px,0.8fr)_minmax(150px,1.1fr)_minmax(100px,0.8fr)_minmax(120px,0.9fr)_262px] lg:items-center lg:gap-x-4 lg:[&>*]:min-w-0`}>
+          <div className="overflow-x-auto">
+          <div className="min-w-[940px] 2xl:min-w-[1060px]">
+          <div className={`border-b border-line bg-elev px-4 py-2.5 grid grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_152px] 2xl:grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_270px] items-center gap-x-3 [&>*]:min-w-0`}>
             <span />
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Enquiry</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Client Code</span>
@@ -606,7 +608,7 @@ const ProjectsPage = () => {
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Created By</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Created</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Status</span>
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3 text-right">Actions</span>
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Actions</span>
           </div>
           <ul className="divide-y divide-line">
             {filteredProjects.map((project) => {
@@ -618,7 +620,7 @@ const ProjectsPage = () => {
               return (
                 <li key={project.id} className={isOpen ? "bg-[color-mix(in_srgb,var(--accent-soft)_45%,transparent)]" : ""}>
                   {/* Enquiry row: columns on wide screens, stacked below lg */}
-                  <div className={`group flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-elev lg:grid lg:grid-cols-[28px_minmax(230px,2.4fr)_minmax(110px,0.9fr)_minmax(100px,0.8fr)_minmax(150px,1.1fr)_minmax(100px,0.8fr)_minmax(120px,0.9fr)_262px] lg:items-center lg:gap-x-4 lg:[&>*]:min-w-0`}>
+                  <div className={`group px-4 py-3 transition-colors hover:bg-elev grid grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_152px] 2xl:grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_270px] items-center gap-x-3 [&>*]:min-w-0`}>
                     <button
                         type="button"
                         onClick={() => toggleExpanded(project.id)}
@@ -711,7 +713,7 @@ const ProjectsPage = () => {
                       )}
                     </span>
 
-                    <div className="flex flex-wrap items-center justify-end gap-0.5 lg:flex-nowrap">
+                    <div className="flex flex-nowrap items-center justify-start gap-0.5">
                       <button
                         type="button"
                         className={btn}
@@ -719,7 +721,8 @@ const ProjectsPage = () => {
                         disabled={docLoadingFor === project.id}
                         title="View this enquiry's Technical Quotation"
                       >
-                        <DocumentIcon /> {docLoadingFor === project.id ? "Loading…" : "Document"}
+                        <DocumentIcon />
+                        <span className="hidden 2xl:inline">{docLoadingFor === project.id ? "Loading…" : "Document"}</span>
                       </button>
                       <button
                         type="button"
@@ -734,8 +737,10 @@ const ProjectsPage = () => {
                           }
                         }}
                         title="Copy a tag from this enquiry"
+                        aria-label={`Copy a tag from ${project.project_code}`}
                       >
-                        <CopyIcon /> Copy
+                        <CopyIcon />
+                        <span className="hidden 2xl:inline">Copy</span>
                       </button>
                       <button
                         type="button"
@@ -744,7 +749,8 @@ const ProjectsPage = () => {
                         aria-label={`Edit enquiry ${project.project_code}`}
                         title="Edit enquiry"
                       >
-                        <EditIcon /> Edit
+                        <EditIcon />
+                        <span className="hidden 2xl:inline">Edit</span>
                       </button>
                       <button
                         type="button"
@@ -761,7 +767,7 @@ const ProjectsPage = () => {
 
                   {/* Tags */}
                   {isOpen && (
-                    <div className="px-4 pb-4 sm:pl-14 lg:pl-[60px]">
+                    <div className="pr-4 pb-4 pl-[60px]">
                       <div className="rounded-xl border border-line bg-paper">
                         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-3.5 py-2.5">
                           <div>
@@ -903,6 +909,8 @@ const ProjectsPage = () => {
               );
             })}
           </ul>
+          </div>
+          </div>
 
           {/* Server-side: totalItems is the count across the WHOLE filtered
               table, not the length of this page. */}

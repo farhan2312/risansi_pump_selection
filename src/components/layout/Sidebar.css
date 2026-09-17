@@ -1,7 +1,7 @@
 /* App shell sidebar — Risansi design guide §7.7 (dark navy in both themes).
-   Fills the fixed-height shell exactly (see DashboardLayout.css) and never
-   scrolls on its own — its content (logo, nav, user menu) is short and
-   fixed, so it should always simply fit. */
+   Fills the fixed-height shell exactly (see DashboardLayout.css). When the
+   window is too short for every link (zoomed in, small laptop), the nav
+   scrolls; the logo and the user menu stay put. */
 .sidebar {
   width: 240px;
   height: 100%;
@@ -12,7 +12,12 @@
   flex-direction: column;
   flex-shrink: 0;
   border-right: 1px solid rgba(255, 255, 255, 0.06);
-  overflow-y: hidden;
+  overflow: hidden;
+}
+
+/* Logo and user menu keep their size; only the nav shrinks and scrolls. */
+.sidebar > :not(nav) {
+  flex-shrink: 0;
 }
 
 /* White logo chip */
@@ -36,6 +41,11 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
 }
 
 /* Cyan uppercase group eyebrow */

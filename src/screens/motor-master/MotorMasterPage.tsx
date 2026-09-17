@@ -212,10 +212,12 @@ const MotorMasterPage = () => {
                           <EditIcon /> Edit
                         </button>
                         <button
-                          className="pmm-btn pmm-btn-danger"
+                          className="pmm-btn pmm-btn-danger pmm-btn-icon"
                           onClick={() => setDeleteRow(r)}
+                          title="Delete"
+                          aria-label="Delete"
                         >
-                          <TrashIcon /> Delete
+                          <TrashIcon />
                         </button>
                       </div>
                     </td>
