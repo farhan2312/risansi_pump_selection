@@ -13,6 +13,7 @@ type Props = {
     name: string;
     clientCode: string;
     industry: string;
+    enquiryDate: string;
     status: string;
   }) => void;
 };
@@ -23,6 +24,7 @@ const EditProjectModal = ({ isOpen, project, isSaving, onClose, onSave }: Props)
   const [name, setName] = useState("");
   const [clientCode, setClientCode] = useState("");
   const [industry, setIndustry] = useState("");
+  const [enquiryDate, setEnquiryDate] = useState("");
   const [status, setStatus] = useState("In Progress");
 
   // Re-seed the fields whenever a different project is opened for editing.
@@ -31,6 +33,7 @@ const EditProjectModal = ({ isOpen, project, isSaving, onClose, onSave }: Props)
     setName(project.name ?? "");
     setClientCode(project.client_code ?? "");
     setIndustry(project.industry ?? "");
+    setEnquiryDate(project.enquiry_date ?? "");
     setStatus(project.status ?? "In Progress");
   }, [project]);
 
@@ -42,6 +45,11 @@ const EditProjectModal = ({ isOpen, project, isSaving, onClose, onSave }: Props)
         <h2>Edit Enquiry</h2>
 
         <div className="modal-form">
+          <div className="form-group">
+            <label>Enquiry date</label>
+            <input type="date" value={enquiryDate} onChange={(e) => setEnquiryDate(e.target.value)} />
+          </div>
+
           <div className="form-group">
             <label>Client Name</label>
             <input value={name} onChange={(e) => setName(e.target.value)} />
@@ -83,7 +91,7 @@ const EditProjectModal = ({ isOpen, project, isSaving, onClose, onSave }: Props)
           <button
             className="create-btn"
             disabled={isSaving || !name.trim()}
-            onClick={() => onSave({ name, clientCode, industry, status })}
+            onClick={() => onSave({ name, clientCode, industry, enquiryDate, status })}
           >
             {isSaving ? "Saving…" : "Save Changes"}
           </button>

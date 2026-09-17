@@ -14,6 +14,7 @@ type Props = {
     name: string;
     clientCode: string;
     industry: string;
+    enquiryDate: string;
   }) => Promise<string | null>;
 };
 
@@ -26,6 +27,10 @@ export function enquiryPrefix(now: Date = new Date()): string {
   return `RIL/EN/${yy(start)}-${yy(start + 1)}/`;
 }
 
+/** Today as YYYY-MM-DD in the user's own time zone. */
+export const todayYmd = (d: Date = new Date()): string =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
 // Shorter than the typical typing cadence, long enough that a full client name
 // costs one request rather than one per keystroke.
 const SEARCH_DEBOUNCE_MS = 300;
@@ -36,6 +41,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
   const [clientName, setClientName] = useState("");
   const [clientCode, setClientCode] = useState("");
   const [industry, setIndustry] = useState("");
+  const [enquiryDate, setEnquiryDate] = useState(() => todayYmd());
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -57,6 +63,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
     if (!isOpen) return;
     const fresh = enquiryPrefix();
     setEnquiryNo((v) => (v && v.startsWith(fresh) ? v : fresh));
+    setEnquiryDate((v) => v || todayYmd());
     setError("");
   }, [isOpen]);
 
@@ -120,6 +127,10 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
       setError("Add an enquiry suffix after the prefix.");
       return;
     }
+    if (!enquiryDate) {
+      setError("Enquiry date is required.");
+      return;
+    }
     setError("");
     setSaving(true);
     const msg = await onCreate({
@@ -127,6 +138,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
       name: clientName,
       clientCode,
       industry,
+      enquiryDate,
     });
     setSaving(false);
     // A message means it failed (e.g. duplicate Enquiry no.); keep the modal
@@ -175,6 +187,17 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
               Prefilled with the current fiscal-year prefix. Type the suffix
               after the trailing slash - the full string is what gets saved.
             </p>
+          </div>
+
+          <div className="form-group">
+            <label>Enquiry date *</label>
+            <input
+              type="date"
+              value={enquiryDate}
+              max={todayYmd()}
+              onChange={(e) => setEnquiryDate(e.target.value)}
+            />
+            <p className="modal-hint">The date the enquiry was received. Defaults to today.</p>
           </div>
 
           <div className="form-group">

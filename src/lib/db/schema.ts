@@ -70,6 +70,9 @@ export const projects = pgTable("projects", {
   clientCode: varchar("client_code", { length: 100 }),
   industry: varchar("industry", { length: 255 }),
   remarks: text("remarks"),
+  /** Date the enquiry was received (entered on the form). Null on enquiries
+   *  created before the field existed. */
+  enquiryDate: date("enquiry_date", { mode: "string" }),
   // Lifecycle, driven automatically (not just manually edited): "Pending" on
   // creation, flips to "In Progress" the first time General Information is
   // saved with real content, flips to "Completed" when the final report is

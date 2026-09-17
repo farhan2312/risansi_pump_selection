@@ -54,6 +54,7 @@ export function projectToDict(p: ProjectRow, createdByName?: string | null) {
     customer_name: p.customerName,
     client_code: p.clientCode,
     industry: p.industry,
+    enquiry_date: p.enquiryDate,
     remarks: p.remarks,
     status: p.status,
     created_by: p.createdBy,

@@ -174,6 +174,7 @@ const ProjectsPage = () => {
     name: string;
     clientCode: string;
     industry: string;
+    enquiryDate: string;
   }): Promise<string | null> => {
     setIsCreating(true);
     try {
@@ -429,6 +430,7 @@ const ProjectsPage = () => {
     name: string;
     clientCode: string;
     industry: string;
+    enquiryDate: string;
     status: string;
   }) => {
     if (!editing) return;
@@ -602,7 +604,7 @@ const ProjectsPage = () => {
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Client Code</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Industry</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Created By</span>
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Created</span>
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Enquiry Date</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Status</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3 text-right">Actions</span>
           </div>
@@ -672,14 +674,25 @@ const ProjectsPage = () => {
                       )}
                     </span>
 
-                    <span className="text-[12.5px] whitespace-nowrap text-fg-2">
-                      {project.created_at
-                        ? new Date(project.created_at).toLocaleDateString("en-IN", {
+                    {/* Enquiry date as entered; older enquiries without one show
+                        their created date in grey instead. */}
+                    <span
+                      className={`text-[12.5px] whitespace-nowrap ${project.enquiry_date ? "text-fg-2" : "text-fg-4"}`}
+                      title={project.enquiry_date ? "Enquiry date" : "No enquiry date set — showing the date it was created"}
+                    >
+                      {project.enquiry_date
+                        ? new Date(`${project.enquiry_date}T00:00:00`).toLocaleDateString("en-IN", {
                             day: "2-digit",
                             month: "short",
                             year: "numeric",
                           })
-                        : "—"}
+                        : project.created_at
+                          ? `${new Date(project.created_at).toLocaleDateString("en-IN", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })} (created)`
+                          : "—"}
                     </span>
 
                     <span className="flex flex-col items-start gap-1">

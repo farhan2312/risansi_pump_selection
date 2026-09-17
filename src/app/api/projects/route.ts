@@ -140,6 +140,12 @@ export async function POST(req: Request) {
     return error("'project_code' (Enquiry no.) is required", 400);
   }
 
+  // Enquiry date: a calendar day (YYYY-MM-DD). Required on create.
+  const enquiryDate = String(body.enquiryDate ?? body.enquiry_date ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(enquiryDate) || Number.isNaN(Date.parse(`${enquiryDate}T00:00:00Z`))) {
+    return error("'enquiryDate' is required (YYYY-MM-DD)", 400);
+  }
+
   // Derived from the verified session cookie, not client input — a client
   // could otherwise attribute a project to any arbitrary user id.
   const createdBy = tryDecodeToken(req)?.sub ?? null;
@@ -153,6 +159,7 @@ export async function POST(req: Request) {
         name: String(name),
         customerName: (body.customer as string) ?? null,
         industry: (body.industry as string) ?? null,
+        enquiryDate,
         remarks: (body.remarks as string) ?? null,
         clientCode: (body.clientCode as string) ?? "Pending",
         // New projects start "Pending" — flips to "In Progress" once General

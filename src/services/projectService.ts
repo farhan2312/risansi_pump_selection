@@ -9,6 +9,8 @@ export interface ProjectRecord {
   customer_name: string | null;
   client_code: string | null;
   industry: string | null;
+  /** YYYY-MM-DD, or null on older enquiries. */
+  enquiry_date: string | null;
   remarks: string | null;
   status: string | null;
   created_by: string | null;
@@ -79,6 +81,8 @@ export interface CreateProjectInput {
   name: string;
   clientCode: string;
   industry: string;
+  /** YYYY-MM-DD */
+  enquiryDate: string;
 }
 
 export const createProject = async (
@@ -100,6 +104,8 @@ export interface UpdateProjectInput {
   customerName?: string;
   clientCode?: string;
   industry?: string;
+  /** YYYY-MM-DD; empty clears it. */
+  enquiryDate?: string;
   status?: string;
   remarks?: string;
 }

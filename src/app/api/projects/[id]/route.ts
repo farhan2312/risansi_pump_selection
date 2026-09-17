@@ -89,6 +89,13 @@ export async function PATCH(
   if ("clientCode" in body) patch.clientCode = textOrNull(body.clientCode);
   if ("industry" in body) patch.industry = textOrNull(body.industry);
   if ("remarks" in body) patch.remarks = textOrNull(body.remarks);
+  if ("enquiryDate" in body) {
+    const d = textOrNull(body.enquiryDate);
+    if (d !== null && (!/^\d{4}-\d{2}-\d{2}$/.test(d) || Number.isNaN(Date.parse(`${d}T00:00:00Z`)))) {
+      return error("'enquiryDate' must be a date (YYYY-MM-DD)", 400);
+    }
+    patch.enquiryDate = d;
+  }
   if ("status" in body) {
     const s = textOrNull(body.status);
     if (s === null) return error("'status' can't be empty", 400);
