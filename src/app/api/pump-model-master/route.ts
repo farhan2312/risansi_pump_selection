@@ -4,8 +4,13 @@ import { error, json } from "@/lib/api";
 import { AuthError, requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { pumpModelMaster } from "@/lib/db/schema";
+import { auditMasterChange, rowLabel } from "@/lib/master-audit";
 
 export const dynamic = "force-dynamic";
+
+/** "H15 stage 2 · 12 MWC" — names the row in audit entries. */
+const labelOf = (r: typeof pumpModelMaster.$inferSelect) =>
+  rowLabel(r.model, r.stage != null && `stage ${r.stage}`, r.headMwc && `· ${Number(r.headMwc)} MWC`);
 
 // Optional numeric columns (pg NUMERIC — stored/returned as strings). Mirrors
 // the same list in /pump-model-master/[id]/route.ts to keep PATCH and POST
@@ -97,5 +102,12 @@ export async function POST(req: Request) {
   }
 
   const [created] = await db.insert(pumpModelMaster).values(values).returning();
+  await auditMasterChange(req, {
+    master: "Pump Model Master",
+    table: "pump_model_master",
+    op: "create",
+    id: created.id,
+    label: labelOf(created),
+  });
   return json(created, 201);
 }

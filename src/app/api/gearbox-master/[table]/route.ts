@@ -1,11 +1,19 @@
-import { asc } from "drizzle-orm";
+import { asc, getTableName } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
 import { AuthError, requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { pblGearbox, ptlGearbox, topGearGearbox } from "@/lib/db/schema";
+import { auditMasterChange, rowLabel } from "@/lib/master-audit";
 
 export const dynamic = "force-dynamic";
+
+const GEARBOX_NAMES: Record<string, string> = { pbl: "PBL", ptl: "PTL", "top-gear": "Top Gear" };
+
+/** "PBL 80 @ 60 RPM" — names the row in audit entries. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const labelOf = (tableKey: string, r: any) =>
+  rowLabel(GEARBOX_NAMES[tableKey] ?? tableKey, r?.model, r?.outputRpm != null && `@ ${Number(r.outputRpm)} RPM`);
 
 // All three gearbox tables share an identical column shape (built from the
 // same gearboxColumns() factory in schema.ts) — one generic route family
@@ -110,5 +118,12 @@ export async function POST(
     .returning();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [created] = insertResult as any[];
+  await auditMasterChange(req, {
+    master: "Gearbox Type",
+    table: getTableName(table),
+    op: "create",
+    id: created.id,
+    label: labelOf(tableKey, created),
+  });
   return json(created, 201);
 }

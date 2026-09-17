@@ -4,8 +4,13 @@ import { error, json } from "@/lib/api";
 import { AuthError, requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { motorMaster } from "@/lib/db/schema";
+import { auditMasterChange, rowLabel } from "@/lib/master-audit";
 
 export const dynamic = "force-dynamic";
+
+/** "CGL 0.55 kW 1440 RPM IE2 ND80" — names the row in audit entries. */
+const labelOf = (r: typeof motorMaster.$inferSelect) =>
+  rowLabel(r.brand, r.motorKw && `${Number(r.motorKw)} kW`, r.motorRpm && `${r.motorRpm} RPM`, r.motorType, r.frameSize);
 
 // Optional numeric columns (pg NUMERIC — stored/returned as strings). Kept in
 // sync with the same list in /motor-master/[id]/route.ts so POST and PATCH
@@ -104,5 +109,12 @@ export async function POST(req: Request) {
   }
 
   const [created] = await db.insert(motorMaster).values(values).returning();
+  await auditMasterChange(req, {
+    master: "Motor Master",
+    table: "motor_master",
+    op: "create",
+    id: created.id,
+    label: labelOf(created),
+  });
   return json(created, 201);
 }

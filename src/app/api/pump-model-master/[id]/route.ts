@@ -4,8 +4,13 @@ import { error, json } from "@/lib/api";
 import { AuthError, requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { pumpModelMaster } from "@/lib/db/schema";
+import { auditMasterChange, rowLabel } from "@/lib/master-audit";
 
 export const dynamic = "force-dynamic";
+
+/** "H15 stage 2 · 12 MWC" — names the row in audit entries. */
+const labelOf = (r: typeof pumpModelMaster.$inferSelect) =>
+  rowLabel(r.model, r.stage != null && `stage ${r.stage}`, r.headMwc && `· ${Number(r.headMwc)} MWC`);
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -98,12 +103,25 @@ export async function PATCH(
     return error("No editable fields provided", 400);
   }
 
+  // Read first so the audit entry can say what changed.
+  const [before] = await db.select().from(pumpModelMaster).where(eq(pumpModelMaster.id, id)).limit(1);
+  if (!before) return error("Row not found", 404);
+
   const [updated] = await db
     .update(pumpModelMaster)
     .set(patch)
     .where(eq(pumpModelMaster.id, id))
     .returning();
   if (!updated) return error("Row not found", 404);
+  await auditMasterChange(req, {
+    master: "Pump Model Master",
+    table: "pump_model_master",
+    op: "update",
+    id,
+    label: labelOf(updated),
+    before,
+    after: updated,
+  });
 
   return json(updated);
 }
@@ -123,6 +141,13 @@ export async function DELETE(
     .where(eq(pumpModelMaster.id, id))
     .returning();
   if (!deleted) return error("Row not found", 404);
+  await auditMasterChange(req, {
+    master: "Pump Model Master",
+    table: "pump_model_master",
+    op: "delete",
+    id,
+    label: labelOf(deleted),
+  });
 
   return json({ id: deleted.id, deleted: true });
 }

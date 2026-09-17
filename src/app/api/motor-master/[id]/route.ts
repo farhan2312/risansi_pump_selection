@@ -4,8 +4,13 @@ import { error, json } from "@/lib/api";
 import { AuthError, requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { motorMaster } from "@/lib/db/schema";
+import { auditMasterChange, rowLabel } from "@/lib/master-audit";
 
 export const dynamic = "force-dynamic";
+
+/** "CGL 0.55 kW 1440 RPM IE2 ND80" — names the row in audit entries. */
+const labelOf = (r: typeof motorMaster.$inferSelect) =>
+  rowLabel(r.brand, r.motorKw && `${Number(r.motorKw)} kW`, r.motorRpm && `${r.motorRpm} RPM`, r.motorType, r.frameSize);
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -100,12 +105,25 @@ export async function PATCH(
     return error("No editable fields provided", 400);
   }
 
+  // Read first so the audit entry can say what changed.
+  const [before] = await db.select().from(motorMaster).where(eq(motorMaster.id, id)).limit(1);
+  if (!before) return error("Row not found", 404);
+
   const [updated] = await db
     .update(motorMaster)
     .set(patch)
     .where(eq(motorMaster.id, id))
     .returning();
   if (!updated) return error("Row not found", 404);
+  await auditMasterChange(req, {
+    master: "Motor Master",
+    table: "motor_master",
+    op: "update",
+    id,
+    label: labelOf(updated),
+    before,
+    after: updated,
+  });
 
   return json(updated);
 }
@@ -125,6 +143,13 @@ export async function DELETE(
     .where(eq(motorMaster.id, id))
     .returning();
   if (!deleted) return error("Row not found", 404);
+  await auditMasterChange(req, {
+    master: "Motor Master",
+    table: "motor_master",
+    op: "delete",
+    id,
+    label: labelOf(deleted),
+  });
 
   return json({ id: deleted.id, deleted: true });
 }

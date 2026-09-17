@@ -520,3 +520,7 @@ never auto-filled from the AI result.
 - IP is stored on every audit row (first X-Forwarded-For hop). Shown on
   Activity, Logins (with device), Access, Usage (last IP + count) and in the
   PDF report; search matches IP.
+- Master data changes are audited: `src/lib/master-audit.ts` (`auditMasterChange`)
+  from the Pump Model / Pulley / Gearbox / Motor master POST, PATCH and DELETE
+  routes. Actions `master.create|update|delete`, entity = table, detail names
+  the row and lists only changed fields (old → new); no-op saves are skipped.

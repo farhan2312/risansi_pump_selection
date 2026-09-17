@@ -4,9 +4,14 @@ import { error, json } from "@/lib/api";
 import { AuthError, requirePulleyMasterAccess } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { pulleyBeltOption, pulleyMotorOption } from "@/lib/db/schema";
+import { auditMasterChange, rowLabel } from "@/lib/master-audit";
 import { parseBeltRows, type BeltInsert } from "./belts-shape";
 
 export const dynamic = "force-dynamic";
+
+/** "H15 · 1440 RPM" — names the row in audit entries. */
+const labelOf = (r: typeof pulleyMotorOption.$inferSelect) =>
+  rowLabel(r.model, r.motorRpm != null && `· ${r.motorRpm} RPM`);
 
 // Optional NUMERIC columns (pg returns them as strings). Same list is used
 // by POST here and by PATCH in the [id] route so the shapes stay in sync.
@@ -106,6 +111,14 @@ export async function POST(req: Request) {
         .values(belts.map((b) => ({ ...b, pulleyMotorOptionId: parent.id })));
     }
     return parent;
+  });
+  await auditMasterChange(req, {
+    master: "Pulley Master",
+    table: "pulley_motor_option",
+    op: "create",
+    id: created.id,
+    label: labelOf(created),
+    notes: belts.length ? [`${belts.length} belt option${belts.length === 1 ? "" : "s"}`] : undefined,
   });
   return json(created, 201);
 }

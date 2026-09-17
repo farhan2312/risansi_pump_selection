@@ -4,9 +4,14 @@ import { error, json } from "@/lib/api";
 import { AuthError, requirePulleyMasterAccess } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { pulleyBeltOption, pulleyMotorOption } from "@/lib/db/schema";
+import { auditMasterChange, rowLabel } from "@/lib/master-audit";
 import { parseBeltRows, type BeltInsert } from "../belts-shape";
 
 export const dynamic = "force-dynamic";
+
+/** "H15 · 1440 RPM" — names the row in audit entries. */
+const labelOf = (r: typeof pulleyMotorOption.$inferSelect) =>
+  rowLabel(r.model, r.motorRpm != null && `· ${r.motorRpm} RPM`);
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -96,6 +101,10 @@ export async function PATCH(
     return error("No editable fields provided", 400);
   }
 
+  // Read first so the audit entry can say what changed.
+  const [before] = await db.select().from(pulleyMotorOption).where(eq(pulleyMotorOption.id, id)).limit(1);
+  if (!before) return error("Row not found", 404);
+
   const updated = await db.transaction(async (tx) => {
     let row: typeof pulleyMotorOption.$inferSelect | undefined;
     if (Object.keys(patch).length > 0) {
@@ -128,6 +137,18 @@ export async function PATCH(
     return row;
   });
   if (!updated) return error("Row not found", 404);
+  await auditMasterChange(req, {
+    master: "Pulley Master",
+    table: "pulley_motor_option",
+    op: "update",
+    id,
+    label: labelOf(updated),
+    before,
+    after: updated,
+    notes: hasBelts
+      ? [`belt options replaced (${belts.length} row${belts.length === 1 ? "" : "s"})`]
+      : undefined,
+  });
 
   return json(updated);
 }
@@ -148,6 +169,13 @@ export async function DELETE(
     .where(eq(pulleyMotorOption.id, id))
     .returning();
   if (!deleted) return error("Row not found", 404);
+  await auditMasterChange(req, {
+    master: "Pulley Master",
+    table: "pulley_motor_option",
+    op: "delete",
+    id,
+    label: labelOf(deleted),
+  });
 
   return json({ id: deleted.id, deleted: true });
 }

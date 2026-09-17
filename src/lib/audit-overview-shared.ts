@@ -103,7 +103,7 @@ export function actionGroup(action: string): string {
   if (action.startsWith("report.")) return "Reports generated";
   if (action.startsWith("approval.")) return "Approvals";
   if (action.startsWith("user.")) return "User admin";
-  if (action.startsWith("drive_option.")) return "Master data";
+  if (action.startsWith("master.") || action.startsWith("drive_option.")) return "Master data";
   if (action.startsWith("audit.")) return "Audit reports";
   return "Other";
 }

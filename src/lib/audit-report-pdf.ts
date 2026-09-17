@@ -56,8 +56,16 @@ const prettyRole = (role: string | null | undefined) =>
   role ? ROLE_LABELS[role] ?? role : "—";
 
 /** "user.role_change" -> "Role change". */
+/** master.create/update/delete read as what happened to the master row. */
+const MASTER_ACTIONS: Record<string, string> = {
+  "master.create": "Master added",
+  "master.update": "Master edited",
+  "master.delete": "Master deleted",
+};
+
 const prettyAction = (action: string | null | undefined): string => {
   if (!action) return "—";
+  if (MASTER_ACTIONS[action]) return MASTER_ACTIONS[action];
   const tail = action.includes(".") ? action.slice(action.indexOf(".") + 1) : action;
   const words = tail.replace(/_/g, " ");
   return words.charAt(0).toUpperCase() + words.slice(1);
@@ -66,6 +74,7 @@ const prettyAction = (action: string | null | undefined): string => {
 /** "wizard.save" -> "Wizard · Save" - keeps the area for the by-type table. */
 const actionWithArea = (action: string): string => {
   if (!action.includes(".")) return prettyAction(action);
+  if (MASTER_ACTIONS[action]) return MASTER_ACTIONS[action];
   const area = action.slice(0, action.indexOf("."));
   return `${area.charAt(0).toUpperCase() + area.slice(1)} · ${prettyAction(action)}`;
 };

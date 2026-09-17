@@ -15,8 +15,16 @@ export const ROLE_LABELS: Record<string, string> = {
 export const prettyRole = (role: string | null | undefined): string =>
   role ? ROLE_LABELS[role] ?? role : "—";
 
+/** master.create/update/delete read as what happened to the master row. */
+const MASTER_ACTIONS: Record<string, string> = {
+  "master.create": "Master added",
+  "master.update": "Master edited",
+  "master.delete": "Master deleted",
+};
+
 /** "user.role_change" -> "Role change" */
 export const prettyAction = (action: string): string => {
+  if (MASTER_ACTIONS[action]) return MASTER_ACTIONS[action];
   const tail = action.includes(".") ? action.slice(action.indexOf(".") + 1) : action;
   const words = tail.replace(/_/g, " ");
   return words.charAt(0).toUpperCase() + words.slice(1);
@@ -183,6 +191,7 @@ function actionTone(action: string, eventType?: string): string {
   if (action.startsWith("wizard.")) return "bg-accent-soft text-accent";
   if (action.startsWith("enquiry.") || action.startsWith("tag.")) return "bg-[color-mix(in_srgb,var(--brand-cyan)_15%,transparent)] text-[var(--brand-cyan)]";
   if (action.startsWith("approval.")) return "bg-[var(--warn-soft)] text-warn";
+  if (action.startsWith("master.") || action.startsWith("drive_option.")) return "bg-[color-mix(in_srgb,#f97316_14%,transparent)] text-[#ea580c]";
   if (action.startsWith("user.")) return "bg-[color-mix(in_srgb,var(--purple)_14%,transparent)] text-[var(--purple)]";
   if (action.startsWith("report.") || action.startsWith("audit.")) return "bg-[var(--pos-soft)] text-pos";
   return "bg-sunk text-fg-2";

@@ -1,11 +1,19 @@
-import { eq } from "drizzle-orm";
+import { eq, getTableName } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
 import { AuthError, requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { pblGearbox, ptlGearbox, topGearGearbox } from "@/lib/db/schema";
+import { auditMasterChange, rowLabel } from "@/lib/master-audit";
 
 export const dynamic = "force-dynamic";
+
+const GEARBOX_NAMES: Record<string, string> = { pbl: "PBL", ptl: "PTL", "top-gear": "Top Gear" };
+
+/** "PBL 80 @ 60 RPM" — names the row in audit entries. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const labelOf = (tableKey: string, r: any) =>
+  rowLabel(GEARBOX_NAMES[tableKey] ?? tableKey, r?.model, r?.outputRpm != null && `@ ${Number(r.outputRpm)} RPM`);
 
 const TABLES = {
   pbl: pblGearbox,
@@ -90,6 +98,17 @@ export async function PATCH(
     return error("No editable fields provided", 400);
   }
 
+  // Read first so the audit entry can say what changed.
+  const beforeResult = await db
+    .select()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .from(table as any)
+    .where(eq(table.id, id))
+    .limit(1);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [before] = beforeResult as any[];
+  if (!before) return error("Row not found", 404);
+
   const updateResult = await db
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .update(table as any)
@@ -100,6 +119,15 @@ export async function PATCH(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [updated] = updateResult as any[];
   if (!updated) return error("Row not found", 404);
+  await auditMasterChange(req, {
+    master: "Gearbox Type",
+    table: getTableName(table),
+    op: "update",
+    id,
+    label: labelOf(tableKey, updated),
+    before,
+    after: updated,
+  });
 
   return json(updated);
 }
@@ -124,6 +152,13 @@ export async function DELETE(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [deleted] = deleteResult as any[];
   if (!deleted) return error("Row not found", 404);
+  await auditMasterChange(req, {
+    master: "Gearbox Type",
+    table: getTableName(table),
+    op: "delete",
+    id,
+    label: labelOf(tableKey, deleted),
+  });
 
   return json({ id: deleted.id, deleted: true });
 }
