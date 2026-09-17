@@ -29,12 +29,17 @@ const formatSentAt = (iso: string | null): string => {
   return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString();
 };
 
+// Sending steps for approval is switched off for now. Flip to true to re-enable
+// the Send Approval button (the rest of the approval flow is untouched).
+const SEND_APPROVAL_ENABLED = false;
+
 /**
  * Step 8 — Approval. The one place steps are chosen for approval: every
  * approvable step is listed with a tick box, and the ticked ones are sent
  * together. Sent steps are locked here and show their status as a read-only
  * badge on their own page (StepApprovalBadge).
  */
+
 const ApprovalStep = ({ onNext, onPrevious, onStepClick, formData }: Props) => {
   const approval = useApproval();
   const [sending, setSending] = useState(false);
@@ -67,6 +72,7 @@ const ApprovalStep = ({ onNext, onPrevious, onStepClick, formData }: Props) => {
   };
 
   const handleSend = async () => {
+    if (!SEND_APPROVAL_ENABLED) return;
     if (!approval || sending || pendingCount === 0) return;
     setSending(true);
     setSentCount(null);
@@ -218,9 +224,11 @@ const ApprovalStep = ({ onNext, onPrevious, onStepClick, formData }: Props) => {
             type="button"
             className={btnPrimary}
             onClick={() => void handleSend()}
-            disabled={sending || pendingCount === 0}
+            disabled={!SEND_APPROVAL_ENABLED || sending || pendingCount === 0}
             title={
-              pendingCount === 0
+              !SEND_APPROVAL_ENABLED
+                ? "Sending for approval is turned off for now."
+                : pendingCount === 0
                 ? "Nothing new to send — tick a step above first."
                 : undefined
             }

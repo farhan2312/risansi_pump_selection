@@ -320,6 +320,93 @@ export interface RecheckPdfInput {
   generatedBy?: string;
   /** Same rows the Drive step's Recheck popup shows (lib/recheck-calc). */
   tables: RecheckTables;
+  /** The selected pump card from Live Recommendation, drawn above the inputs. */
+  pumpCard?: RecheckPumpCard;
+}
+
+export interface RecheckPumpCard {
+  model: string;
+  /** e.g. "Confirmed", "Not Tested" */
+  badges: string[];
+  /** Label/value cells, in card order (Stage, Head, Qth, RPM, …). */
+  fields: [string, string][];
+  /** "Horizontal Standard · BK · MS" — pump type · AG/BK · seal. */
+  typeLine?: string;
+}
+
+// A card like the Live Recommendation one: model + badges, then the figures
+// in a 4-column grid of small label over bold value.
+function drawPumpCard(doc: jsPDF, L: Layout, card: RecheckPumpCard): void {
+  const cols = 4;
+  const rows = Math.ceil(card.fields.length / cols);
+  const cellH = 34;
+  const padX = 14;
+  const headerH = 34;
+  const typeH = card.typeLine ? 20 : 0;
+  const height = headerH + rows * cellH + typeH + 10;
+  L.ensureSpace(L.BAND_HEIGHT + height + 16);
+  L.drawSectionBand("Selected Pump");
+
+  const x = L.margin;
+  const y = L.state.y + 8;
+  const w = L.contentWidth;
+
+  // Card body with a green accent edge (the confirmed pick).
+  doc.setFillColor(247, 250, 252);
+  doc.setDrawColor(CELL_BORDER[0], CELL_BORDER[1], CELL_BORDER[2]);
+  doc.setLineWidth(0.6);
+  doc.roundedRect(x, y, w, height, 6, 6, "FD");
+  doc.setFillColor(POS_STRONG[0], POS_STRONG[1], POS_STRONG[2]);
+  doc.rect(x, y + 6, 3, height - 12, "F");
+
+  // Model + badges
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(15);
+  doc.setTextColor(20, 40, 80);
+  doc.text(card.model, x + padX, y + 23);
+  let bx = x + w - padX;
+  doc.setFontSize(8);
+  for (const badge of [...card.badges].reverse()) {
+    const tw = doc.getTextWidth(badge) + 12;
+    bx -= tw;
+    const warn = /not tested/i.test(badge);
+    if (warn) doc.setFillColor(254, 243, 199);
+    else doc.setFillColor(POS_SOFT[0], POS_SOFT[1], POS_SOFT[2]);
+    doc.roundedRect(bx, y + 11, tw, 15, 7, 7, "F");
+    if (warn) doc.setTextColor(146, 64, 14);
+    else doc.setTextColor(POS_STRONG[0], POS_STRONG[1], POS_STRONG[2]);
+    doc.text(badge, bx + 6, y + 21.5);
+    bx -= 6;
+  }
+
+  // Divider
+  doc.setDrawColor(CELL_BORDER[0], CELL_BORDER[1], CELL_BORDER[2]);
+  doc.line(x + padX, y + headerH, x + w - padX, y + headerH);
+
+  // Figures grid
+  const cellW = (w - padX * 2) / cols;
+  card.fields.forEach(([label, value], i) => {
+    const cx = x + padX + (i % cols) * cellW;
+    const cy = y + headerH + Math.floor(i / cols) * cellH;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(110);
+    doc.text(label.toUpperCase(), cx, cy + 13);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10.5);
+    doc.setTextColor(30);
+    doc.text(value || "—", cx, cy + 27);
+  });
+
+  if (card.typeLine) {
+    const ty = y + headerH + rows * cellH + 12;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(90);
+    doc.text(card.typeLine, x + padX, ty);
+  }
+
+  L.state.y = y + height + 14;
 }
 
 // The app's positive green, as on the popup's highlighted capacity row.
@@ -329,7 +416,12 @@ const POS_STRONG: RGB = [22, 101, 52];
 /** The Drive step's Recheck popup as a PDF, downloaded from the Selection
  * Summary: the inputs it used, then capacity and BKW at the drive-achieved
  * pump RPM at both VE limits. Download only — not stored on the tag. */
-export async function downloadRecheckPdf(input: RecheckPdfInput): Promise<void> {
+/** Builds the Recheck PDF. Saves it unless `save: false`; always returns the
+ *  file so the caller can preview it first. */
+export async function downloadRecheckPdf(
+  input: RecheckPdfInput,
+  opts: { save?: boolean } = {},
+): Promise<{ filename: string; blob: Blob }> {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const L = createLayout(doc);
   const { tables } = input;
@@ -349,6 +441,8 @@ export async function downloadRecheckPdf(input: RecheckPdfInput): Promise<void> 
     L.state.y,
   );
   L.state.y += 14;
+
+  if (input.pumpCard) drawPumpCard(doc, L, input.pumpCard);
 
   // Inputs: the two-column label/value grid every other section uses. A note
   // ("at selected head 26 MWC") rides along in brackets, as in the popup.
@@ -437,7 +531,9 @@ export async function downloadRecheckPdf(input: RecheckPdfInput): Promise<void> 
   drawFooter(doc, L, "Recheck of the confirmed pump at the drive-achieved RPM.");
 
   const dateSlug = new Date().toISOString().slice(0, 10);
-  doc.save(`Recheck-${safeSlug(input.projectCode) || "project"}-${dateSlug}.pdf`);
+  const filename = `Recheck-${safeSlug(input.projectCode) || "project"}-${dateSlug}.pdf`;
+  if (opts.save !== false) doc.save(filename);
+  return { filename, blob: doc.output("blob") };
 }
 
 // --- Combined enquiry document (all tags / liquids in one sheet) ------------

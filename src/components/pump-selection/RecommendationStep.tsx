@@ -4,7 +4,9 @@ import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
 import { useEffect, useState } from "react";
 import { getRecommendations } from "../../services/recommendationService";
-import { SIZE_COLUMN_BY_RANGE, sizeForViscosityRange } from "../../lib/suction-discharge-size";
+import { SIZE_COLUMN_BY_RANGE, sizeForViscosityRange, sizeOverride } from "../../lib/suction-discharge-size";
+import { sealingShort } from "../../lib/sealing";
+import { AG_BK_NOT_REQUIRED } from "./OperatingConditionsStep";
 import { RPM_BANDS } from "../../lib/rpm-bands";
 import {
   PUMP_SUPPORT_LABEL,
@@ -457,20 +459,71 @@ const RecommendationStep = ({
       rpm.source,
     );
   })();
+  // The Live Recommendation card for the picked pump, at the head the user
+  // picked — same figures, so the Recheck PDF shows which pump it is for.
+  const recheckPumpCard = (() => {
+    if (!confirmedPump) return undefined;
+    const point =
+      confirmedPump.headPoints?.find((p) => String(p.headMwc) === String(formData.selectedHead)) ?? null;
+    const suction = sizeOverride(formData.suctionSize, cardSize);
+    const discharge = sizeOverride(formData.dischargeSize, cardSize);
+    const agBk = formData.agBk === AG_BK_NOT_REQUIRED ? "" : formData.agBk;
+    const typeLine = [formData.pumpType, agBk, sealingShort(formData.sealingType)].filter(Boolean).join(" · ");
+    return {
+      model: confirmedPump.model,
+      badges: [
+        ...(formData.modelConfirmed ? ["Confirmed"] : []),
+        ...(confirmedPump.isTested === false ? ["Not Tested"] : []),
+      ],
+      fields: [
+        ["Stage", confirmedPump.stage != null ? String(confirmedPump.stage) : "—"],
+        [
+          "Head",
+          point ? `${point.headMwc} MWC` : confirmedPump.headBandMwc ? `${confirmedPump.headBandMwc} MWC` : "—",
+        ],
+        ["Qth", confirmedPump.qth != null ? String(confirmedPump.qth) : "—"],
+        ["RPM", point ? String(point.rpmRange) : "—"],
+        [
+          "VOLE",
+          point && point.voleMin != null && point.voleMax != null ? `${point.voleMin}–${point.voleMax}%` : "—",
+        ],
+        ["Mech Eff", point && point.mechEff != null ? `${point.mechEff}%` : "—"],
+        ["Suction", suction !== null ? `${suction}"` : "—"],
+        ["Discharge", discharge !== null ? `${discharge}"` : "—"],
+      ] as [string, string][],
+      typeLine: typeLine || undefined,
+    };
+  })();
   const [downloadingRecheck, setDownloadingRecheck] = useState(false);
   const [recheckError, setRecheckError] = useState<string | null>(null);
+  // The Recheck PDF opens in a preview first; Download saves that same file.
+  const [recheckPreview, setRecheckPreview] = useState<{ url: string; filename: string } | null>(null);
+  const closeRecheckPreview = () => {
+    setRecheckPreview((p) => {
+      if (p) URL.revokeObjectURL(p.url);
+      return null;
+    });
+  };
+  useEffect(() => {
+    if (!recheckPreview) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && closeRecheckPreview();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [recheckPreview]);
   const handleRecheckPdf = async () => {
     if (!recheck) return;
     setDownloadingRecheck(true);
     setRecheckError(null);
     try {
-      await downloadRecheckPdf({
+      const file = await downloadRecheckPdf({
         projectCode: projectCode || "",
         projectName,
         customerName,
         generatedBy: user?.name || user?.email || undefined,
         tables: recheck,
-      });
+        pumpCard: recheckPumpCard,
+      }, { save: false });
+      setRecheckPreview({ url: URL.createObjectURL(file.blob), filename: file.filename });
     } catch {
       setRecheckError("Couldn't generate the Recheck PDF. Please try again.");
     } finally {
@@ -563,7 +616,7 @@ const RecommendationStep = ({
             onClick={() => void handleRecheckPdf()}
             title={
               recheck
-                ? "Download the Drive step's Recheck (capacity & BKW at the final pump RPM) as a PDF"
+                ? "View the Drive step's Recheck (capacity & BKW at the final pump RPM) as a PDF, then download it"
                 : isLoading
                   ? "Loading pump data…"
                   : "Needs a confirmed pump and a drive system with its final pump RPM — complete the Drive step first"
@@ -581,6 +634,48 @@ const RecommendationStep = ({
             {downloadingRecheck ? "Preparing…" : "Recheck PDF"}
           </button>
         </h2>
+
+        {recheckPreview && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(10,22,40,0.6)] p-4"
+            onClick={closeRecheckPreview}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Recheck PDF preview"
+              onClick={(e) => e.stopPropagation()}
+              className="flex h-[92vh] w-full max-w-[960px] flex-col overflow-hidden rounded-2xl border border-line bg-paper shadow-[0_24px_64px_rgba(0,0,0,0.3)]"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3">
+                <div className="min-w-0">
+                  <div className="text-[15px] font-semibold text-fg">Recheck at Final Selected RPM</div>
+                  <div className="truncate font-mono text-[11.5px] text-fg-3">{recheckPreview.filename}</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={recheckPreview.url}
+                    download={recheckPreview.filename}
+                    className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-white shadow-[0_1px_2px_rgba(10,61,143,0.15)] transition hover:-translate-y-px"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className="h-4 w-4">
+                      <path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    Download
+                  </a>
+                  <button
+                    type="button"
+                    onClick={closeRecheckPreview}
+                    className="rounded-lg border border-line px-3 py-2 text-[13px] font-semibold text-fg-2 transition hover:border-accent hover:text-accent"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+              <iframe title="Recheck PDF" src={recheckPreview.url} className="w-full flex-1 border-0 bg-sunk" />
+            </div>
+          </div>
+        )}
 
         <p>
           Review your confirmed pump and its configuration. Go back to any step to
