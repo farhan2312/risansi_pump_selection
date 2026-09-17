@@ -338,30 +338,41 @@ export interface RecheckMotorRating {
   remarks?: string;
 }
 
+// --- One-page layout ---------------------------------------------------------
+//
+// The Recheck PDF is meant to be a single A4 sheet. Everything below takes a
+// scale `k`: the document is built at k = 1 and, if it spills onto a second
+// page (a long remark, a VFD table), rebuilt a little tighter until it fits.
+
+const clampFont = (size: number) => Math.max(6.5, size);
+
 // Motor Rating figures in the same card style: BKW → Motor KW → Recommended,
 // with the Selected rating emphasised (amber when it differs).
-function drawMotorRatingCard(doc: jsPDF, L: Layout, m: RecheckMotorRating): void {
+function drawMotorRatingCard(doc: jsPDF, L: Layout, m: RecheckMotorRating, k: number): void {
   const cells: [string, string][] = [
     ["BKW", m.bkw],
     ["Motor KW (BKW × 1.2)", m.motorKw],
     ["Recommended KW", m.recommendedKw],
     ["Selected KW", m.selectedKw],
   ];
-  const differs = m.selectedKw !== "—" && m.recommendedKw !== "—" && parseFloat(m.selectedKw) !== parseFloat(m.recommendedKw);
+  const differs =
+    m.selectedKw !== "—" && m.recommendedKw !== "—" && parseFloat(m.selectedKw) !== parseFloat(m.recommendedKw);
   const padX = 14;
-  const gridH = 44;
+  const gridH = 38 * k;
+  const noteSize = clampFont(8.5 * k);
+  const noteLead = noteSize * 1.35;
   const noteLines: string[] = [];
   if (m.mechEff) noteLines.push(`Mechanical efficiency ${m.mechEff} · BKW = Capacity × Head ÷ 367 ÷ (ME ÷ 100), at the duty head.`);
   if (differs && m.remarks) noteLines.push(`Why ${m.selectedKw} instead of ${m.recommendedKw}: ${m.remarks}`);
-  doc.setFontSize(9);
+  doc.setFontSize(noteSize);
   const wrapped = noteLines.flatMap((t) => doc.splitTextToSize(t, L.contentWidth - padX * 2) as string[]);
-  const noteH = wrapped.length ? wrapped.length * 12 + 8 : 0;
-  const height = gridH + noteH + 12;
+  const noteH = wrapped.length ? wrapped.length * noteLead + 6 * k : 0;
+  const height = gridH + noteH + 8 * k;
 
-  L.ensureSpace(L.BAND_HEIGHT + height + 16);
+  L.ensureSpace(L.BAND_HEIGHT + height + 12);
   L.drawSectionBand("Motor Rating");
   const x = L.margin;
-  const y = L.state.y + 8;
+  const y = L.state.y + 6 * k;
   const w = L.contentWidth;
 
   doc.setFillColor(247, 250, 252);
@@ -374,41 +385,40 @@ function drawMotorRatingCard(doc: jsPDF, L: Layout, m: RecheckMotorRating): void
     const cx = x + padX + i * cellW;
     const last = i === cells.length - 1;
     if (last) {
-      // Highlight the final selection.
       if (differs) doc.setFillColor(254, 243, 199);
       else doc.setFillColor(POS_SOFT[0], POS_SOFT[1], POS_SOFT[2]);
-      doc.roundedRect(cx - 6, y + 6, cellW - 2, gridH - 6, 5, 5, "F");
+      doc.roundedRect(cx - 6, y + 5 * k, cellW - 2, gridH - 5 * k, 5, 5, "F");
     }
-    // Arrow between the calculation steps.
-    // (Drawn, not a "→" glyph: the built-in PDF fonts have no arrow.)
+    // Arrow between the calculation steps (drawn: the built-in fonts have no arrow glyph).
     if (i > 0) {
+      const my = y + 24 * k;
       doc.setDrawColor(170, 180, 195);
       doc.setLineWidth(1.2);
-      doc.line(cx - 16, y + 23, cx - 12, y + 27);
-      doc.line(cx - 12, y + 27, cx - 16, y + 31);
+      doc.line(cx - 16, my - 4, cx - 12, my);
+      doc.line(cx - 12, my, cx - 16, my + 4);
     }
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.5);
+    doc.setFontSize(clampFont(7.5 * k));
     doc.setTextColor(110);
-    doc.text(label.toUpperCase(), cx, y + 19);
+    doc.text(label.toUpperCase(), cx, y + 16 * k);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(12.5);
+    doc.setFontSize(clampFont(12 * k));
     if (last && differs) doc.setTextColor(146, 64, 14);
     else if (last) doc.setTextColor(POS_STRONG[0], POS_STRONG[1], POS_STRONG[2]);
     else doc.setTextColor(30);
-    doc.text(value || "—", cx, y + 35);
+    doc.text(value || "—", cx, y + 31 * k);
   });
 
   if (wrapped.length) {
     doc.setDrawColor(CELL_BORDER[0], CELL_BORDER[1], CELL_BORDER[2]);
-    doc.line(x + padX, y + gridH + 4, x + w - padX, y + gridH + 4);
+    doc.line(x + padX, y + gridH + 2, x + w - padX, y + gridH + 2);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
+    doc.setFontSize(noteSize);
     doc.setTextColor(90);
-    wrapped.forEach((line, i) => doc.text(line, x + padX, y + gridH + 18 + i * 12));
+    wrapped.forEach((line, i) => doc.text(line, x + padX, y + gridH + 4 * k + noteLead * (i + 1)));
   }
 
-  L.state.y = y + height + 14;
+  L.state.y = y + height + 10 * k;
 }
 
 export interface RecheckPumpCard {
@@ -423,19 +433,19 @@ export interface RecheckPumpCard {
 
 // A card like the Live Recommendation one: model + badges, then the figures
 // in a 4-column grid of small label over bold value.
-function drawPumpCard(doc: jsPDF, L: Layout, card: RecheckPumpCard): void {
+function drawPumpCard(doc: jsPDF, L: Layout, card: RecheckPumpCard, k: number): void {
   const cols = 4;
   const rows = Math.ceil(card.fields.length / cols);
-  const cellH = 34;
+  const cellH = 28 * k;
   const padX = 14;
-  const headerH = 34;
-  const typeH = card.typeLine ? 20 : 0;
-  const height = headerH + rows * cellH + typeH + 10;
-  L.ensureSpace(L.BAND_HEIGHT + height + 16);
+  const headerH = 28 * k;
+  const typeH = card.typeLine ? 16 * k : 0;
+  const height = headerH + rows * cellH + typeH + 6 * k;
+  L.ensureSpace(L.BAND_HEIGHT + height + 12);
   L.drawSectionBand("Selected Pump");
 
   const x = L.margin;
-  const y = L.state.y + 8;
+  const y = L.state.y + 6 * k;
   const w = L.contentWidth;
 
   // Card body with a green accent edge (the confirmed pick).
@@ -448,70 +458,77 @@ function drawPumpCard(doc: jsPDF, L: Layout, card: RecheckPumpCard): void {
 
   // Model + badges
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(15);
+  doc.setFontSize(clampFont(14 * k));
   doc.setTextColor(20, 40, 80);
-  doc.text(card.model, x + padX, y + 23);
+  doc.text(card.model, x + padX, y + 19 * k);
   let bx = x + w - padX;
-  doc.setFontSize(8);
+  doc.setFontSize(clampFont(7.5 * k));
   for (const badge of [...card.badges].reverse()) {
     const tw = doc.getTextWidth(badge) + 12;
     bx -= tw;
     const warn = /not tested/i.test(badge);
     if (warn) doc.setFillColor(254, 243, 199);
     else doc.setFillColor(POS_SOFT[0], POS_SOFT[1], POS_SOFT[2]);
-    doc.roundedRect(bx, y + 11, tw, 15, 7, 7, "F");
+    doc.roundedRect(bx, y + 8 * k, tw, 14 * k, 6, 6, "F");
     if (warn) doc.setTextColor(146, 64, 14);
     else doc.setTextColor(POS_STRONG[0], POS_STRONG[1], POS_STRONG[2]);
-    doc.text(badge, bx + 6, y + 21.5);
+    doc.text(badge, bx + 6, y + 17.5 * k);
     bx -= 6;
   }
 
-  // Divider
   doc.setDrawColor(CELL_BORDER[0], CELL_BORDER[1], CELL_BORDER[2]);
   doc.line(x + padX, y + headerH, x + w - padX, y + headerH);
 
-  // Figures grid
   const cellW = (w - padX * 2) / cols;
   card.fields.forEach(([label, value], i) => {
     const cx = x + padX + (i % cols) * cellW;
     const cy = y + headerH + Math.floor(i / cols) * cellH;
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.5);
+    doc.setFontSize(clampFont(7 * k));
     doc.setTextColor(110);
-    doc.text(label.toUpperCase(), cx, cy + 13);
+    doc.text(label.toUpperCase(), cx, cy + 11 * k);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(10.5);
+    doc.setFontSize(clampFont(10 * k));
     doc.setTextColor(30);
-    doc.text(value || "—", cx, cy + 27);
+    doc.text(value || "—", cx, cy + 23 * k);
   });
 
   if (card.typeLine) {
-    const ty = y + headerH + rows * cellH + 12;
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
+    doc.setFontSize(clampFont(8.5 * k));
     doc.setTextColor(90);
-    doc.text(card.typeLine, x + padX, ty);
+    doc.text(card.typeLine, x + padX, y + headerH + rows * cellH + 11 * k);
   }
 
-  L.state.y = y + height + 14;
+  L.state.y = y + height + 10 * k;
 }
 
 // The app's positive green, as on the popup's highlighted capacity row.
 const POS_SOFT: RGB = [223, 243, 231];
 const POS_STRONG: RGB = [22, 101, 52];
 
-/** The Drive step's Recheck popup as a PDF, downloaded from the Selection
- * Summary: the inputs it used, then capacity and BKW at the drive-achieved
- * pump RPM at both VE limits. Download only — not stored on the tag. */
-/** Builds the Recheck PDF. Saves it unless `save: false`; always returns the
- *  file so the caller can preview it first. */
-export async function downloadRecheckPdf(
-  input: RecheckPdfInput,
-  opts: { save?: boolean } = {},
-): Promise<{ filename: string; blob: Blob }> {
+/** Builds the Recheck document at scale `k` (see the one-page note above). */
+async function buildRecheckDoc(input: RecheckPdfInput, k: number): Promise<jsPDF> {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const L = createLayout(doc);
   const { tables } = input;
+  const gap = 10 * k;
+  const fontSize = clampFont(9 * k);
+  const cellPadding = Math.max(2, 4.5 * k);
+  const tableStyles = {
+    fontSize,
+    cellPadding,
+    textColor: 40,
+    lineColor: CELL_BORDER,
+    lineWidth: 0.5,
+    valign: "top" as const,
+    overflow: "linebreak" as const,
+  };
+  const headStyles = { fillColor: [235, 238, 243] as RGB, textColor: 60, fontStyle: "bold" as const };
+  const afterTable = () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    L.state.y = (doc as any).lastAutoTable.finalY + gap;
+  };
 
   await drawReportHeader(doc, L, {
     title: "Recheck at Final Selected RPM",
@@ -519,28 +536,44 @@ export async function downloadRecheckPdf(
     generatedBy: input.generatedBy,
   });
 
-  doc.setFontSize(9.5);
+  doc.setFontSize(clampFont(9 * k));
   doc.setTextColor(90);
   doc.setFont("helvetica", "normal");
-  doc.text(
-    "Delivered capacity & BKW recomputed at the drive-achieved pump RPM.",
-    L.margin,
-    L.state.y,
-  );
-  L.state.y += 14;
+  doc.text("Delivered capacity & BKW recomputed at the drive-achieved pump RPM.", L.margin, L.state.y);
+  L.state.y += 10 * k;
 
-  if (input.pumpCard) drawPumpCard(doc, L, input.pumpCard);
-  if (input.motorRating) drawMotorRatingCard(doc, L, input.motorRating);
+  if (input.pumpCard) drawPumpCard(doc, L, input.pumpCard, k);
+  if (input.motorRating) drawMotorRatingCard(doc, L, input.motorRating, k);
 
-  // Inputs: the two-column label/value grid every other section uses. A note
-  // ("at selected head 26 MWC") rides along in brackets, as in the popup.
+  // Inputs: label/value pairs, two pairs per row so the section stays short. A
+  // note ("at selected head 26 MWC") rides along in brackets, as in the popup.
   L.drawSectionBand("Inputs");
-  L.drawTable(
-    tables.inputs.map((r): [string, string] => [r.label, r.note ? `${r.value}  (${r.note})` : r.value]),
-  );
+  const pairs = tables.inputs.map((r): [string, string] => [r.label, r.note ? `${r.value}  (${r.note})` : r.value]);
+  const inputRows: string[][] = [];
+  for (let i = 0; i < pairs.length; i += 2) {
+    inputRows.push([...pairs[i]!, ...(pairs[i + 1] ?? ["", ""])]);
+  }
+  const labelW = 105;
+  const valueW = L.contentWidth / 2 - labelW;
+  autoTable(doc, {
+    startY: L.state.y,
+    margin: { left: L.margin, right: L.margin },
+    body: inputRows,
+    theme: "grid",
+    styles: tableStyles,
+    columnStyles: {
+      0: { fontStyle: "bold", cellWidth: labelW, fillColor: [247, 249, 251] },
+      1: { cellWidth: valueW },
+      2: { fontStyle: "bold", cellWidth: labelW, fillColor: [247, 249, 251] },
+      3: { cellWidth: valueW },
+    },
+    showHead: false,
+  });
+  afterTable();
 
   // Results: one row per figure, a column per VE limit.
-  L.ensureSpace(L.BAND_HEIGHT + 110);
+  const valueCol = 115;
+  L.ensureSpace(L.BAND_HEIGHT + 80);
   L.drawSectionBand("Results at Final RPM");
   const fmt = (n: number, unit?: string) => `${fmtRecheckNum(n)}${unit ? ` ${unit}` : ""}`;
   autoTable(doc, {
@@ -549,20 +582,12 @@ export async function downloadRecheckPdf(
     head: [["At VE", tables.hiHeading, tables.loHeading]],
     body: tables.outputs.map((r) => [r.label, fmt(r.hi, r.unit), fmt(r.lo, r.unit)]),
     theme: "grid",
-    styles: {
-      fontSize: FONT_SIZE,
-      cellPadding: CELL_PADDING,
-      textColor: 40,
-      lineColor: CELL_BORDER,
-      lineWidth: 0.5,
-      valign: "top",
-      overflow: "linebreak",
-    },
-    headStyles: { fillColor: [235, 238, 243], textColor: 60, fontStyle: "bold" },
+    styles: tableStyles,
+    headStyles,
     columnStyles: {
-      0: { fontStyle: "bold", cellWidth: L.contentWidth - 2 * 120 },
-      1: { halign: "right", cellWidth: 120 },
-      2: { halign: "right", cellWidth: 120 },
+      0: { fontStyle: "bold", cellWidth: L.contentWidth - 2 * valueCol },
+      1: { halign: "right", cellWidth: valueCol },
+      2: { halign: "right", cellWidth: valueCol },
     },
     didParseCell: (data) => {
       if (data.section === "head" && data.column.index > 0) data.cell.styles.halign = "right";
@@ -573,13 +598,12 @@ export async function downloadRecheckPdf(
       }
     },
   });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  L.state.y = (doc as any).lastAutoTable.finalY + 14;
+  afterTable();
 
   // On a VFD the pump runs across a speed range, so the same figures are
   // reported at both ends of it.
   if (tables.vfd) {
-    L.ensureSpace(L.BAND_HEIGHT + 110);
+    L.ensureSpace(L.BAND_HEIGHT + 80);
     L.drawSectionBand("On VFD — Hz Range");
     autoTable(doc, {
       startY: L.state.y,
@@ -587,20 +611,12 @@ export async function downloadRecheckPdf(
       head: [["At frequency", tables.vfd.minHeading, tables.vfd.maxHeading]],
       body: tables.vfd.rows.map((r) => [r.label, r.min, r.max]),
       theme: "grid",
-      styles: {
-        fontSize: FONT_SIZE,
-        cellPadding: CELL_PADDING,
-        textColor: 40,
-        lineColor: CELL_BORDER,
-        lineWidth: 0.5,
-        valign: "top",
-        overflow: "linebreak",
-      },
-      headStyles: { fillColor: [235, 238, 243], textColor: 60, fontStyle: "bold" },
+      styles: tableStyles,
+      headStyles,
       columnStyles: {
-        0: { fontStyle: "bold", cellWidth: L.contentWidth - 2 * 120 },
-        1: { halign: "right", cellWidth: 120 },
-        2: { halign: "right", cellWidth: 120 },
+        0: { fontStyle: "bold", cellWidth: L.contentWidth - 2 * valueCol },
+        1: { halign: "right", cellWidth: valueCol },
+        2: { halign: "right", cellWidth: valueCol },
       },
       didParseCell: (data) => {
         if (data.section === "head" && data.column.index > 0) data.cell.styles.halign = "right";
@@ -612,16 +628,33 @@ export async function downloadRecheckPdf(
         }
       },
     });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    L.state.y = (doc as any).lastAutoTable.finalY + 14;
+    afterTable();
   }
 
   drawFooter(doc, L, "Recheck of the confirmed pump at the drive-achieved RPM.");
+  return doc;
+}
+
+/** The Drive step's Recheck popup as a single-page PDF: the selected pump, its
+ *  motor rating, the inputs used, then capacity and BKW at the drive-achieved
+ *  pump RPM at both VE limits (and across the VFD range when fitted). Saves it
+ *  unless `save: false`; always returns the file so the caller can preview it. */
+export async function downloadRecheckPdf(
+  input: RecheckPdfInput,
+  opts: { save?: boolean } = {},
+): Promise<{ filename: string; blob: Blob }> {
+  // Build tighter until it fits on one page; the tightest attempt is kept even
+  // if an unusually long remark still pushes it over.
+  let doc: jsPDF | null = null;
+  for (const k of [1, 0.9, 0.8, 0.7]) {
+    doc = await buildRecheckDoc(input, k);
+    if (doc.getNumberOfPages() === 1) break;
+  }
 
   const dateSlug = new Date().toISOString().slice(0, 10);
   const filename = `Recheck-${safeSlug(input.projectCode) || "project"}-${dateSlug}.pdf`;
-  if (opts.save !== false) doc.save(filename);
-  return { filename, blob: doc.output("blob") };
+  if (opts.save !== false) doc!.save(filename);
+  return { filename, blob: doc!.output("blob") };
 }
 
 // --- Combined enquiry document (all tags / liquids in one sheet) ------------
