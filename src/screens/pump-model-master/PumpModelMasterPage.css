@@ -243,6 +243,8 @@ select.pmm-search {
   color: var(--fg-3);
 }
 
+/* Header and cells of the Actions column both sit right, over the buttons. */
+.pmm-table th.pmm-actions-col,
 .pmm-actions-col {
   text-align: right;
   width: 1%;
@@ -302,7 +304,7 @@ select.pmm-search {
   color: #fff;
 }
 .pmm-btn-danger {
-  color: var(--fg-3);
+  color: var(--neg);
 }
 .pmm-btn-danger:hover:not(:disabled) {
   background: var(--neg-soft);

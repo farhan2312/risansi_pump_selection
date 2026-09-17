@@ -476,7 +476,7 @@ const ProjectsPage = () => {
   const btn =
     "inline-flex items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-1.5 text-[12.5px] font-semibold whitespace-nowrap text-fg-2 transition-colors hover:border-[color-mix(in_srgb,var(--brand-blue)_35%,transparent)] hover:bg-paper hover:text-accent disabled:cursor-not-allowed disabled:opacity-45 [&_svg]:h-[14px] [&_svg]:w-[14px] [&_svg]:shrink-0";
   const btnDanger =
-    "inline-flex items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-1.5 text-[12.5px] font-semibold whitespace-nowrap text-fg-3 transition-colors hover:border-[color-mix(in_srgb,var(--neg)_35%,transparent)] hover:bg-[var(--neg-soft)] hover:text-neg disabled:cursor-not-allowed disabled:opacity-45 [&_svg]:h-[14px] [&_svg]:w-[14px] [&_svg]:shrink-0";
+    "inline-flex items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-1.5 text-[12.5px] font-semibold whitespace-nowrap text-neg transition-colors hover:border-[color-mix(in_srgb,var(--neg)_35%,transparent)] hover:bg-[var(--neg-soft)] hover:text-neg disabled:cursor-not-allowed disabled:opacity-45 [&_svg]:h-[14px] [&_svg]:w-[14px] [&_svg]:shrink-0";
   const btnPrimary =
     "inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[12.5px] font-semibold whitespace-nowrap text-white shadow-[0_1px_2px_rgba(10,61,143,0.15)] transition hover:-translate-y-px hover:shadow-[0_4px_12px_color-mix(in_srgb,var(--brand-blue)_30%,transparent)] disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:h-[14px] [&_svg]:w-[14px]";
   const input =
@@ -598,13 +598,13 @@ const ProjectsPage = () => {
 
       {!isLoading && !error && filteredProjects.length > 0 && (
         <div className="mt-4 overflow-hidden rounded-xl border border-line bg-paper shadow-[0_1px_2px_rgba(10,22,40,0.04),0_8px_24px_rgba(10,22,40,0.04)]">
-          <div className={`hidden border-b border-line bg-elev px-4 py-2.5 lg:grid lg:grid-cols-[28px_minmax(230px,2.4fr)_minmax(110px,0.9fr)_minmax(100px,0.8fr)_minmax(150px,1.1fr)_minmax(100px,0.8fr)_minmax(120px,0.9fr)_262px] lg:items-center lg:gap-x-4`}>
+          <div className={`hidden border-b border-line bg-elev px-4 py-2.5 lg:grid lg:grid-cols-[28px_minmax(230px,2.4fr)_minmax(110px,0.9fr)_minmax(100px,0.8fr)_minmax(150px,1.1fr)_minmax(100px,0.8fr)_minmax(120px,0.9fr)_262px] lg:items-center lg:gap-x-4 lg:[&>*]:min-w-0`}>
             <span />
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Enquiry</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Client Code</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Industry</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Created By</span>
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Enquiry Date</span>
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Created</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Status</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3 text-right">Actions</span>
           </div>
@@ -618,7 +618,7 @@ const ProjectsPage = () => {
               return (
                 <li key={project.id} className={isOpen ? "bg-[color-mix(in_srgb,var(--accent-soft)_45%,transparent)]" : ""}>
                   {/* Enquiry row: columns on wide screens, stacked below lg */}
-                  <div className={`group flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-elev lg:grid lg:grid-cols-[28px_minmax(230px,2.4fr)_minmax(110px,0.9fr)_minmax(100px,0.8fr)_minmax(150px,1.1fr)_minmax(100px,0.8fr)_minmax(120px,0.9fr)_262px] lg:items-center lg:gap-x-4`}>
+                  <div className={`group flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-elev lg:grid lg:grid-cols-[28px_minmax(230px,2.4fr)_minmax(110px,0.9fr)_minmax(100px,0.8fr)_minmax(150px,1.1fr)_minmax(100px,0.8fr)_minmax(120px,0.9fr)_262px] lg:items-center lg:gap-x-4 lg:[&>*]:min-w-0`}>
                     <button
                         type="button"
                         onClick={() => toggleExpanded(project.id)}
@@ -639,7 +639,25 @@ const ProjectsPage = () => {
                       className="min-w-0 flex-1 text-left"
                       title={isOpen ? "Hide tags" : "Show tags"}
                     >
-                      <span className="block font-mono text-[12.5px] font-bold text-title">{project.project_code}</span>
+                      <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        <span className="font-mono text-[12.5px] font-bold text-title">{project.project_code}</span>
+                        {project.enquiry_date && (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-md bg-accent-soft px-1.5 py-px text-[10.5px] font-semibold whitespace-nowrap text-accent"
+                            title="Enquiry date"
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" className="h-[11px] w-[11px]">
+                              <rect x="3.5" y="5" width="17" height="15" rx="2" />
+                              <path d="M3.5 10h17M8 3v4M16 3v4" />
+                            </svg>
+                            {new Date(`${project.enquiry_date}T00:00:00`).toLocaleDateString("en-IN", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })}
+                          </span>
+                        )}
+                      </span>
                       <span className="mt-0.5 block truncate text-[13.5px] font-semibold text-fg group-hover:text-accent">
                         {project.name || "—"}
                       </span>
@@ -674,25 +692,14 @@ const ProjectsPage = () => {
                       )}
                     </span>
 
-                    {/* Enquiry date as entered; older enquiries without one show
-                        their created date in grey instead. */}
-                    <span
-                      className={`text-[12.5px] whitespace-nowrap ${project.enquiry_date ? "text-fg-2" : "text-fg-4"}`}
-                      title={project.enquiry_date ? "Enquiry date" : "No enquiry date set — showing the date it was created"}
-                    >
-                      {project.enquiry_date
-                        ? new Date(`${project.enquiry_date}T00:00:00`).toLocaleDateString("en-IN", {
+                    <span className="truncate text-[12.5px] whitespace-nowrap text-fg-2" title="Date the enquiry was created in the portal">
+                      {project.created_at
+                        ? new Date(project.created_at).toLocaleDateString("en-IN", {
                             day: "2-digit",
                             month: "short",
                             year: "numeric",
                           })
-                        : project.created_at
-                          ? `${new Date(project.created_at).toLocaleDateString("en-IN", {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                            })} (created)`
-                          : "—"}
+                        : "—"}
                     </span>
 
                     <span className="flex flex-col items-start gap-1">

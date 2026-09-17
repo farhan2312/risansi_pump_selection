@@ -259,7 +259,7 @@ const SelectionSummaryPage = () => {
             />
           ) : (
             <>
-            <div className={`hidden border-b border-line bg-elev px-4 py-2.5 lg:grid lg:grid-cols-[28px_minmax(230px,2.4fr)_minmax(110px,0.9fr)_minmax(150px,1.1fr)_minmax(150px,1fr)_minmax(80px,0.6fr)_minmax(110px,0.8fr)_140px] lg:items-center lg:gap-x-4`}>
+            <div className={`hidden border-b border-line bg-elev px-4 py-2.5 lg:grid lg:grid-cols-[28px_minmax(230px,2.4fr)_minmax(110px,0.9fr)_minmax(150px,1.1fr)_minmax(150px,1fr)_minmax(80px,0.6fr)_minmax(110px,0.8fr)_140px] lg:items-center lg:gap-x-4 lg:[&>*]:min-w-0`}>
               <span />
               <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Enquiry</span>
               <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Client Code</span>
@@ -275,7 +275,7 @@ const SelectionSummaryPage = () => {
                 const enquiryStatus = rollupTagStatuses(g.tags.map((t) => t.status ?? ""));
                 return (
                   <li key={g.project_id} className={isOpen ? "bg-[color-mix(in_srgb,var(--accent-soft)_45%,transparent)]" : ""}>
-                    <div className={`group flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-elev lg:grid lg:grid-cols-[28px_minmax(230px,2.4fr)_minmax(110px,0.9fr)_minmax(150px,1.1fr)_minmax(150px,1fr)_minmax(80px,0.6fr)_minmax(110px,0.8fr)_140px] lg:items-center lg:gap-x-4`}>
+                    <div className={`group flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-elev lg:grid lg:grid-cols-[28px_minmax(230px,2.4fr)_minmax(110px,0.9fr)_minmax(150px,1.1fr)_minmax(150px,1fr)_minmax(80px,0.6fr)_minmax(110px,0.8fr)_140px] lg:items-center lg:gap-x-4 lg:[&>*]:min-w-0`}>
                       <button
                         type="button"
                         onClick={() => toggleExpanded(g.project_id)}
@@ -314,7 +314,7 @@ const SelectionSummaryPage = () => {
 
                       <span className="min-w-0 truncate text-[12.5px] text-fg-2">{g.created_by_name || <span className="text-fg-4">—</span>}</span>
 
-                      <span className="text-[12.5px] whitespace-nowrap text-fg-2">{fmtDate(g.latest_generated_at)}</span>
+                      <span className="truncate text-[12.5px] whitespace-nowrap text-fg-2" title={fmtDate(g.latest_generated_at)}>{fmtDate(g.latest_generated_at)}</span>
 
                       <span>
                         <span className="rounded-full bg-elev px-2 py-0.5 text-[11.5px] font-semibold text-fg-2">
