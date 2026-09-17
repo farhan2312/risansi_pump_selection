@@ -419,7 +419,7 @@ export default function AuditOverviewTab({ data, windowLabel }: { data: AuditOve
           {data.ips.length === 0 ? (
             <p className="py-8 text-center text-[12.5px] text-fg-3">Nothing recorded</p>
           ) : (
-            <ul className="max-h-[430px] divide-y divide-line overflow-y-auto">
+            <ul className="divide-y divide-line">
               {data.ips.map((ip) => (
                 <li key={ip.ip} className="flex items-center gap-3 px-4 py-2.5 hover:bg-elev">
                   <div className="min-w-0 flex-1">

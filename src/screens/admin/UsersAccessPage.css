@@ -14,6 +14,32 @@
   font-weight: 600;
 }
 
+/* Avatar + name/email in the User column. */
+.uap-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.uap-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(
+    135deg,
+    hsl(var(--uap-hue, 212) 70% 52%),
+    hsl(calc(var(--uap-hue, 212) + 30) 70% 42%)
+  );
+  box-shadow: 0 2px 6px rgba(10, 22, 40, 0.15);
+}
+
 .uap-user-name {
   font-weight: 600;
   color: var(--fg);
@@ -28,6 +54,7 @@
 .uap-badge {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   padding: 3px 10px;
   font-size: 11.5px;
   font-weight: 600;
@@ -56,6 +83,24 @@
 .uap-role-system_admin {
   background: rgba(124, 58, 237, 0.12);
   color: var(--purple);
+}
+
+/* Status badges carry a dot in their own colour. */
+[class*="uap-status-"]::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.uap-status-pending::before {
+  animation: uap-pulse 1.6s ease-in-out infinite;
+}
+@keyframes uap-pulse {
+  50% { opacity: 0.35; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .uap-status-pending::before { animation: none; }
 }
 
 /* Status badges */
@@ -87,4 +132,10 @@
   font-size: 11.5px;
   color: var(--fg-3);
   margin-top: 4px;
+}
+
+/* People glyph instead of the masters' database glyph in the header badge. */
+.pmm-header:has(.uap-header-stats) > div:first-child::after {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='9' cy='7' r='4'/%3E%3Cpath d='M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='9' cy='7' r='4'/%3E%3Cpath d='M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75'/%3E%3C/svg%3E");
 }

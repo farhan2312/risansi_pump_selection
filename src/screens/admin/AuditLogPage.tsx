@@ -65,7 +65,7 @@ const dayBoundary = (ymd: string, edge: "start" | "end"): string | undefined => 
   return dt.toISOString();
 };
 
-const TH = "sticky top-0 z-[1] border-b border-line bg-elev px-4 py-2.5 text-left text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3 whitespace-nowrap";
+const TH = "border-b border-line bg-elev px-4 py-2.5 text-left text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3 whitespace-nowrap";
 const TD = "px-4 py-2.5 align-middle";
 
 const AuditLogPage = () => {
@@ -424,7 +424,7 @@ const AuditLogPage = () => {
             )}
 
             {!isLoading && pageRows > 0 && (
-              <div className="max-h-[calc(100vh-260px)] min-h-[240px] overflow-auto">
+              <div className="overflow-x-auto">
                 {tab === "usage" ? (
                   <table className="w-full border-collapse text-[13px]">
                     <thead>

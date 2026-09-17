@@ -41,6 +41,19 @@ const ROLE_LABELS: Record<UserRole, string> = {
   admin: "Admin",
   system_admin: "System Admin",
 };
+/** "Asad Shakri" -> "AS"; falls back to the email's local part. */
+const initialsOf = (name: string | null, email: string): string => {
+  const parts = (name || email.split("@")[0] || "?").split(/[\s._-]+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? "?") + (parts[1]?.[0] ?? "")).toUpperCase();
+};
+
+/** A stable hue per person, so each avatar keeps its colour. */
+const avatarHue = (email: string): number => {
+  let h = 0;
+  for (const ch of email) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return [212, 190, 160, 262, 330, 28, 142, 0][h % 8]!;
+};
+
 const STATUS_LABELS: Record<UserStatus, string> = {
   pending: "Pending",
   active: "Active",
@@ -230,8 +243,15 @@ const UsersAccessPage = () => {
                   return (
                     <tr key={row.id}>
                       <td>
-                        <span className="uap-user-name">{row.name || "—"}</span>
-                        <span className="uap-user-email">{row.email}</span>
+                        <div className="uap-user">
+                          <span className="uap-avatar" style={{ ["--uap-hue" as string]: avatarHue(row.email) }} aria-hidden>
+                            {initialsOf(row.name, row.email)}
+                          </span>
+                          <div>
+                            <span className="uap-user-name">{row.name || "—"}</span>
+                            <span className="uap-user-email">{row.email}</span>
+                          </div>
+                        </div>
                       </td>
                       <td>
                         <span className={`uap-badge uap-role-${row.role}`}>
