@@ -26,6 +26,7 @@ const PROTECTED_PREFIXES = [
   "/pump-selection",
   "/pump-details",
   "/selection-summary",
+  "/head-calculator",
   "/approvals",
   "/admin",
 ];
@@ -224,6 +225,7 @@ export const config = {
     "/pump-selection/:path*",
     "/pump-details/:path*",
     "/selection-summary/:path*",
+    "/head-calculator/:path*",
     "/approvals/:path*",
     "/admin/:path*",
   ],

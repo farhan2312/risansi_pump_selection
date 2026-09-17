@@ -60,6 +60,12 @@ export const navIcons: Record<string, ReactNode> = {
       <path d="M4 11v6a8 3 0 0 0 16 0v-6" />
     </>,
   ),
+  calculator: icon(
+    <>
+      <rect x="5" y="3" width="14" height="18" rx="2" />
+      <path d="M8 7h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 18h.01M12 18h.01M16 18h.01" />
+    </>,
+  ),
   approvals: icon(
     <>
       <path d="M12 3.5 5 6v5.5c0 4.2 2.9 7.4 7 8.9 4.1-1.5 7-4.7 7-8.9V6l-7-2.5Z" />
@@ -81,6 +87,7 @@ export const MAIN_LINKS: NavLink[] = [
   { href: "/projects", label: "Enquiries", icon: "projects" },
   { href: "/pump-selection", label: "Pump Selection", shortLabel: "Select", icon: "pump" },
   { href: "/selection-summary", label: "Reports", icon: "reports" },
+  { href: "/head-calculator", label: "Head Calculator", shortLabel: "Calc", icon: "calculator" },
 ];
 
 /** Master-data pages — admin and system_admin alike. */
