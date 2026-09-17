@@ -48,6 +48,7 @@ const ROLE_LABELS: Record<string, string> = {
   system_admin: "System Admin",
   admin: "Admin",
   selection_head: "Selection Head",
+  pulley_owner: "Pulley Owner",
   user: "User",
 };
 
@@ -330,6 +331,7 @@ export async function downloadAuditReportPdf(
         "Failed",
         "First Seen",
         "Last Active",
+        "Last IP",
       ],
       report.usage.map((u) => [
         u.email ?? "—",
@@ -340,6 +342,7 @@ export async function downloadAuditReportPdf(
         String(u.failed),
         fmtWhen(u.firstSeen),
         fmtWhen(u.lastActive),
+        u.lastIp ? (u.ipCount > 1 ? `${u.lastIp} (+${u.ipCount - 1})` : u.lastIp) : "—",
       ]),
       {
         2: { halign: "right", fontStyle: "bold" },
@@ -424,14 +427,15 @@ export async function downloadAuditReportPdf(
     emptyNote("No access changes were made in this period.");
   } else {
     table(
-      ["When", "Changed By", "Change", "Detail"],
+      ["When", "Changed By", "Change", "IP Address", "Detail"],
       report.access.rows.map((r) => [
         fmtWhen(r.createdAt),
         r.email ?? "—",
         prettyAction(r.action),
+        r.ip ?? "—",
         r.detail ?? "—",
       ]),
-      { 0: { cellWidth: 95 }, 1: { cellWidth: 170 }, 2: { cellWidth: 90 } },
+      { 0: { cellWidth: 95 }, 1: { cellWidth: 170 }, 2: { cellWidth: 90 }, 3: { cellWidth: 90 } },
     );
   }
 
@@ -444,15 +448,16 @@ export async function downloadAuditReportPdf(
     emptyNote("No actions were recorded in this period.");
   } else {
     table(
-      ["When", "User", "Action", "Enquiry / Tag", "Detail"],
+      ["When", "User", "Action", "Enquiry / Tag", "IP Address", "Detail"],
       report.activity.rows.map((r) => [
         fmtWhen(r.createdAt),
         r.email ?? "—",
         prettyAction(r.action),
         enquiryTag(r),
+        r.ip ?? "—",
         r.detail ?? "—",
       ]),
-      { 0: { cellWidth: 95 }, 1: { cellWidth: 165 }, 2: { cellWidth: 70 }, 3: { cellWidth: 175 } },
+      { 0: { cellWidth: 88 }, 1: { cellWidth: 150 }, 2: { cellWidth: 65 }, 3: { cellWidth: 160 }, 4: { cellWidth: 85 } },
     );
   }
 

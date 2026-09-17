@@ -45,6 +45,10 @@
   background: var(--pos-soft);
   color: var(--pos-strong);
 }
+.uap-role-pulley_owner {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
 .uap-role-admin {
   background: var(--accent-soft);
   color: var(--brand-blue);

@@ -69,6 +69,9 @@ export async function GET(req: Request) {
       failed: sql<number>`count(*) filter (where ${auditLog.eventType} = 'login_failed')::int`,
       firstSeen: sql<string>`min(${auditLog.createdAt})`,
       lastActive: sql<string>`max(${auditLog.createdAt})`,
+      lastIp: sql<string | null>`(array_agg(${auditLog.ip} order by ${auditLog.createdAt} desc)
+        filter (where ${auditLog.ip} is not null))[1]`,
+      ipCount: sql<number>`count(distinct ${auditLog.ip})::int`,
     })
     .from(auditLog)
     .where(inWindow)
@@ -79,7 +82,8 @@ export async function GET(req: Request) {
     .filter((r) => r.email)
     .map((r) => ({
       ...r,
-      activeSeconds: activity.get(r.email as string)?.activeSeconds ?? 0,    }))
+      activeSeconds: activity.get(r.email as string)?.activeSeconds ?? 0,
+    }))
     // Most engaged first - that's the question a usage report is read for.
     .sort((a, b) => b.activeSeconds - a.activeSeconds);
 

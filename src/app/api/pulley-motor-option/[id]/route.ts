@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
-import { AuthError, requireAdmin } from "@/lib/auth";
+import { AuthError, requirePulleyMasterAccess } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { pulleyBeltOption, pulleyMotorOption } from "@/lib/db/schema";
 import { parseBeltRows, type BeltInsert } from "../belts-shape";
@@ -34,7 +34,7 @@ function intOrNull(v: unknown): number | null {
 
 function guardAdmin(req: Request): Response | null {
   try {
-    requireAdmin(req);
+    requirePulleyMasterAccess(req);
     return null;
   } catch (e) {
     if (e instanceof AuthError) return error(e.message, e.statusCode);

@@ -32,10 +32,12 @@ import {
 } from "../../components/ui/adminIcons";
 
 // Order is the dropdown order. Selection Head = User access plus deciding
-// approvals (lib/approval.ts APPROVER_ROLES).
+// approvals (lib/approval.ts APPROVER_ROLES). Pulley Owner = User access plus
+// the Pulley Master page (lib/auth.ts PULLEY_MASTER_ROLES).
 const ROLE_LABELS: Record<UserRole, string> = {
   user: "User",
   selection_head: "Selection Head",
+  pulley_owner: "Pulley Owner",
   admin: "Admin",
   system_admin: "System Admin",
 };

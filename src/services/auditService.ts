@@ -1,4 +1,7 @@
 import apiClient from "./apiClient";
+import type { AuditOverview } from "../lib/audit-overview-shared";
+
+export type { AuditOverview } from "../lib/audit-overview-shared";
 
 /** The four "last 24h" counters across the top of the Audit Log page. These
  * are always 24h, independent of the table's own date filter. */
@@ -16,6 +19,10 @@ export interface AuditUsageRow {
   actions: number;
   sessions: number;
   lastActive: string | null;
+  /** The IP of their most recent event in the window, and how many distinct
+   *  IPs they used. */
+  lastIp: string | null;
+  ipCount: number;
   /** Estimated time actively using the app over the window, in seconds —
    *  summed gaps between consecutive events, idle gaps excluded (see
    *  lib/audit-stats.ts). */
@@ -33,6 +40,7 @@ export interface AuditEventRow {
   entityId: string | null;
   detail: string | null;
   ip: string | null;
+  userAgent: string | null;
   createdAt: string | null;
   /** The enquiry and tag this event touched, resolved server-side from
    *  entity_id. Null for events that aren't about an enquiry (sign-ins, user
@@ -49,6 +57,8 @@ export interface AuditResponse {
   total: number;
   page: number;
   pageSize: number;
+  /** Only on the Overview tab. */
+  overview?: AuditOverview;
 }
 
 /** The time window shared by the page and the report: explicit `from`/`to`

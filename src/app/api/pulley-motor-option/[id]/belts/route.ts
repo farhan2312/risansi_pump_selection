@@ -1,7 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
-import { AuthError, requireAdmin } from "@/lib/auth";
+import { AuthError, requirePulleyMasterAccess } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { pulleyBeltOption } from "@/lib/db/schema";
 
@@ -16,7 +16,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    requireAdmin(req);
+    requirePulleyMasterAccess(req);
   } catch (e) {
     if (e instanceof AuthError) return error(e.message, e.statusCode);
     throw e;

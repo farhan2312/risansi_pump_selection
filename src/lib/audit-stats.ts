@@ -155,6 +155,7 @@ export const eventSelection = {
   entityId: auditLog.entityId,
   detail: auditLog.detail,
   ip: auditLog.ip,
+  userAgent: auditLog.userAgent,
   createdAt: auditLog.createdAt,
   enquiryCode: projects.projectCode,
   clientName: projects.name,
@@ -177,7 +178,7 @@ export function withEnquiryJoins<T extends { leftJoin: any }>(q: T) {
     );
 }
 
-/** Free-text search across who, what, and which enquiry/tag. Assumes the
+/** Free-text search across who, what, from which IP, and which enquiry/tag. Assumes the
  *  enquiry joins are present. */
 export function searchCondition(q: string): SQL | undefined {
   const needle = q.trim().toLowerCase();
@@ -187,6 +188,7 @@ export function searchCondition(q: string): SQL | undefined {
   return sql`(lower(coalesce(${auditLog.userEmail}, '')) like ${like}
     or lower(coalesce(${auditLog.action}, '')) like ${like}
     or lower(coalesce(${auditLog.detail}, '')) like ${like}
+    or lower(coalesce(${auditLog.ip}, '')) like ${like}
     or lower(coalesce(${projects.projectCode}, '')) like ${like}
     or lower(coalesce(${projects.name}, '')) like ${like}
     or lower(coalesce(${enquiryTags.name}, '')) like ${like})`;

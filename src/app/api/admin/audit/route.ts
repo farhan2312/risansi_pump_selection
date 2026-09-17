@@ -13,6 +13,7 @@ import {
   windowCondition,
   withEnquiryJoins,
 } from "@/lib/audit-stats";
+import { getAuditOverview } from "@/lib/audit-overview";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +64,12 @@ export async function GET(req: Request) {
     actions24h: counts?.actions ?? 0,
   };
 
+  // --- Overview: charts and breakdowns for the whole window ---
+  if (tab === "overview") {
+    const overview = await getAuditOverview(window);
+    return json({ summary, overview, rows: [], total: 0, page: 1, pageSize: PAGE_SIZE });
+  }
+
   // --- Usage by user: one row per person in the window ---
   if (tab === "usage") {
     const rows = await db
@@ -72,6 +79,9 @@ export async function GET(req: Request) {
         actions: sql<number>`count(*) filter (where ${auditLog.eventType} = 'action')::int`,
         sessions: sql<number>`count(*) filter (where ${auditLog.eventType} = 'login')::int`,
         lastActive: sql<string>`max(${auditLog.createdAt})`,
+        lastIp: sql<string | null>`(array_agg(${auditLog.ip} order by ${auditLog.createdAt} desc)
+          filter (where ${auditLog.ip} is not null))[1]`,
+        ipCount: sql<number>`count(distinct ${auditLog.ip})::int`,
       })
       .from(auditLog)
       .where(inWindow)
@@ -87,12 +97,14 @@ export async function GET(req: Request) {
       .filter((r) => r.email)
       .map((r) => ({
         ...r,
-        activeSeconds: activity.get(r.email as string)?.activeSeconds ?? 0,      }))
+        activeSeconds: activity.get(r.email as string)?.activeSeconds ?? 0,
+      }))
       .filter(
         (r) =>
           !needle ||
           (r.email ?? "").toLowerCase().includes(needle) ||
-          (r.role ?? "").toLowerCase().includes(needle),
+          (r.role ?? "").toLowerCase().includes(needle) ||
+          (r.lastIp ?? "").toLowerCase().includes(needle),
       );
 
     // One row per person, so the whole set is small; it is still paged on the

@@ -40,9 +40,13 @@ several formulas/models, e.g. `recommendation_engine.py`). Only the
   cookie cleared; the client's axios interceptor sends the user to
   `/?session=ended`). Role gates (`requireAdmin` / `requireSystemAdmin`) still
   live in the route handlers — the middleware only establishes "signed in".
-- Styling: Tailwind utility classes for the wizard (`formStyles.ts` shared
-  constants) + plain CSS modules for other pages (design system: flat panels,
-  hairline borders, no shadows — see `--bg-paper`/`--line`/`--fg` CSS vars).
+- Styling: **all new UI uses Tailwind utility classes** (user decision,
+  2026-09-17) — no new per-screen .css files. Use the theme-bound tokens from
+  `src/index.css` @theme (bg-paper, bg-elev, bg-sunk, text-fg/fg-2/fg-3,
+  border-line, text-accent, text-pos/neg/warn, rounded-md, font-mono) so dark
+  mode keeps working; avoid raw hex colours. Existing .css screens stay as
+  they are unless a conversion is asked for. Design: flat panels, hairline
+  borders, no shadows.
   Green "positive" tokens (`--pos`/`--pos-soft`/`--pos-strong`, Tailwind
   `bg-pos`/`text-pos`/`border-pos` + arbitrary-value `bg-[var(--pos-soft)]`
   for the soft/strong shades) are the established way to badge something as a
@@ -412,7 +416,9 @@ never auto-filled from the AI result.
   by the middleware for all of `/api/*`; a new public endpoint must be added
   to `PUBLIC_API_PATHS` in `middleware.ts` deliberately.
 - **Step approvals** (table `step_approval`, one row per tag × step 1–7):
-  roles are `user` / `selection_head` / `admin` / `system_admin`. Engineers
+  roles are `user` / `selection_head` / `pulley_owner` / `admin` / `system_admin`
+  (`pulley_owner` = User access + Pulley Master only: `requirePulleyMasterAccess`
+  on /api/pulley-motor-option*, middleware gate, `PULLEY_OWNER_LINKS`). Engineers
   tick steps on the wizard's Approval step (8) and Send → status "Awaiting
   Approval" and every active selection head is emailed. Selection heads (and
   system admins) decide per step on `/approvals` (review popup; a rejection
@@ -498,3 +504,19 @@ never auto-filled from the AI result.
   read it directly rather than trusting this file if something seems off.
 - Inline comments throughout the codebase are unusually thorough and explain
   *why*, not just what — read them before assuming behavior.
+
+## Audit Log page (/admin/audit, system_admin)
+- Tabs: Overview (default) · Usage by User · Activity · Logins & Sessions ·
+  Access Changes. All Tailwind (`src/screens/admin/AuditLogPage.tsx` +
+  `src/screens/admin/audit/`: `charts.tsx` hand-rolled SVG charts, no chart
+  library; `auditUi.tsx` badges/avatars/icons; `AuditOverviewTab.tsx`).
+- Overview data: `GET /api/admin/audit?tab=overview` -> `getAuditOverview`
+  (`src/lib/audit-overview.ts`, shapes in `audit-overview-shared.ts`). IST days
+  and hours; KPIs vs the previous equal window; weekday x hour heatmap; action,
+  event-type and device (browser/OS/device from `lib/user-agent.ts`)
+  breakdowns; per-user per-day active time/actions and enquiries/tags
+  (tags = enquiry.create [Default tag] + tag.create + tag.copy); devices and
+  browser/OS donuts beside top IPs. Day axis capped at 92 days.
+- IP is stored on every audit row (first X-Forwarded-For hop). Shown on
+  Activity, Logins (with device), Access, Usage (last IP + count) and in the
+  PDF report; search matches IP.

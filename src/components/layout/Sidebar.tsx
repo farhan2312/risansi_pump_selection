@@ -9,6 +9,7 @@ import SidebarUserMenu from "./SidebarUserMenu";
 import {
   ADMIN_LINKS,
   APPROVER_LINKS,
+  PULLEY_OWNER_LINKS,
   MAIN_LINKS,
   SYSTEM_ADMIN_LINKS,
   navIcons,
@@ -48,6 +49,13 @@ const Sidebar = () => {
           <>
             <p className="sidebar-group-label">Admin</p>
             {ADMIN_LINKS.map((l) => navLink(l.href, l.label, navIcons[l.icon]))}
+          </>
+        )}
+
+        {user?.role === "pulley_owner" && (
+          <>
+            <p className="sidebar-group-label">Masters</p>
+            {PULLEY_OWNER_LINKS.map((l) => navLink(l.href, l.label, navIcons[l.icon]))}
           </>
         )}
 

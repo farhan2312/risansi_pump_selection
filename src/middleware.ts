@@ -202,6 +202,11 @@ export async function middleware(req: NextRequest) {
     if (role !== "system_admin") {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
+  } else if (pathname === "/admin/pulley-master" || pathname.startsWith("/admin/pulley-master/")) {
+    // Pulley owners get this one master page on top of User access.
+    if (!isAdminLevel && role !== "pulley_owner") {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
   } else if (pathname.startsWith("/admin") && !isAdminLevel) {
     return NextResponse.redirect(new URL("/dashboard", req.url));
   }

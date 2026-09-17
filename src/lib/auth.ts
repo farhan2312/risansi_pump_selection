@@ -121,6 +121,21 @@ export function requireAdmin(req: Request): TokenClaims {
   return claims;
 }
 
+/** Roles that may view and edit the Pulley Master: the admin roles plus
+ * pulley_owner, who otherwise has plain User access. */
+export const PULLEY_MASTER_ROLES = ["pulley_owner", "admin", "system_admin"] as const;
+
+export const canManagePulleyMaster = (role: string | null | undefined): boolean =>
+  (PULLEY_MASTER_ROLES as readonly string[]).includes(role ?? "");
+
+export function requirePulleyMasterAccess(req: Request): TokenClaims {
+  const claims = decodeToken(req);
+  if (!canManagePulleyMaster(claims.role)) {
+    throw new AuthError("Pulley Master access required", 403);
+  }
+  return claims;
+}
+
 /** Selection heads and system admins — the roles that decide approvals
  * (APPROVER_ROLES in lib/approval.ts). */
 export function requireApprover(req: Request): TokenClaims {

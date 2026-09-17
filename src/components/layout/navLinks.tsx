@@ -98,6 +98,11 @@ export const SYSTEM_ADMIN_LINKS: NavLink[] = [
   { href: "/admin/bug-tracker", label: "Bug Tracker", icon: "database" },
 ];
 
+/** pulley_owner: User access plus the Pulley Master only. */
+export const PULLEY_OWNER_LINKS: NavLink[] = ADMIN_LINKS.filter(
+  (l) => l.href === "/admin/pulley-master",
+);
+
 /** Selection heads and system admins — whoever decides approvals
  * (APPROVER_ROLES in lib/approval.ts). */
 export const APPROVER_LINKS: NavLink[] = [
@@ -109,6 +114,7 @@ export const APPROVER_LINKS: NavLink[] = [
 export const adminLinksFor = (role: string | undefined): NavLink[] => {
   if (role === "system_admin") return [...APPROVER_LINKS, ...ADMIN_LINKS, ...SYSTEM_ADMIN_LINKS];
   if (role === "selection_head") return APPROVER_LINKS;
+  if (role === "pulley_owner") return PULLEY_OWNER_LINKS;
   if (role === "admin") return ADMIN_LINKS;
   return [];
 };

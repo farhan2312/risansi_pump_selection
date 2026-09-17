@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import "./AuditLogPage.css";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import EmptyState from "../../components/ui/EmptyState";
 import Pagination from "../../components/ui/Pagination";
 import { SkeletonRows } from "../../components/ui/Skeleton";
@@ -9,6 +8,7 @@ import {
   getAuditLog,
   getAuditReport,
   type AuditEventRow,
+  type AuditOverview,
   type AuditSummary,
   type AuditUsageRow,
 } from "../../services/auditService";
@@ -16,58 +16,40 @@ import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import { formatDuration } from "../../lib/duration";
 import { downloadAuditReportPdf } from "../../lib/audit-report-pdf";
+import AuditOverviewTab from "./audit/AuditOverviewTab";
+import {
+  ActionBadge,
+  DeviceCell,
+  fmtAgo,
+  fmtWhen,
+  Icons,
+  IpChip,
+  RoleBadge,
+  UserCell,
+} from "./audit/auditUi";
 
-type TabKey = "usage" | "activity" | "logins" | "access";
+type TabKey = "overview" | "usage" | "activity" | "logins" | "access";
 type RangeKey = "today" | "7d" | "30d" | "all";
 
 // Rows per page. The server pages to the same size; this only labels the bar.
 const PAGE_SIZE = 30;
 
-const TABS: { key: TabKey; label: string }[] = [
-  { key: "usage", label: "Usage by User" },
-  { key: "activity", label: "Activity" },
-  { key: "logins", label: "Logins & Sessions" },
+const TABS: { key: TabKey; label: string; icon: ReactNode }[] = [
+  { key: "overview", label: "Overview", icon: Icons.overview },
+  { key: "usage", label: "Usage by User", icon: Icons.users },
+  { key: "activity", label: "Activity", icon: Icons.activity },
+  { key: "logins", label: "Logins & Sessions", icon: Icons.login },
   // The pump portal's equivalent of an "ownership changes" view: who was
   // granted, re-roled or lost access.
-  { key: "access", label: "Access Changes" },
+  { key: "access", label: "Access Changes", icon: Icons.shield },
 ];
 
 const RANGES: { key: RangeKey; label: string }[] = [
   { key: "today", label: "Today" },
   { key: "7d", label: "7 days" },
   { key: "30d", label: "30 days" },
-  { key: "all", label: "All" },
+  { key: "all", label: "All time" },
 ];
-
-const fmtWhen = (iso: string | null | undefined): string => {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-};
-
-/** "user.role_change" -> "Role change" — the dotted verb is for querying, not
- * for reading. */
-const prettyAction = (action: string): string => {
-  const tail = action.includes(".") ? action.slice(action.indexOf(".") + 1) : action;
-  const words = tail.replace(/_/g, " ");
-  return words.charAt(0).toUpperCase() + words.slice(1);
-};
-
-const ROLE_LABELS: Record<string, string> = {
-  system_admin: "System Admin",
-  admin: "Admin",
-  selection_head: "Selection Head",
-  user: "User",
-};
-const prettyRole = (role: string | null | undefined): string =>
-  role ? ROLE_LABELS[role] ?? role : "—";
 
 /**
  * A picked calendar date -> the instant it starts or ends IN THE USER'S TIME
@@ -83,15 +65,12 @@ const dayBoundary = (ymd: string, edge: "start" | "end"): string | undefined => 
   return dt.toISOString();
 };
 
-/** The enquiry + tag an event touched, as one line. */
-const enquiryTagText = (r: AuditEventRow): string | null => {
-  if (!r.enquiryCode && !r.tagName) return null;
-  return [r.enquiryCode, r.tagName].filter(Boolean).join(" · ");
-};
+const TH = "sticky top-0 z-[1] border-b border-line bg-elev px-4 py-2.5 text-left text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3 whitespace-nowrap";
+const TD = "px-4 py-2.5 align-middle";
 
 const AuditLogPage = () => {
   const { user } = useCurrentUser();
-  const [tab, setTab] = useState<TabKey>("usage");
+  const [tab, setTab] = useState<TabKey>("overview");
   const [range, setRange] = useState<RangeKey>("7d");
   // Explicit From/To dates (YYYY-MM-DD, from <input type="date">). When either
   // is set it overrides the quick range chip.
@@ -103,6 +82,7 @@ const AuditLogPage = () => {
   const [showActiveHelp, setShowActiveHelp] = useState(false);
 
   const [summary, setSummary] = useState<AuditSummary | null>(null);
+  const [overview, setOverview] = useState<AuditOverview | null>(null);
   const [usageRows, setUsageRows] = useState<AuditUsageRow[]>([]);
   const [eventRows, setEventRows] = useState<AuditEventRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -137,12 +117,20 @@ const AuditLogPage = () => {
     let cancelled = false;
     setIsLoading(true);
     setError(null);
-    getAuditLog({ tab, ...timeWindow, q: debouncedSearch.trim(), page })
+    getAuditLog({
+      tab,
+      ...timeWindow,
+      // The overview covers the whole window; search doesn't apply to it.
+      q: tab === "overview" ? "" : debouncedSearch.trim(),
+      page,
+    })
       .then((res) => {
         if (cancelled) return;
         setSummary(res.summary);
         setTotal(res.total);
-        if (tab === "usage") {
+        if (tab === "overview") {
+          setOverview(res.overview ?? null);
+        } else if (tab === "usage") {
           setUsageRows(res.rows as AuditUsageRow[]);
           setEventRows([]);
         } else {
@@ -177,20 +165,18 @@ const AuditLogPage = () => {
     }
   };
 
-  const cards = useMemo(
-    () => [
-      { label: "Logins · 24h", value: summary?.logins24h ?? 0 },
-      { label: "Failed · 24h", value: summary?.failed24h ?? 0, warn: (summary?.failed24h ?? 0) > 0 },
-      { label: "Active Users · 24h", value: summary?.activeUsers24h ?? 0 },
-      { label: "Actions · 24h", value: summary?.actions24h ?? 0 },
-    ],
-    [summary],
-  );
+  const live = [
+    { label: "Sign-ins", value: summary?.logins24h ?? 0, icon: Icons.login, tone: "text-[var(--brand-cyan)]" },
+    { label: "Failed", value: summary?.failed24h ?? 0, icon: Icons.alert, tone: (summary?.failed24h ?? 0) > 0 ? "text-neg" : "text-fg-3" },
+    { label: "Active users", value: summary?.activeUsers24h ?? 0, icon: Icons.users, tone: "text-[var(--purple)]" },
+    { label: "Actions", value: summary?.actions24h ?? 0, icon: Icons.activity, tone: "text-accent" },
+  ];
 
   const pageRows = tab === "usage" ? usageRows.length : eventRows.length;
   const windowLabel = customDates
     ? `${fromDate || "the beginning"} to ${toDate || "today"}`
     : RANGES.find((r) => r.key === range)?.label ?? range;
+  const maxActive = Math.max(1, ...usageRows.map((r) => r.activeSeconds));
 
   const pickRange = (key: RangeKey) => {
     setRange(key);
@@ -201,161 +187,230 @@ const AuditLogPage = () => {
   };
 
   return (
-    <div className="audit-page">
-      <div className="audit-header">
-        <div>
-          <h1>Audit Log</h1>
-          <p>Full activity trail · who signed in, when, and everything they did</p>
-        </div>
-        <button
-          type="button"
-          className="audit-report-btn"
-          onClick={() => void handleGenerateReport()}
-          disabled={generating}
-          title={`Download a detailed PDF for: ${windowLabel}`}
-        >
-          {generating ? "Generating…" : "Generate Report"}
-        </button>
-      </div>
-
-      {reportError && <p className="error-message">{reportError}</p>}
-
-      <div className="audit-cards">
-        {cards.map((c) => (
-          <div className="audit-card" key={c.label}>
-            <span className="audit-card-label">{c.label}</span>
-            <span className={`audit-card-value${c.warn ? " is-warn" : ""}`}>{c.value}</span>
+    <div className="mx-auto max-w-[1600px] px-4 pt-5 pb-10 sm:px-6">
+      {/* Header */}
+      <div className="relative overflow-hidden rounded-2xl border border-line bg-paper">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-90"
+          style={{
+            background:
+              "radial-gradient(1000px 220px at 0% 0%, color-mix(in srgb, var(--brand-blue) 12%, transparent), transparent 70%), radial-gradient(600px 200px at 100% 0%, color-mix(in srgb, var(--brand-cyan) 12%, transparent), transparent 70%)",
+          }}
+        />
+        <div className="relative flex flex-wrap items-start justify-between gap-4 px-5 pt-5 pb-4">
+          <div className="flex items-center gap-3.5">
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--brand-blue)] to-[var(--brand-cyan)] text-white shadow-[0_6px_18px_color-mix(in_srgb,var(--brand-blue)_35%,transparent)]">
+              {Icons.shield}
+            </span>
+            <div>
+              <h1 className="text-[22px] font-bold leading-tight text-fg">Audit Log</h1>
+              <p className="mt-0.5 text-[13px] text-fg-3">
+                Full activity trail · who signed in, from where, and everything they did
+              </p>
+            </div>
           </div>
-        ))}
+          <button
+            type="button"
+            onClick={() => void handleGenerateReport()}
+            disabled={generating}
+            title={`Download a detailed PDF for: ${windowLabel}`}
+            className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold whitespace-nowrap text-white shadow-[0_1px_2px_rgba(10,61,143,0.15)] transition hover:-translate-y-px hover:shadow-[0_6px_16px_color-mix(in_srgb,var(--brand-blue)_30%,transparent)] disabled:cursor-progress disabled:opacity-60 disabled:hover:translate-y-0"
+          >
+            {Icons.download}
+            {generating ? "Generating…" : "Generate Report"}
+          </button>
+        </div>
+
+        {/* Live strip: always the last 24 hours */}
+        <div className="relative grid grid-cols-2 border-t border-line sm:grid-cols-4">
+          {live.map((c, i) => (
+            <div
+              key={c.label}
+              className={`flex items-center gap-3 px-5 py-3 ${i > 0 ? "sm:border-l sm:border-line" : ""} ${i % 2 === 1 ? "border-l border-line" : ""} ${i > 1 ? "border-t border-line sm:border-t-0" : ""}`}
+            >
+              <span className={c.tone}>{c.icon}</span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">
+                  {c.label}
+                  <span className="rounded bg-sunk px-1 py-px text-[9.5px] tracking-normal">24h</span>
+                </div>
+                <div className={`font-mono text-[19px] font-bold leading-tight tabular-nums ${c.label === "Failed" && c.value > 0 ? "text-neg" : "text-fg"}`}>
+                  {c.value}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
-      <div className="audit-tabs">
+      {reportError && <p className="mt-3 text-[13px] font-medium text-neg">{reportError}</p>}
+
+      {/* Tabs */}
+      <div className="mt-5 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-line [scrollbar-width:none]">
         {TABS.map((t) => (
           <button
             key={t.key}
             type="button"
-            className={`audit-tab${tab === t.key ? " is-active" : ""}`}
             onClick={() => setTab(t.key)}
+            className={`-mb-px inline-flex items-center gap-2 border-b-2 px-3.5 py-2.5 text-[13px] font-semibold whitespace-nowrap transition-colors ${
+              tab === t.key
+                ? "border-accent text-accent"
+                : "border-transparent text-fg-3 hover:border-line-strong hover:text-fg"
+            }`}
           >
+            {t.icon}
             {t.label}
           </button>
         ))}
       </div>
 
-      <div className="audit-toolbar">
-        <div className="audit-ranges">
-          {RANGES.map((r) => (
-            <button
-              key={r.key}
-              type="button"
-              // A chip only reads as selected when no custom dates are in force.
-              className={`audit-chip${!customDates && range === r.key ? " is-active" : ""}`}
-              onClick={() => pickRange(r.key)}
-            >
-              {r.label}
-            </button>
-          ))}
+      {/* Filters */}
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <div className="inline-flex rounded-lg border border-line bg-paper p-0.5">
+          {RANGES.map((r) => {
+            const active = !customDates && range === r.key;
+            return (
+              <button
+                key={r.key}
+                type="button"
+                onClick={() => pickRange(r.key)}
+                className={`rounded-md px-3 py-1.5 text-[12.5px] font-semibold whitespace-nowrap transition-colors ${
+                  active ? "bg-accent text-white" : "text-fg-3 hover:bg-elev hover:text-fg"
+                }`}
+              >
+                {r.label}
+              </button>
+            );
+          })}
         </div>
 
-        <div className={`audit-dates${customDates ? " is-active" : ""}`}>
-          <label>
-            <span>From</span>
+        <div
+          className={`inline-flex flex-wrap items-center gap-2 rounded-lg border bg-paper px-2.5 py-1 ${
+            customDates ? "border-accent ring-2 ring-accent-soft" : "border-line"
+          }`}
+        >
+          <span className="text-fg-3">{Icons.calendar}</span>
+          <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-fg-3">
+            From
             <input
               type="date"
               value={fromDate}
               max={toDate || undefined}
               onChange={(e) => setFromDate(e.target.value)}
+              className="rounded border-0 bg-transparent px-1 py-1 font-mono text-[12.5px] font-normal tracking-normal text-fg outline-none"
             />
           </label>
-          <label>
-            <span>To</span>
+          <span className="text-fg-4">→</span>
+          <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-fg-3">
+            To
             <input
               type="date"
               value={toDate}
               min={fromDate || undefined}
               onChange={(e) => setToDate(e.target.value)}
+              className="rounded border-0 bg-transparent px-1 py-1 font-mono text-[12.5px] font-normal tracking-normal text-fg outline-none"
             />
           </label>
           {customDates && (
             <button
               type="button"
-              className="audit-dates-clear"
               onClick={() => {
                 setFromDate("");
                 setToDate("");
               }}
+              className="rounded-md px-2 py-1 text-[12px] font-semibold text-accent hover:bg-accent-soft"
             >
               Clear
             </button>
           )}
         </div>
 
-        <input
-          type="search"
-          className="audit-search"
-          placeholder={
-            tab === "usage" ? "Search email, role…" : "Search email, enquiry, tag, action…"
-          }
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        {tab !== "overview" && (
+          <label className="relative ml-auto w-full sm:w-[300px]">
+            <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-fg-3">{Icons.search}</span>
+            <input
+              type="search"
+              placeholder={tab === "usage" ? "Search email, role, IP…" : "Search email, enquiry, tag, action, IP…"}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-lg border border-line bg-paper py-2 pr-3 pl-9 text-[13px] text-fg outline-none transition placeholder:text-fg-4 focus:border-accent focus:ring-2 focus:ring-accent-soft"
+            />
+          </label>
+        )}
       </div>
 
-      {error && <p className="error-message">{error}</p>}
+      {error && (
+        <div className="mt-4 flex items-center gap-2 rounded-lg border border-[var(--neg-soft)] bg-[var(--neg-soft)] px-4 py-3 text-[13px] font-medium text-neg">
+          {Icons.alert} {error}
+        </div>
+      )}
 
-      {!error && (
-        <>
-          {!isLoading && (
-            <div className="audit-count">
-              {tab === "usage"
-                ? `${total} user${total === 1 ? "" : "s"} active · ${windowLabel}`
-                : `${total} event${total === 1 ? "" : "s"} · ${windowLabel}`}
+      {!error && tab === "overview" && (
+        <div className="mt-4">
+          {isLoading || !overview ? (
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {Array.from({ length: 8 }, (_, i) => (
+                <div key={i} className="h-[112px] animate-pulse rounded-xl border border-line bg-paper" />
+              ))}
+              <div className="col-span-2 h-[300px] animate-pulse rounded-xl border border-line bg-paper lg:col-span-4" />
             </div>
+          ) : (
+            <AuditOverviewTab data={overview} windowLabel={windowLabel} />
           )}
+        </div>
+      )}
 
-          {tab === "usage" && (
-            <div className="audit-help">
-              <button
-                type="button"
-                className="audit-help-toggle"
-                onClick={() => setShowActiveHelp((v) => !v)}
-                aria-expanded={showActiveHelp}
-              >
-                {showActiveHelp ? "Hide" : "How is Active Time calculated?"}
-              </button>
-              {showActiveHelp && (
-                <div className="audit-help-body">
-                  <p>
-                    <strong>Active Time is estimated from activity, not from sign-in to
-                    sign-out.</strong>{" "}
-                    Sign-outs are almost never recorded — people close the browser tab —
-                    so session length can’t be measured directly.
-                  </p>
-                  <ol>
-                    <li>Every action a user takes (saving a step, generating a report, signing in…) is recorded with a time. Failed sign-ins are not counted.</li>
-                    <li>Those times are put in order and the gap between each one and the next is measured.</li>
-                    <li>
-                      Gaps of <strong>15 minutes or less</strong> are added up as active time.
-                      A longer gap means they stepped away, so it counts as idle.
-                    </li>
-                  </ol>
-                  <p className="audit-help-example">
-                    Example: saves at 10:00, 10:04, 10:09 and then 11:30. The 4 and 5 minute
-                    gaps count (9 min); the 81 minute gap is idle. Active Time = 9m.
-                  </p>
-                  <p className="audit-help-note">
-                    It’s a conservative figure: time spent reading or filling a form before the
-                    first save after a break isn’t visible to the audit trail.
-                  </p>
-                </div>
+      {!error && tab !== "overview" && (
+        <>
+          <div className="mt-4 mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="text-[12.5px] text-fg-3">
+              {!isLoading && (
+                <>
+                  <b className="font-mono text-fg">{total}</b>{" "}
+                  {tab === "usage" ? `user${total === 1 ? "" : "s"} active` : `event${total === 1 ? "" : "s"}`} ·{" "}
+                  {windowLabel}
+                </>
               )}
             </div>
+            {tab === "usage" && (
+              <button
+                type="button"
+                onClick={() => setShowActiveHelp((v) => !v)}
+                aria-expanded={showActiveHelp}
+                className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-accent hover:underline"
+              >
+                {Icons.info}
+                {showActiveHelp ? "Hide explanation" : "How is Active Time calculated?"}
+              </button>
+            )}
+          </div>
+
+          {tab === "usage" && showActiveHelp && (
+            <div className="mb-3 rounded-xl border border-[color-mix(in_srgb,var(--brand-blue)_25%,transparent)] bg-accent-soft px-5 py-4 text-[13px] leading-relaxed text-fg-2">
+              <p>
+                <strong className="text-fg">Active Time is estimated from activity, not from sign-in to sign-out.</strong>{" "}
+                Sign-outs are almost never recorded — people close the browser tab — so session length can’t be measured directly.
+              </p>
+              <ol className="mt-2 list-decimal space-y-1 pl-5">
+                <li>Every action a user takes (saving a step, generating a report, signing in…) is recorded with a time. Failed sign-ins are not counted.</li>
+                <li>Those times are put in order and the gap between each one and the next is measured.</li>
+                <li>
+                  Gaps of <strong className="text-fg">15 minutes or less</strong> are added up as active time. A longer gap means they stepped away, so it counts as idle.
+                </li>
+              </ol>
+              <p className="mt-2 rounded-lg bg-paper px-3 py-2 font-mono text-[12px]">
+                Example: saves at 10:00, 10:04, 10:09 and then 11:30. The 4 and 5 minute gaps count (9 min); the 81 minute gap is idle. Active Time = 9m.
+              </p>
+              <p className="mt-2 text-[12px] text-fg-3">
+                It’s a conservative figure: time spent reading or filling a form before the first save after a break isn’t visible to the audit trail.
+              </p>
+            </div>
           )}
 
-          <div className="audit-panel">
+          <div className="overflow-hidden rounded-xl border border-line bg-paper">
             {isLoading && (
-              <div style={{ padding: 16 }}>
-                <SkeletonRows rows={5} cols={5} />
+              <div className="p-4">
+                <SkeletonRows rows={6} cols={6} />
               </div>
             )}
 
@@ -368,97 +423,135 @@ const AuditLogPage = () => {
               />
             )}
 
-            {!isLoading && tab === "usage" && usageRows.length > 0 && (
-              <table className="audit-table">
-                <thead>
-                  <tr>
-                    <th>User</th>
-                    <th>Role</th>
-                    <th
-                      className="num"
-                      title="Estimated from activity: gaps of 15 minutes or less between a user's actions are added up. See 'How is Active Time calculated?' above."
-                    >
-                      Active Time
-                    </th>
-                    <th className="num">Actions</th>
-                    <th className="num">Sessions</th>
-                    <th>Last Active</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {usageRows.map((r) => (
-                    <tr key={r.email ?? "unknown"}>
-                      <td className="mono">{r.email ?? "—"}</td>
-                      <td>{prettyRole(r.role)}</td>
-                      <td className="num mono">{formatDuration(r.activeSeconds)}</td>
-                      <td className="num">{r.actions}</td>
-                      <td className="num">{r.sessions}</td>
-                      <td className="mono">{fmtWhen(r.lastActive)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-
-            {!isLoading && tab !== "usage" && eventRows.length > 0 && (
-              <table className="audit-table">
-                <thead>
-                  <tr>
-                    <th>When</th>
-                    <th>User</th>
-                    <th>Action</th>
-                    {tab !== "logins" && <th>Enquiry / Tag</th>}
-                    <th>Detail</th>
-                    {tab === "logins" && <th>IP</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {eventRows.map((r) => {
-                    const where = enquiryTagText(r);
-                    return (
-                      <tr key={r.id}>
-                        <td className="mono">{fmtWhen(r.createdAt)}</td>
-                        <td className="mono">{r.email ?? "—"}</td>
-                        <td>
-                          <span
-                            className={`audit-action${
-                              r.eventType === "login_failed" ? " is-failed" : ""
-                            }`}
-                          >
-                            {prettyAction(r.action)}
-                          </span>
-                        </td>
-                        {tab !== "logins" && (
-                          <td className="audit-where">
-                            {where ? (
-                              <>
-                                <span className="mono">{where}</span>
-                                {r.clientName && (
-                                  <span className="audit-where-client">{r.clientName}</span>
-                                )}
-                              </>
-                            ) : (
-                              "—"
-                            )}
-                          </td>
-                        )}
-                        <td className="audit-detail">{r.detail ?? "—"}</td>
-                        {tab === "logins" && <td className="mono">{r.ip ?? "—"}</td>}
+            {!isLoading && pageRows > 0 && (
+              <div className="max-h-[calc(100vh-260px)] min-h-[240px] overflow-auto">
+                {tab === "usage" ? (
+                  <table className="w-full border-collapse text-[13px]">
+                    <thead>
+                      <tr>
+                        <th className={TH}>User</th>
+                        <th className={TH}>Role</th>
+                        <th
+                          className={TH}
+                          title="Estimated from activity: gaps of 15 minutes or less between a user's actions are added up."
+                        >
+                          Active Time
+                        </th>
+                        <th className={`${TH} text-right`}>Actions</th>
+                        <th className={`${TH} text-right`}>Sessions</th>
+                        <th className={TH}>Last IP</th>
+                        <th className={TH}>Last Active</th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                    </thead>
+                    <tbody className="divide-y divide-line">
+                      {usageRows.map((r) => (
+                        <tr key={r.email ?? "unknown"} className="transition-colors hover:bg-elev">
+                          <td className={TD}>
+                            <UserCell email={r.email} />
+                          </td>
+                          <td className={TD}>
+                            <RoleBadge role={r.role} />
+                          </td>
+                          <td className={`${TD} min-w-[170px]`}>
+                            <div className="flex items-center gap-2.5">
+                              <span className="w-[58px] shrink-0 font-mono font-semibold tabular-nums text-fg">
+                                {formatDuration(r.activeSeconds)}
+                              </span>
+                              <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-sunk">
+                                <span
+                                  className="block h-full rounded-full bg-gradient-to-r from-[var(--pos)] to-[var(--brand-cyan)]"
+                                  style={{ width: `${(r.activeSeconds / maxActive) * 100}%` }}
+                                />
+                              </span>
+                            </div>
+                          </td>
+                          <td className={`${TD} text-right font-mono tabular-nums`}>{r.actions}</td>
+                          <td className={`${TD} text-right font-mono tabular-nums`}>{r.sessions}</td>
+                          <td className={TD}>
+                            <IpChip ip={r.lastIp} extra={r.ipCount > 1 ? r.ipCount - 1 : 0} />
+                          </td>
+                          <td className={`${TD} whitespace-nowrap`}>
+                            <div className="font-mono text-[12.5px] text-fg">{fmtWhen(r.lastActive)}</div>
+                            <div className="text-[11px] text-fg-3">{fmtAgo(r.lastActive)}</div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <table className="w-full border-collapse text-[13px]">
+                    <thead>
+                      <tr>
+                        <th className={TH}>When</th>
+                        <th className={TH}>{tab === "access" ? "Changed By" : "User"}</th>
+                        <th className={TH}>{tab === "access" ? "Change" : tab === "logins" ? "Event" : "Action"}</th>
+                        {tab === "activity" && <th className={TH}>Enquiry / Tag</th>}
+                        <th className={TH}>IP Address</th>
+                        {tab === "logins" && <th className={TH}>Device</th>}
+                        <th className={TH}>Detail</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-line">
+                      {eventRows.map((r) => {
+                        const where = [r.enquiryCode, r.tagName].filter(Boolean).join(" · ");
+                        const failed = r.eventType === "login_failed";
+                        return (
+                          <tr
+                            key={r.id}
+                            className={`transition-colors hover:bg-elev ${failed ? "bg-[color-mix(in_srgb,var(--neg)_5%,transparent)]" : ""}`}
+                          >
+                            <td className={`${TD} whitespace-nowrap`}>
+                              <div className="font-mono text-[12.5px] text-fg">{fmtWhen(r.createdAt)}</div>
+                              <div className="text-[11px] text-fg-3">{fmtAgo(r.createdAt)}</div>
+                            </td>
+                            <td className={`${TD} max-w-[260px]`}>
+                              <UserCell email={r.email} role={r.role} />
+                            </td>
+                            <td className={TD}>
+                              <ActionBadge action={r.action} eventType={r.eventType} />
+                            </td>
+                            {tab === "activity" && (
+                              <td className={`${TD} max-w-[240px]`}>
+                                {where ? (
+                                  <>
+                                    <div className="truncate font-mono text-[12px] font-semibold text-fg">{where}</div>
+                                    {r.clientName && <div className="truncate text-[11.5px] text-fg-3">{r.clientName}</div>}
+                                  </>
+                                ) : (
+                                  <span className="text-fg-4">—</span>
+                                )}
+                              </td>
+                            )}
+                            <td className={TD}>
+                              <IpChip ip={r.ip} />
+                            </td>
+                            {tab === "logins" && (
+                              <td className={TD}>
+                                <DeviceCell ua={r.userAgent} />
+                              </td>
+                            )}
+                            <td className={`${TD} min-w-[240px] text-[12.5px] leading-snug text-fg-2`}>
+                              {r.detail ?? <span className="text-fg-4">—</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
             )}
 
             {!isLoading && (
-              <Pagination
-                page={page}
-                totalItems={total}
-                pageSize={PAGE_SIZE}
-                onPageChange={setPage}
-                itemLabel={tab === "usage" ? "users" : "events"}
-              />
+              <div className="border-t border-line">
+                <Pagination
+                  page={page}
+                  totalItems={total}
+                  pageSize={PAGE_SIZE}
+                  onPageChange={setPage}
+                  itemLabel={tab === "usage" ? "users" : "events"}
+                />
+              </div>
             )}
           </div>
         </>

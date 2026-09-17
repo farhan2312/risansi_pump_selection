@@ -10,7 +10,7 @@ import { users } from "@/lib/db/schema";
 export const dynamic = "force-dynamic";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const VALID_ROLES = new Set(["user", "selection_head", "admin", "system_admin"]);
+const VALID_ROLES = new Set(["user", "selection_head", "pulley_owner", "admin", "system_admin"]);
 // "pending" is deliberately not settable via PATCH — a request only ever
 // reaches "pending" through signup/resubmission (POST /api/access-requests).
 const VALID_STATUSES = new Set(["active", "rejected", "deactivated"]);
@@ -57,7 +57,7 @@ export async function PATCH(
   if ("role" in body) {
     const role = String(body.role ?? "");
     if (!VALID_ROLES.has(role)) {
-      return error("'role' must be one of: user, selection_head, admin, system_admin", 400);
+      return error("'role' must be one of: user, selection_head, pulley_owner, admin, system_admin", 400);
     }
     // A system admin can't demote themselves — that could leave the app
     // with zero system admins able to undo the change.

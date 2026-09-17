@@ -38,6 +38,8 @@ const roleLabel = (role: string | undefined) => {
       return "System Admin";
     case "selection_head":
       return "Selection Head";
+    case "pulley_owner":
+      return "Pulley Owner";
     case "admin":
       return "Admin";
     default:

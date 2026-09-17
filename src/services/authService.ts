@@ -4,7 +4,7 @@ export interface AuthUser {
   id: string;
   name: string | null;
   email: string;
-  role: "user" | "selection_head" | "admin" | "system_admin";
+  role: "user" | "selection_head" | "pulley_owner" | "admin" | "system_admin";
   /** True while the user still has an admin-issued password — they're routed
    * to /change-password until they set their own. */
   mustChangePassword?: boolean;

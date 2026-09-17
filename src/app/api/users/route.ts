@@ -9,7 +9,7 @@ import { users } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
 
-const VALID_ROLES = new Set(["user", "selection_head", "admin", "system_admin"]);
+const VALID_ROLES = new Set(["user", "selection_head", "pulley_owner", "admin", "system_admin"]);
 
 // System-admin only — managing the full user list (not just pending
 // requests) is explicitly excluded from the plain "admin" role, per the
@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     return error("'password' must be at least 6 characters", 400);
   }
   if (!VALID_ROLES.has(role)) {
-    return error("'role' must be one of: user, selection_head, admin, system_admin", 400);
+    return error("'role' must be one of: user, selection_head, pulley_owner, admin, system_admin", 400);
   }
 
   const [existing] = await db.select().from(users).where(eq(users.email, email)).limit(1);
