@@ -17,6 +17,11 @@ export interface PendingUser {
   reviewed_by: string | null;
   reviewed_at: string | null;
   created_at: string;
+  /** Name (or email) of whoever reviewed or added the account. Only on the
+   *  full list (GET /users). */
+  reviewed_by_name?: string | null;
+  /** "added" by an admin directly, or an access request "approved"/"rejected". */
+  review_kind?: "added" | "approved" | "rejected" | null;
 }
 
 /** Every user regardless of status — backs the Users & Access page. */

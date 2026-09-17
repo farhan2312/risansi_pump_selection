@@ -63,6 +63,11 @@ const MASTER_ACTIONS: Record<string, string> = {
   "master.create": "Master added",
   "master.update": "Master edited",
   "master.delete": "Master deleted",
+  "user.request": "Access requested",
+  "user.approve": "Approved request",
+  "user.reject": "Rejected request",
+  "user.create": "User added",
+  "user.delete": "User deleted",
 };
 
 const prettyAction = (action: string | null | undefined): string => {

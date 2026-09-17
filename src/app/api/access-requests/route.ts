@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 
 import { error, json, userToDict } from "@/lib/api";
 import { db } from "@/lib/db";
+import { logAudit } from "@/lib/audit";
 import { users } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +42,14 @@ export async function POST(req: Request) {
       .insert(users)
       .values({ name, email, passwordHash, role, status: "pending" })
       .returning();
+    // Not signed in yet, so the requester is named explicitly.
+    await logAudit(req, {
+      action: "user.request",
+      entity: "users_pump",
+      entityId: user.id,
+      detail: `Access requested by ${email} (${name}) as ${role}`,
+      actor: { id: user.id, email, role },
+    });
     return json(userToDict(user), 201);
   }
 
@@ -64,5 +73,12 @@ export async function POST(req: Request) {
     })
     .where(eq(users.id, existing.id))
     .returning();
+  await logAudit(req, {
+    action: "user.request",
+    entity: "users_pump",
+    entityId: updated.id,
+    detail: `Access requested again by ${email} (${name}) as ${role} - previously ${existing.status}`,
+    actor: { id: updated.id, email, role },
+  });
   return json(userToDict(updated));
 }

@@ -119,11 +119,25 @@ export async function PATCH(
   if (patch.role !== undefined && patch.role !== user.role) changes.push(`role ${user.role} -> ${patch.role}`);
   if (patch.status !== undefined && patch.status !== user.status) changes.push(`status ${user.status} -> ${patch.status}`);
   if (patch.passwordHash !== undefined) changes.push("password reset");
+  // Deciding a pending access request gets its own action, so the trail
+  // reads "Approved request" / "Rejected request" rather than a generic update.
+  const decided = user.status === "pending" && (patch.status === "active" || patch.status === "rejected");
+  const otherChanges = changes.filter((c) => !c.startsWith("status "));
   await logAudit(req, {
-    action: changes.some((c) => c.startsWith("role")) ? "user.role_change" : "user.update",
+    action: decided
+      ? patch.status === "active"
+        ? "user.approve"
+        : "user.reject"
+      : changes.some((c) => c.startsWith("role"))
+        ? "user.role_change"
+        : "user.update",
     entity: "users_pump",
     entityId: user.id,
-    detail: `${user.email}: ${changes.length ? changes.join(", ") : "updated"}`,
+    detail: decided
+      ? `${patch.status === "active" ? "Approved" : "Rejected"} access request for ${user.email} as ${updated?.role ?? user.role}${
+          otherChanges.length ? ` (${otherChanges.join(", ")})` : ""
+        }`
+      : `${user.email}: ${changes.length ? changes.join(", ") : "updated"}`,
   });
 
   return json(userToDict(updated));

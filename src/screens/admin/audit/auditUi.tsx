@@ -20,6 +20,11 @@ const MASTER_ACTIONS: Record<string, string> = {
   "master.create": "Master added",
   "master.update": "Master edited",
   "master.delete": "Master deleted",
+  "user.request": "Access requested",
+  "user.approve": "Approved request",
+  "user.reject": "Rejected request",
+  "user.create": "User added",
+  "user.delete": "User deleted",
 };
 
 /** "user.role_change" -> "Role change" */
@@ -192,6 +197,9 @@ function actionTone(action: string, eventType?: string): string {
   if (action.startsWith("enquiry.") || action.startsWith("tag.")) return "bg-[color-mix(in_srgb,var(--brand-cyan)_15%,transparent)] text-[var(--brand-cyan)]";
   if (action.startsWith("approval.")) return "bg-[var(--warn-soft)] text-warn";
   if (action.startsWith("master.") || action.startsWith("drive_option.")) return "bg-[color-mix(in_srgb,#f97316_14%,transparent)] text-[#ea580c]";
+  if (action === "user.approve") return "bg-[var(--pos-soft)] text-pos";
+  if (action === "user.reject" || action === "user.delete") return "bg-[var(--neg-soft)] text-neg";
+  if (action === "user.request") return "bg-[var(--warn-soft)] text-warn";
   if (action.startsWith("user.")) return "bg-[color-mix(in_srgb,var(--purple)_14%,transparent)] text-[var(--purple)]";
   if (action.startsWith("report.") || action.startsWith("audit.")) return "bg-[var(--pos-soft)] text-pos";
   return "bg-sunk text-fg-2";

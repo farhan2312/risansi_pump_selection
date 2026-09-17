@@ -233,6 +233,7 @@ const UsersAccessPage = () => {
                   <th>Role</th>
                   <th>Status</th>
                   <th>Requested</th>
+                  <th>Reviewed</th>
                   <th className="pmm-actions-col">Actions</th>
                 </tr>
               </thead>
@@ -265,6 +266,21 @@ const UsersAccessPage = () => {
                         {isSelf && <span className="uap-self-tag">(you)</span>}
                       </td>
                       <td className="mono">{fmtDate(row.created_at)}</td>
+                      <td>
+                        {row.status === "pending" ? (
+                          <span className="uap-review uap-review-waiting">Awaiting review</span>
+                        ) : row.review_kind && row.reviewed_by_name ? (
+                          <span className={`uap-review uap-review-${row.review_kind}`}>
+                            <span className="uap-review-who">
+                              {row.review_kind === "added" ? "Added by" : row.review_kind === "rejected" ? "Rejected by" : "Approved by"}{" "}
+                              <strong>{row.reviewed_by_name}</strong>
+                            </span>
+                            {row.reviewed_at && <span className="uap-review-when">{fmtDate(row.reviewed_at)}</span>}
+                          </span>
+                        ) : (
+                          <span className="uap-review uap-review-none">—</span>
+                        )}
+                      </td>
                       <td>
                         <div className="pmm-row-actions">
                           {row.status === "pending" ? (
@@ -320,7 +336,7 @@ const UsersAccessPage = () => {
                 })}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="pmm-empty-cell">
+                    <td colSpan={6} className="pmm-empty-cell">
                       <EmptyState
                         compact
                         icon="search"

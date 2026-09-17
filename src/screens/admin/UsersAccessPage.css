@@ -139,3 +139,42 @@
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='9' cy='7' r='4'/%3E%3Cpath d='M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75'/%3E%3C/svg%3E");
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='9' cy='7' r='4'/%3E%3Cpath d='M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75'/%3E%3C/svg%3E");
 }
+
+/* Reviewed column: who approved, rejected or added the account. */
+.uap-review {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 12px;
+  color: var(--fg-2);
+  line-height: 1.35;
+}
+.uap-review strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+.uap-review-who::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  vertical-align: middle;
+  background: var(--fg-4);
+}
+.uap-review-approved .uap-review-who::before { background: var(--pos); }
+.uap-review-rejected .uap-review-who::before { background: var(--neg); }
+.uap-review-added .uap-review-who::before { background: var(--brand-blue); }
+.uap-review-when {
+  padding-left: 12px;
+  font-size: 11px;
+  color: var(--fg-3);
+}
+.uap-review-waiting {
+  color: var(--warn);
+  font-weight: 600;
+}
+.uap-review-none {
+  color: var(--fg-4);
+}
