@@ -29,7 +29,7 @@ import {
 } from "./audit/auditUi";
 
 type TabKey = "overview" | "usage" | "activity" | "logins" | "access";
-type RangeKey = "today" | "7d" | "30d" | "all";
+type RangeKey = "today" | "week" | "month" | "7d" | "30d" | "all";
 
 // Rows per page. The server pages to the same size; this only labels the bar.
 const PAGE_SIZE = 30;
@@ -46,6 +46,8 @@ const TABS: { key: TabKey; label: string; icon: ReactNode }[] = [
 
 const RANGES: { key: RangeKey; label: string }[] = [
   { key: "today", label: "Today" },
+  { key: "week", label: "This week" },
+  { key: "month", label: "This month" },
   { key: "7d", label: "7 days" },
   { key: "30d", label: "30 days" },
   { key: "all", label: "All time" },

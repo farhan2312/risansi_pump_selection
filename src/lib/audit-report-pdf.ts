@@ -38,6 +38,8 @@ const MARGIN = 36;
 
 const RANGE_LABELS: Record<string, string> = {
   today: "Today",
+  week: "This week",
+  month: "This month",
   "7d": "Last 7 days",
   "30d": "Last 30 days",
   all: "All recorded activity",

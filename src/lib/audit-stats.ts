@@ -22,13 +22,13 @@ import { sql, type SQL } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { auditLog, enquiryTags, projects, stepApproval } from "@/lib/db/schema";
-import { startOfIstDay } from "@/lib/ist";
+import { startOfIstDay, startOfIstMonth, startOfIstWeek } from "@/lib/ist";
 
 export const IDLE_CUTOFF_SECONDS = 15 * 60;
 
-export type AuditRange = "today" | "7d" | "30d" | "all";
+export type AuditRange = "today" | "week" | "month" | "7d" | "30d" | "all";
 
-export const AUDIT_RANGES: readonly AuditRange[] = ["today", "7d", "30d", "all"];
+export const AUDIT_RANGES: readonly AuditRange[] = ["today", "week", "month", "7d", "30d", "all"];
 
 export const isAuditRange = (v: string): v is AuditRange =>
   (AUDIT_RANGES as readonly string[]).includes(v);
@@ -39,6 +39,9 @@ export function rangeStart(range: AuditRange): Date | null {
   // "Today" is the IST day, not the server's: on a UTC host, local midnight
   // would be 05:30 IST and hide everything done overnight in India.
   if (range === "today") return startOfIstDay(now);
+  // Calendar week (from Monday) and month, both in IST.
+  if (range === "week") return startOfIstWeek(now);
+  if (range === "month") return startOfIstMonth(now);
   if (range === "7d") return new Date(now.getTime() - 7 * 86400_000);
   if (range === "30d") return new Date(now.getTime() - 30 * 86400_000);
   return null;

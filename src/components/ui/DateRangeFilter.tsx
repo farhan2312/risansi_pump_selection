@@ -3,17 +3,21 @@
 import { useMemo, useState } from "react";
 
 /**
- * Shared date filter: quick ranges (Today · 7 · 30 · 90 days · All time) plus
+ * Shared date filter: quick ranges (Today · This week · This month · 7 · 30 ·
+ * 90 days · All time) plus
  * an explicit From → To pair, which wins over the quick range while set.
  * Used by the Dashboard, Enquiries and Reports pages.
  *
  * Picked calendar days are converted to instants in the user's own time zone
- * (start of the From day, end of the To day). "Today" starts at local midnight.
+ * (start of the From day, end of the To day). "Today" starts at local midnight,
+ * "This week" on Monday and "This month" on the 1st, both at local midnight.
  */
-export type DateRangeKey = "today" | "7d" | "30d" | "90d" | "all";
+export type DateRangeKey = "today" | "week" | "month" | "7d" | "30d" | "90d" | "all";
 
 export const DATE_RANGES: { key: DateRangeKey; label: string; days: number | null }[] = [
   { key: "today", label: "Today", days: 0 },
+  { key: "week", label: "This week", days: null },
+  { key: "month", label: "This month", days: null },
   { key: "7d", label: "7 days", days: 7 },
   { key: "30d", label: "30 days", days: 30 },
   { key: "90d", label: "90 days", days: 90 },
@@ -57,6 +61,13 @@ export function useDateRange(initial: DateRangeKey = "all"): DateRangeState {
         from: fromDate ? dayBoundary(fromDate, "start") : undefined,
         to: toDate ? dayBoundary(toDate, "end") : undefined,
       };
+    }
+    if (range === "week" || range === "month") {
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      if (range === "week") start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+      else start.setDate(1);
+      return { from: start.toISOString() };
     }
     const days = DATE_RANGES.find((r) => r.key === range)?.days;
     if (days === null || days === undefined) return {};

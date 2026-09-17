@@ -415,11 +415,18 @@ export default function AuditOverviewTab({ data, windowLabel }: { data: AuditOve
           </ul>
         </Card>
 
-        <Card className="lg:col-span-2 xl:col-span-1" icon={Icons.globe} title="IP addresses" subtitle="Where activity came from" bodyClassName="">
+        {/* Scrolls inside the card so it stays as tall as the two pie charts. */}
+        <Card
+          className="flex flex-col lg:col-span-2 xl:col-span-1"
+          icon={Icons.globe}
+          title="IP addresses"
+          subtitle={`Where activity came from · top ${data.ips.length}`}
+          bodyClassName="relative min-h-[240px] flex-1"
+        >
           {data.ips.length === 0 ? (
             <p className="py-8 text-center text-[12.5px] text-fg-3">Nothing recorded</p>
           ) : (
-            <ul className="divide-y divide-line">
+            <ul className="max-h-[360px] divide-y divide-line overflow-y-auto xl:absolute xl:inset-0 xl:max-h-none">
               {data.ips.map((ip) => (
                 <li key={ip.ip} className="flex items-center gap-3 px-4 py-2.5 hover:bg-elev">
                   <div className="min-w-0 flex-1">
