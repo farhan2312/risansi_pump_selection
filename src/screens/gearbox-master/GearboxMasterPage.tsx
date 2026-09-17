@@ -120,7 +120,7 @@ const GearboxMasterPage = () => {
     <div className="pmm-page">
       <div className="pmm-header">
         <div>
-          <h1>Gearbox Type</h1>
+          <h1>Gearbox Master</h1>
           <p>
             PBL, PTL, and Top Gear master rows. Switch table, then add, edit, or delete
             a row, or view its full details. Power Rating (raw label) is not shown here.

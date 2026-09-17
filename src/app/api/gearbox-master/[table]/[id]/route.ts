@@ -120,7 +120,7 @@ export async function PATCH(
   const [updated] = updateResult as any[];
   if (!updated) return error("Row not found", 404);
   await auditMasterChange(req, {
-    master: "Gearbox Type",
+    master: "Gearbox Master",
     table: getTableName(table),
     op: "update",
     id,
@@ -153,7 +153,7 @@ export async function DELETE(
   const [deleted] = deleteResult as any[];
   if (!deleted) return error("Row not found", 404);
   await auditMasterChange(req, {
-    master: "Gearbox Type",
+    master: "Gearbox Master",
     table: getTableName(table),
     op: "delete",
     id,

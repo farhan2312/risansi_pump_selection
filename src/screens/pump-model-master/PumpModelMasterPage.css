@@ -1,4 +1,4 @@
-/* Shared admin-master page styling — used by Pump Model, Gearbox Type,
+/* Shared admin-master page styling — used by Pump Model, Gearbox Master,
    Pulley and Motor masters and Users & Access. Uses the app's tokens
    (theme.css) so it follows light/dark mode. Keep the `.pmm-*` prefix — the
    pages import this stylesheet by name. */
@@ -123,7 +123,7 @@ select.pmm-search {
   height: 14px;
 }
 
-/* --- Segmented tabs (Gearbox Type) --- */
+/* --- Segmented tabs (Gearbox Master) --- */
 .pmm-tab-row {
   display: inline-flex;
   gap: 2px;

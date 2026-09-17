@@ -94,7 +94,7 @@ export const MAIN_LINKS: NavLink[] = [
 export const ADMIN_LINKS: NavLink[] = [
   { href: "/admin/pump-model-master", label: "Pump Model Master", icon: "database" },
   { href: "/admin/pulley-master", label: "Pulley Master", icon: "database" },
-  { href: "/admin/gearbox-master", label: "Gearbox Type", icon: "database" },
+  { href: "/admin/gearbox-master", label: "Gearbox Master", icon: "database" },
   { href: "/admin/motor-master", label: "Motor Master", icon: "database" },
 ];
 

@@ -14,7 +14,7 @@ const LABELS: Record<string, string> = {
   "/head-calculator": "Head Calculator",
   "/admin/pump-model-master": "Pump Model Master",
   "/admin/pulley-master": "Pulley Master",
-  "/admin/gearbox-master": "Gearbox Type",
+  "/admin/gearbox-master": "Gearbox Master",
   "/admin/motor-master": "Motor Master",
   "/admin/users": "Users & Access",
   "/admin/audit": "Audit Log",

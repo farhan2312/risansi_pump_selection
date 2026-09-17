@@ -119,7 +119,7 @@ export async function POST(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [created] = insertResult as any[];
   await auditMasterChange(req, {
-    master: "Gearbox Type",
+    master: "Gearbox Master",
     table: getTableName(table),
     op: "create",
     id: created.id,
