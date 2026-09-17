@@ -6,7 +6,7 @@
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { WEEKDAYS } from "../../../lib/audit-overview-shared";
+import { WEEKDAYS } from "../../lib/audit-overview-shared";
 
 // Series colours. The first few are theme tokens; the rest are fixed hues
 // that read on both light and dark surfaces.

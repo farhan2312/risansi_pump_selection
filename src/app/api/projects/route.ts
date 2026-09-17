@@ -60,6 +60,16 @@ export async function GET(req: Request) {
   if (enquiryCode && enquiryCode.trim()) {
     conditions.push(sql`${projects.projectCode} ILIKE ${like(enquiryCode)}`);
   }
+  // Created-date window: ISO instants (the client converts picked calendar
+  // days to its own time zone). Unparseable values are ignored.
+  const instant = (v: string | null) => {
+    const d = v ? new Date(v) : null;
+    return d && !Number.isNaN(d.getTime()) ? d : null;
+  };
+  const createdFrom = instant(params.get("from"));
+  const createdTo = instant(params.get("to"));
+  if (createdFrom) conditions.push(sql`${projects.createdAt} >= ${createdFrom}`);
+  if (createdTo) conditions.push(sql`${projects.createdAt} <= ${createdTo}`);
   const where = conditions.length ? and(...conditions) : undefined;
 
   const pageRaw = params.get("page");

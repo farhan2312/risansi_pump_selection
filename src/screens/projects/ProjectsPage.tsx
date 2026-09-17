@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import "./ProjectsPage.css";
 import CreateProjectModal from "../../components/projects/CreateProjectModal";
@@ -9,8 +9,10 @@ import EnquiryDocumentModal from "../../components/reports/EnquiryDocumentModal"
 import EditProjectModal from "../../components/projects/EditProjectModal";
 import EmptyState from "../../components/ui/EmptyState";
 import ConfirmModal from "../../components/ui/ConfirmModal";
-import { SkeletonRows } from "../../components/ui/Skeleton";
 import Pagination from "../../components/ui/Pagination";
+import PageHeader from "../../components/ui/PageHeader";
+import StatusPill, { lifecycleStyle } from "../../components/ui/StatusPill";
+import DateRangeFilter, { useDateRange } from "../../components/ui/DateRangeFilter";
 import {
   createProject,
   deleteProject,
@@ -35,27 +37,6 @@ export const SELECTED_PROJECT_KEY = "selectedProject";
 // Enquiries per page. The server caps anything larger; this is the value the
 // Enquiries table asks for.
 const PAGE_SIZE = 20;
-
-// Tint the nested tag row and its status pill by lifecycle. Same three
-// values that come out of the tag CRUD list (Pending / In Progress /
-// Completed). Anything else falls through to the neutral pill so an
-// unrecognised value still reads as text rather than blowing away the row.
-function tagStatusRowClass(status: string | null | undefined): string {
-  switch ((status ?? "").trim().toLowerCase()) {
-    case "completed": return "projects-tag-row-completed";
-    case "in progress": return "projects-tag-row-in-progress";
-    case "pending": return "projects-tag-row-pending";
-    default: return "";
-  }
-}
-function tagStatusPillClass(status: string | null | undefined): string {
-  switch ((status ?? "").trim().toLowerCase()) {
-    case "completed": return "is-completed";
-    case "in progress": return "is-in-progress";
-    case "pending": return "is-pending";
-    default: return "is-neutral";
-  }
-}
 
 const ProjectsPage = () => {
   const router = useRouter();
@@ -118,6 +99,9 @@ const ProjectsPage = () => {
   // the client only ever holds one page, so filtering here would search 20
   // rows rather than the whole table.
   const [page, setPage] = useState(1);
+  // Created-date filter: a quick range, or explicit From/To days (which win).
+  const dates = useDateRange("all");
+  const dateWindow = dates.window;
   const [pageInfo, setPageInfo] = useState({ total: 0, totalPages: 1 });
   // Typing is debounced so a filter keystroke doesn't fire a request each.
   const [debouncedFilters, setDebouncedFilters] = useState({ clientName: "", enquiryCode: "" });
@@ -150,6 +134,8 @@ const ProjectsPage = () => {
       pageSize: PAGE_SIZE,
       clientName: debouncedFilters.clientName,
       enquiryCode: debouncedFilters.enquiryCode,
+      from: dateWindow.from,
+      to: dateWindow.to,
     })
       .then((res) => {
         setProjects(res.items);
@@ -162,7 +148,7 @@ const ProjectsPage = () => {
       })
       .catch(() => setError("Couldn't load enquiries."))
       .finally(() => setIsLoading(false));
-  }, [page, debouncedFilters]);
+  }, [page, debouncedFilters, dateWindow]);
 
   useEffect(() => {
     loadProjects();
@@ -464,7 +450,7 @@ const ProjectsPage = () => {
   // unchanged.
   const filteredProjects = projects;
 
-  const hasFilter = clientNameFilter !== "" || enquiryCodeFilter !== "";
+  const hasFilter = clientNameFilter !== "" || enquiryCodeFilter !== "" || dates.active;
 
   const handleDelete = async () => {
     if (!confirmingDelete) return;
@@ -484,163 +470,246 @@ const ProjectsPage = () => {
     }
   };
 
+  // Tailwind building blocks for the list (modals keep their own styles).
+  const btn =
+    "inline-flex items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-1.5 text-[12.5px] font-semibold whitespace-nowrap text-fg-2 transition-colors hover:border-[color-mix(in_srgb,var(--brand-blue)_35%,transparent)] hover:bg-paper hover:text-accent disabled:cursor-not-allowed disabled:opacity-45 [&_svg]:h-[14px] [&_svg]:w-[14px] [&_svg]:shrink-0";
+  const btnDanger =
+    "inline-flex items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-1.5 text-[12.5px] font-semibold whitespace-nowrap text-fg-3 transition-colors hover:border-[color-mix(in_srgb,var(--neg)_35%,transparent)] hover:bg-[var(--neg-soft)] hover:text-neg disabled:cursor-not-allowed disabled:opacity-45 [&_svg]:h-[14px] [&_svg]:w-[14px] [&_svg]:shrink-0";
+  const btnPrimary =
+    "inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[12.5px] font-semibold whitespace-nowrap text-white shadow-[0_1px_2px_rgba(10,61,143,0.15)] transition hover:-translate-y-px hover:shadow-[0_4px_12px_color-mix(in_srgb,var(--brand-blue)_30%,transparent)] disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:h-[14px] [&_svg]:w-[14px]";
+  const input =
+    "w-full rounded-lg border border-line bg-paper py-2 pr-3 pl-9 text-[13px] text-fg outline-none transition placeholder:text-fg-4 focus:border-accent focus:ring-2 focus:ring-accent-soft";
+
   return (
-    <div className="projects-page">
-      <div className="projects-header">
-        <div className="projects-header-text">
-          <h1>Enquiries</h1>
-          <p>Create, open, and manage your PCP pump-selection enquiries.</p>
+    <div className="mx-auto max-w-[1600px] px-4 pt-5 pb-10 sm:px-6">
+      <PageHeader
+        icon={<FolderGlyph />}
+        title="Enquiries"
+        subtitle="Create, open and manage PCP pump-selection enquiries · expand an enquiry to work on its tags"
+        actions={
+          <button type="button" className={`${btnPrimary} px-4 py-2 text-[13px]`} onClick={() => setIsModalOpen(true)}>
+            <PlusIcon /> New Enquiry
+          </button>
+        }
+      >
+        <div className="flex flex-wrap items-center gap-2.5">
+          <label className="relative w-full sm:w-[240px] xl:w-[220px]">
+            <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-fg-3">
+              <SearchGlyph />
+            </span>
+            <input
+              id="filter-client-name"
+              type="search"
+              aria-label="Client name"
+              className={input}
+              placeholder="Search by client name…"
+              value={clientNameFilter}
+              onChange={(e) => setClientNameFilter(e.target.value)}
+            />
+          </label>
+          <label className="relative w-full sm:w-[210px] xl:w-[190px]">
+            <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-fg-3">
+              <HashGlyph />
+            </span>
+            <input
+              id="filter-enquiry-code"
+              type="search"
+              aria-label="Enquiry no."
+              className={input}
+              placeholder="Search by enquiry no.…"
+              value={enquiryCodeFilter}
+              onChange={(e) => setEnquiryCodeFilter(e.target.value)}
+            />
+          </label>
+          <DateRangeFilter
+            state={dates}
+            onChange={() => setPage(1)}
+            fromLabel="Created from"
+            toLabel="Created to"
+            showClear={false}
+          />
+          {hasFilter && (
+            <button
+              type="button"
+              className="rounded-md px-2 py-1.5 text-[12.5px] font-semibold text-accent hover:bg-accent-soft"
+              onClick={() => {
+                setClientNameFilter("");
+                setEnquiryCodeFilter("");
+                dates.reset();
+                setPage(1);
+              }}
+            >
+              Clear filters
+            </button>
+          )}
+          {!isLoading && !error && (
+            <span className="ml-auto text-[12.5px] text-fg-3">
+              <b className="font-mono text-fg">{pageInfo.total}</b> enquir{pageInfo.total === 1 ? "y" : "ies"}
+              {hasFilter ? " match" : ""}
+            </span>
+          )}
         </div>
-        <button className="projects-new-btn" onClick={() => setIsModalOpen(true)}>
-          <PlusIcon /> New Enquiry
-        </button>
-      </div>
+      </PageHeader>
 
       {error && (
-        <div className="projects-error" role="alert">
+        <div
+          className="mt-4 flex items-center gap-2 rounded-lg bg-[var(--neg-soft)] px-4 py-3 text-[13px] font-medium text-neg [&_svg]:h-4 [&_svg]:w-4"
+          role="alert"
+        >
           <AlertIcon />
           <span>{error}</span>
         </div>
       )}
 
-      {!isLoading && !error && projects.length > 0 && (
-        <div className="projects-filter-bar">
-          <div className="projects-filter-field">
-            <label htmlFor="filter-client-name">Client Name</label>
-            <input
-              id="filter-client-name"
-              type="text"
-              placeholder="Search by client name…"
-              value={clientNameFilter}
-              onChange={(e) => setClientNameFilter(e.target.value)}
-            />
-          </div>
-          <div className="projects-filter-field">
-            <label htmlFor="filter-enquiry-code">Enquiry no.</label>
-            <input
-              id="filter-enquiry-code"
-              type="text"
-              placeholder="Search by enquiry no.…"
-              value={enquiryCodeFilter}
-              onChange={(e) => setEnquiryCodeFilter(e.target.value)}
-            />
-          </div>
-          {hasFilter && (
-            <button
-              type="button"
-              className="projects-filter-clear"
-              onClick={() => {
-                setClientNameFilter("");
-                setEnquiryCodeFilter("");
-              }}
-            >
-              Clear
-            </button>
-          )}
-        </div>
-      )}
-
       {isLoading && (
-        <div className="projects-panel">
-          <div className="projects-loading">
-            <SkeletonRows rows={5} cols={6} />
-          </div>
+        <div className="mt-4 space-y-2.5">
+          {Array.from({ length: 5 }, (_, i) => (
+            <div key={i} className="h-[74px] animate-pulse rounded-xl border border-line bg-paper" />
+          ))}
         </div>
       )}
 
       {!isLoading && !error && !hasFilter && projects.length === 0 && (
-        <EmptyState
-          icon="folder"
-          title="No enquiries yet"
-          description="Create your first enquiry to start scoping a PCP pump selection — capacity, head, media, and drive details all get saved per enquiry."
-          action={
-            <button className="projects-new-btn" onClick={() => setIsModalOpen(true)}>
-              <PlusIcon /> Create your first enquiry
-            </button>
-          }
-        />
+        <div className="mt-6">
+          <EmptyState
+            icon="folder"
+            title="No enquiries yet"
+            description="Create your first enquiry to start scoping a PCP pump selection — capacity, head, media, and drive details all get saved per enquiry."
+            action={
+              <button type="button" className={btnPrimary} onClick={() => setIsModalOpen(true)}>
+                <PlusIcon /> Create your first enquiry
+              </button>
+            }
+          />
+        </div>
       )}
 
       {!isLoading && !error && hasFilter && filteredProjects.length === 0 && (
-        <EmptyState
-          icon="folder"
-          title="No enquiries match this filter"
-          description="Try a different client name or enquiry no., or clear the filter above."
-        />
+        <div className="mt-6">
+          <EmptyState
+            icon="folder"
+            title="No enquiries match this filter"
+            description="Try a different client name, enquiry no. or date range, or clear the filters above."
+          />
+        </div>
       )}
 
       {!isLoading && !error && filteredProjects.length > 0 && (
-        <div className="projects-panel">
-          <table className="projects-table">
-            <thead>
-              <tr>
-                <th aria-label="Expand" className="projects-chevron-col" />
-                <th>Enquiry no.</th>
-                <th>Client Name</th>
-                <th>Client Code</th>
-                <th>Created By</th>
-                <th className="projects-actions-col">Actions</th>
-              </tr>
-            </thead>
+        <div className="mt-4 overflow-hidden rounded-xl border border-line bg-paper shadow-[0_1px_2px_rgba(10,22,40,0.04),0_8px_24px_rgba(10,22,40,0.04)]">
+          <div className={`hidden border-b border-line bg-elev px-4 py-2.5 lg:grid lg:grid-cols-[28px_minmax(230px,2.4fr)_minmax(110px,0.9fr)_minmax(100px,0.8fr)_minmax(150px,1.1fr)_minmax(100px,0.8fr)_minmax(120px,0.9fr)_262px] lg:items-center lg:gap-x-4`}>
+            <span />
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Enquiry</span>
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Client Code</span>
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Industry</span>
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Created By</span>
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Created</span>
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Status</span>
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3 text-right">Actions</span>
+          </div>
+          <ul className="divide-y divide-line">
+            {filteredProjects.map((project) => {
+              const isOpen = expanded.has(project.id);
+              const tags = tagsByProject[project.id];
+              const isLoadingTags = tagsLoadingFor.has(project.id);
+              const tagError = tagsErrorFor[project.id];
+              const doneCount = tags?.filter((t) => (t.status ?? "").toLowerCase() === "completed").length ?? 0;
+              return (
+                <li key={project.id} className={isOpen ? "bg-[color-mix(in_srgb,var(--accent-soft)_45%,transparent)]" : ""}>
+                  {/* Enquiry row: columns on wide screens, stacked below lg */}
+                  <div className={`group flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-elev lg:grid lg:grid-cols-[28px_minmax(230px,2.4fr)_minmax(110px,0.9fr)_minmax(100px,0.8fr)_minmax(150px,1.1fr)_minmax(100px,0.8fr)_minmax(120px,0.9fr)_262px] lg:items-center lg:gap-x-4`}>
+                    <button
+                        type="button"
+                        onClick={() => toggleExpanded(project.id)}
+                        aria-expanded={isOpen}
+                        aria-label={isOpen ? "Hide tags" : "Show tags"}
+                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition ${
+                          isOpen
+                            ? "rotate-90 border-transparent bg-accent text-white"
+                            : "border-line bg-paper text-fg-3 hover:border-accent hover:text-accent"
+                        }`}
+                      >
+                        <ChevronIcon />
+                      </button>
 
-            <tbody>
-              {filteredProjects.map((project) => {
-                const isOpen = expanded.has(project.id);
-                const tags = tagsByProject[project.id];
-                const isLoadingTags = tagsLoadingFor.has(project.id);
-                const tagError = tagsErrorFor[project.id];
-                return (
-                <React.Fragment key={project.id}>
-                <tr>
-                  {/* Chevron toggles the nested tag table below. Click target
-                      is the whole cell so it's easy to hit; aria-expanded ties
-                      the collapsed/expanded state to assistive tech. */}
-                  <td className="projects-chevron-col">
                     <button
                       type="button"
-                      className={`projects-chevron${isOpen ? " is-open" : ""}`}
                       onClick={() => toggleExpanded(project.id)}
-                      aria-expanded={isOpen}
-                      aria-label={isOpen ? "Hide tags" : "Show tags"}
+                      className="min-w-0 flex-1 text-left"
+                      title={isOpen ? "Hide tags" : "Show tags"}
                     >
-                      <ChevronIcon />
+                      <span className="block font-mono text-[12.5px] font-bold text-title">{project.project_code}</span>
+                      <span className="mt-0.5 block truncate text-[13.5px] font-semibold text-fg group-hover:text-accent">
+                        {project.name || "—"}
+                      </span>
                     </button>
-                  </td>
-                  {/* data-label feeds the stacked mobile card view, where the
-                      table header row is hidden (see ProjectsPage.css). */}
-                  <td className="project-code" data-label="Enquiry no.">
-                    {project.project_code}
-                  </td>
-                  <td className="project-name" data-label="Client Name">
-                    {project.name || "—"}
-                  </td>
-                  <td data-label="Client Code">{project.client_code || "—"}</td>
-                  <td data-label="Created By">{project.created_by_name || "—"}</td>
 
-                  <td className="projects-actions-col">
-                    {/* Enquiry-level Open button removed: the wizard is per-
-                        tag, so the way in is via the "Open" button on each
-                        tag row (expand the chevron to reach them). */}
-                    <div className="projects-actions">
+                    <span className="min-w-0">
+                      {project.client_code ? (
+                        <span className="inline-block max-w-full truncate rounded-md bg-elev px-1.5 py-0.5 font-mono text-[11.5px] text-fg-2">
+                          {project.client_code}
+                        </span>
+                      ) : (
+                        <span className="text-fg-4">—</span>
+                      )}
+                    </span>
+
+                    <span className="min-w-0 truncate text-[12.5px] text-fg-2">{project.industry || <span className="text-fg-4">—</span>}</span>
+
+                    <span className="flex min-w-0 items-center gap-2">
+                      {project.created_by_name ? (
+                        <>
+                          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--brand-blue)] to-[var(--brand-cyan)] text-[9.5px] font-bold text-white">
+                            {project.created_by_name
+                              .split(/\s+/)
+                              .slice(0, 2)
+                              .map((p) => p[0]?.toUpperCase())
+                              .join("")}
+                          </span>
+                          <span className="truncate text-[12.5px] text-fg-2">{project.created_by_name}</span>
+                        </>
+                      ) : (
+                        <span className="text-fg-4">—</span>
+                      )}
+                    </span>
+
+                    <span className="text-[12.5px] whitespace-nowrap text-fg-2">
+                      {project.created_at
+                        ? new Date(project.created_at).toLocaleDateString("en-IN", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "—"}
+                    </span>
+
+                    <span className="flex flex-col items-start gap-1">
+                      <StatusPill status={project.status} />
+                      {tags && (
+                        <span className="text-[11px] text-fg-3">
+                          {doneCount}/{tags.length} tag{tags.length === 1 ? "" : "s"} done
+                        </span>
+                      )}
+                    </span>
+
+                    <div className="flex flex-wrap items-center justify-end gap-0.5 lg:flex-nowrap">
                       <button
-                        className="project-btn"
+                        type="button"
+                        className={btn}
                         onClick={() => openDocument(project)}
                         disabled={docLoadingFor === project.id}
                         title="View this enquiry's Technical Quotation"
                       >
-                        <DocumentIcon />{" "}
-                        {docLoadingFor === project.id ? "Loading…" : "View Document"}
+                        <DocumentIcon /> {docLoadingFor === project.id ? "Loading…" : "Document"}
                       </button>
                       <button
-                        className="project-btn"
+                        type="button"
+                        className={btn}
                         onClick={() => {
                           setCopyError(null);
                           setCopyingFrom({ project });
                           if (!tagsByProject[project.id]) {
                             listTags(project.id)
-                              .then((rows) =>
-                                setTagsByProject((m) => ({ ...m, [project.id]: rows })),
-                              )
+                              .then((rows) => setTagsByProject((m) => ({ ...m, [project.id]: rows })))
                               .catch(() => {});
                           }
                         }}
@@ -649,151 +718,141 @@ const ProjectsPage = () => {
                         <CopyIcon /> Copy
                       </button>
                       <button
-                        className="project-btn"
+                        type="button"
+                        className={btn}
                         onClick={() => setEditing(project)}
                         aria-label={`Edit enquiry ${project.project_code}`}
+                        title="Edit enquiry"
                       >
                         <EditIcon /> Edit
                       </button>
-
                       <button
-                        className="project-btn project-btn-danger"
+                        type="button"
+                        className={btnDanger}
                         disabled={deletingId === project.id}
                         onClick={() => setConfirmingDelete(project)}
                         aria-label={`Delete enquiry ${project.project_code}`}
+                        title="Delete enquiry"
                       >
-                        <TrashIcon /> Delete
+                        <TrashIcon />
                       </button>
                     </div>
-                  </td>
-                </tr>
+                  </div>
 
-                {isOpen && (
-                  <tr className="projects-tags-row">
-                    <td />
-                    <td colSpan={5}>
-                      <div className="projects-tags-panel">
-                        <div className="projects-tags-heading">
-                          Tags on this enquiry
-                          <span className="projects-tags-hint">
-                            Each tag is its own pump-selection run (own wizard,
-                            own MOC, own drive). Liquid and Pump Type come from
-                            that tag&apos;s own inputs.
-                          </span>
+                  {/* Tags */}
+                  {isOpen && (
+                    <div className="px-4 pb-4 sm:pl-14 lg:pl-[60px]">
+                      <div className="rounded-xl border border-line bg-paper">
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-3.5 py-2.5">
+                          <div>
+                            <div className="text-[12.5px] font-semibold text-fg">Tags on this enquiry</div>
+                            <div className="text-[11px] text-fg-3">
+                              Each tag is its own pump-selection run · click a tag name to rename it
+                            </div>
+                          </div>
+                          {addingTagFor !== project.id && (
+                            <button type="button" className={btn} onClick={() => startAddTag(project.id)}>
+                              <PlusIcon /> Add tag
+                            </button>
+                          )}
                         </div>
 
                         {isLoadingTags && (
-                          <div className="projects-tags-empty">Loading tags…</div>
-                        )}
-
-                        {tagError && (
-                          <div className="projects-tags-error">{tagError}</div>
-                        )}
-
-                        {!isLoadingTags && tags && tags.length === 0 && (
-                          <div className="projects-tags-empty">
-                            No tags yet - add one below.
+                          <div className="space-y-2 p-3">
+                            {[0, 1].map((i) => (
+                              <div key={i} className="h-10 animate-pulse rounded-lg bg-elev" />
+                            ))}
                           </div>
+                        )}
+                        {tagError && <div className="px-3.5 py-3 text-[12.5px] font-medium text-neg">{tagError}</div>}
+                        {!isLoadingTags && tags && tags.length === 0 && (
+                          <div className="px-3.5 py-4 text-[12.5px] text-fg-3">No tags yet — add one.</div>
                         )}
 
                         {!isLoadingTags && tags && tags.length > 0 && (
-                          <table className="projects-tags-table">
-                            <thead>
-                              <tr>
-                                <th>Tag</th>
-                                <th>Liquid</th>
-                                <th>Pump Type</th>
-                                <th>Status</th>
-                                <th className="projects-actions-col">Actions</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {tags.map((tag) => {
-                                const isRenaming = renamingTagId === tag.id;
-                                return (
-                                <tr key={tag.id} className={tagStatusRowClass(tag.status)}>
-                                  <td>
-                                    {isRenaming ? (
-                                      <input
-                                        type="text"
-                                        className="projects-tag-input"
-                                        value={renameValue}
-                                        autoFocus
-                                        onChange={(e) => setRenameValue(e.target.value)}
-                                        onBlur={() => handleRenameTag(tag)}
-                                        onKeyDown={(e) => {
-                                          if (e.key === "Enter") handleRenameTag(tag);
-                                          if (e.key === "Escape") cancelRenameTag();
-                                        }}
-                                      />
-                                    ) : (
-                                      <button
-                                        type="button"
-                                        className="projects-tag-name"
-                                        onClick={() => startRenameTag(tag)}
-                                        title="Click to rename"
-                                      >
-                                        {tag.name}
-                                      </button>
-                                    )}
-                                  </td>
-                                  <td>{tag.liquid || "—"}</td>
-                                  <td>{tag.pump_type || "—"}</td>
-                                  <td>
-                                    <span className={`projects-tag-status ${tagStatusPillClass(tag.status)}`}>
-                                      {tag.status}
-                                    </span>
-                                  </td>
-                                  <td className="projects-actions-col">
-                                    <div className="projects-actions">
-                                      <button
-                                        className="project-btn project-btn-primary"
-                                        onClick={() => openProject(project, tag)}
-                                      >
-                                        <OpenIcon /> Open
-                                      </button>
-                                      <button
-                                        className="project-btn"
-                                        onClick={() => handleCopyTagHere(tag)}
-                                        disabled={copyingTagId === tag.id}
-                                        title="Duplicate this tag with all its pump-selection details"
-                                        aria-label={`Copy tag ${tag.name}`}
-                                      >
-                                        <CopyIcon />
-                                        {copyingTagId === tag.id ? " Copying…" : " Copy"}
-                                      </button>
-                                      <button
-                                        className="project-btn project-btn-danger"
-                                        onClick={() => setConfirmingDeleteTag(tag)}
-                                        disabled={
-                                          deletingTagId === tag.id ||
-                                          (tags?.length ?? 0) <= 1
-                                        }
-                                        title={
-                                          (tags?.length ?? 0) <= 1
-                                            ? "Can't delete the last tag on an enquiry"
-                                            : undefined
-                                        }
-                                        aria-label={`Delete tag ${tag.name}`}
-                                      >
-                                        <TrashIcon />
-                                      </button>
+                          <ul className="divide-y divide-line">
+                            {tags.map((tag) => {
+                              const isRenaming = renamingTagId === tag.id;
+                              return (
+                                <li key={tag.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3.5 py-2.5 hover:bg-elev">
+                                  <span
+                                    className="h-8 w-1 shrink-0 rounded-full"
+                                    style={{ background: lifecycleStyle(tag.status).color }}
+                                    aria-hidden
+                                  />
+                                  <div className="min-w-[180px] flex-1">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      {isRenaming ? (
+                                        <input
+                                          type="text"
+                                          className="rounded-md border border-accent bg-paper px-2 py-1 text-[13px] text-fg outline-none ring-2 ring-accent-soft"
+                                          value={renameValue}
+                                          autoFocus
+                                          onChange={(e) => setRenameValue(e.target.value)}
+                                          onBlur={() => handleRenameTag(tag)}
+                                          onKeyDown={(e) => {
+                                            if (e.key === "Enter") handleRenameTag(tag);
+                                            if (e.key === "Escape") cancelRenameTag();
+                                          }}
+                                        />
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          className="rounded px-0.5 text-[13px] font-semibold text-fg underline decoration-dotted decoration-fg-4 underline-offset-4 hover:text-accent hover:decoration-accent"
+                                          onClick={() => startRenameTag(tag)}
+                                          title="Click to rename"
+                                        >
+                                          {tag.name}
+                                        </button>
+                                      )}
+                                      <StatusPill status={tag.status} />
                                     </div>
-                                  </td>
-                                </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
+                                    <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11.5px] text-fg-3">
+                                      <span>
+                                        Liquid: <span className="text-fg-2">{tag.liquid || "—"}</span>
+                                      </span>
+                                      <span>
+                                        Pump type: <span className="text-fg-2">{tag.pump_type || "—"}</span>
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-0.5">
+                                    <button type="button" className={btnPrimary} onClick={() => openProject(project, tag)}>
+                                      <OpenIcon /> Open
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={btn}
+                                      onClick={() => handleCopyTagHere(tag)}
+                                      disabled={copyingTagId === tag.id}
+                                      title="Duplicate this tag with all its pump-selection details"
+                                      aria-label={`Copy tag ${tag.name}`}
+                                    >
+                                      <CopyIcon />
+                                      {copyingTagId === tag.id ? "Copying…" : "Copy"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={btnDanger}
+                                      onClick={() => setConfirmingDeleteTag(tag)}
+                                      disabled={deletingTagId === tag.id || (tags?.length ?? 0) <= 1}
+                                      title={(tags?.length ?? 0) <= 1 ? "Can't delete the last tag on an enquiry" : "Delete tag"}
+                                      aria-label={`Delete tag ${tag.name}`}
+                                    >
+                                      <TrashIcon />
+                                    </button>
+                                  </div>
+                                </li>
+                              );
+                            })}
+                          </ul>
                         )}
 
-                        {/* Add-tag inline form. Collapsed until the user clicks
-                            "+ Add tag" so the panel stays quiet by default. */}
-                        {addingTagFor === project.id ? (
-                          <div className="projects-tag-add">
+                        {addingTagFor === project.id && (
+                          <div className="flex flex-wrap items-center gap-2 border-t border-line px-3.5 py-2.5">
                             <input
                               type="text"
-                              className="projects-tag-input"
+                              className="min-w-[220px] flex-1 rounded-lg border border-line bg-paper px-3 py-1.5 text-[13px] text-fg outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
                               placeholder="Tag name (e.g. Pump 1, Site A)"
                               value={newTagName}
                               autoFocus
@@ -806,48 +865,36 @@ const ProjectsPage = () => {
                             />
                             <button
                               type="button"
-                              className="project-btn project-btn-primary"
+                              className={btnPrimary}
                               onClick={() => handleAddTag(project.id)}
                               disabled={!newTagName.trim()}
                             >
                               Add
                             </button>
-                            <button
-                              type="button"
-                              className="project-btn"
-                              onClick={cancelAddTag}
-                            >
+                            <button type="button" className={btn} onClick={cancelAddTag}>
                               Cancel
                             </button>
                           </div>
-                        ) : (
-                          <button
-                            type="button"
-                            className="project-btn projects-tag-add-btn"
-                            onClick={() => startAddTag(project.id)}
-                          >
-                            <PlusIcon /> Add tag
-                          </button>
                         )}
                       </div>
-                    </td>
-                  </tr>
-                )}
-                </React.Fragment>
-                );
-              })}
-            </tbody>
-          </table>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
 
           {/* Server-side: totalItems is the count across the WHOLE filtered
               table, not the length of this page. */}
-          <Pagination
-            page={page}
-            totalItems={pageInfo.total}
-            pageSize={PAGE_SIZE}
-            onPageChange={setPage}
-            itemLabel="enquiries"
-          />
+          <div className="border-t border-line bg-[color-mix(in_srgb,var(--bg-elev)_45%,var(--bg-paper))]">
+            <Pagination
+              page={page}
+              totalItems={pageInfo.total}
+              pageSize={PAGE_SIZE}
+              onPageChange={setPage}
+              itemLabel="enquiries"
+            />
+          </div>
         </div>
       )}
 
@@ -954,6 +1001,23 @@ const ProjectsPage = () => {
 // --- Inline icons (self-contained, no external asset dependency) -----------
 // The chevron ships as a right-arrow; the .projects-chevron.is-open class in
 // ProjectsPage.css rotates it 90 deg down when the row is expanded.
+const FolderGlyph = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+  </svg>
+);
+const SearchGlyph = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+    <circle cx="11" cy="11" r="6.5" />
+    <path d="M20 20l-4-4" />
+  </svg>
+);
+const HashGlyph = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+    <path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16" />
+  </svg>
+);
+
 const ChevronIcon = () => (
   <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
     <path d="M4.5 3l3 3-3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />

@@ -14,7 +14,7 @@ import {
   UserDayHeatmap,
   WeekHourHeatmap,
   type TrendSeries,
-} from "./charts";
+} from "../../../components/charts/charts";
 import {
   Avatar,
   Card,

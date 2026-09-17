@@ -41,6 +41,9 @@ export const listProjectsPage = async (query: {
   pageSize?: number;
   clientName?: string;
   enquiryCode?: string;
+  /** Created-date window, ISO instants. */
+  from?: string;
+  to?: string;
 }): Promise<ProjectPage> => {
   const { data } = await apiClient.get<ProjectPage>("/projects", {
     params: {
@@ -48,6 +51,8 @@ export const listProjectsPage = async (query: {
       pageSize: query.pageSize,
       clientName: query.clientName?.trim() || undefined,
       enquiryCode: query.enquiryCode?.trim() || undefined,
+      from: query.from || undefined,
+      to: query.to || undefined,
     },
   });
   return data;

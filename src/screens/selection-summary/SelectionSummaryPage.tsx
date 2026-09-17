@@ -11,7 +11,9 @@ import {
   type ReportSummaryField,
 } from "../../services/reportsService";
 import EmptyState from "../../components/ui/EmptyState";
-import { SkeletonRows } from "../../components/ui/Skeleton";
+import PageHeader from "../../components/ui/PageHeader";
+import StatusPill, { lifecycleStyle } from "../../components/ui/StatusPill";
+import DateRangeFilter, { inDateWindow, useDateRange } from "../../components/ui/DateRangeFilter";
 import Spinner from "../../components/ui/Spinner";
 import {
   downloadSelectionSummaryPdf,
@@ -70,21 +72,6 @@ interface EnquiryGroup {
   tags: ReportRecord[];
 }
 
-// Reuses the exact status-pill classes/colors from DashboardPage.css (loaded
-// globally, see app/layout.tsx) so status reads the same everywhere.
-const statusPillClass = (status: string | null | undefined): string => {
-  switch ((status ?? "").trim().toLowerCase()) {
-    case "in progress":
-      return "status-pill status-in-progress";
-    case "completed":
-      return "status-pill status-completed";
-    case "pending":
-      return "status-pill status-pending";
-    default:
-      return "status-pill status-neutral";
-  }
-};
-
 // Roll up the tag statuses under one enquiry into a single enquiry-level
 // status - same rule the /api/projects list uses server-side, mirrored here
 // so the enquiry row and the nested tag rows agree.
@@ -116,6 +103,8 @@ const SelectionSummaryPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  // Report generated-date filter.
+  const dates = useDateRange("all");
   const [viewing, setViewing] = useState<ReportRecord | null>(null);
   const [viewingEnquiry, setViewingEnquiry] = useState<EnquiryGroup | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -142,15 +131,16 @@ const SelectionSummaryPage = () => {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return reports;
     return reports.filter(
       (r) =>
-        r.project_code.toLowerCase().includes(q) ||
-        (r.project_name ?? "").toLowerCase().includes(q) ||
-        (r.client_code ?? "").toLowerCase().includes(q) ||
-        r.tag_name.toLowerCase().includes(q),
+        inDateWindow(r.document_generated_at, dates.window) &&
+        (!q ||
+          r.project_code.toLowerCase().includes(q) ||
+          (r.project_name ?? "").toLowerCase().includes(q) ||
+          (r.client_code ?? "").toLowerCase().includes(q) ||
+          r.tag_name.toLowerCase().includes(q)),
     );
-  }, [reports, search]);
+  }, [reports, search, dates.window]);
 
   // Group the flat per-tag list by enquiry so the outer table shows one row
   // per enquiry with the tag reports nested underneath. Enquiries are sorted
@@ -194,173 +184,192 @@ const SelectionSummaryPage = () => {
       return next;
     });
 
-  return (
-    <div className="summary-page">
-      <div className="summary-header">
-        <div>
-          <h1>Reports</h1>
-          <p>
-            Enquiries with generated Selection Summary reports. Expand an
-            enquiry to see each tag&apos;s report and download it.
-          </p>
-        </div>
-        <input
-          type="search"
-          className="summary-search"
-          placeholder="Search enquiry, name, client or tag…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
+  const btn =
+    "inline-flex items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-1.5 text-[12.5px] font-semibold whitespace-nowrap text-fg-2 transition-colors hover:border-[color-mix(in_srgb,var(--brand-blue)_35%,transparent)] hover:bg-paper hover:text-accent [&_svg]:h-[14px] [&_svg]:w-[14px]";
+  const btnPrimary =
+    "inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[12.5px] font-semibold whitespace-nowrap text-white shadow-[0_1px_2px_rgba(10,61,143,0.15)] transition hover:-translate-y-px hover:shadow-[0_4px_12px_color-mix(in_srgb,var(--brand-blue)_30%,transparent)] [&_svg]:h-[14px] [&_svg]:w-[14px]";
+  const completedTags = filtered.filter((r) => (r.status ?? "").toLowerCase() === "completed").length;
+  const enquiryCount = new Set(filtered.map((r) => r.project_id)).size;
 
-      {error && <p className="error-message">{error}</p>}
+  return (
+    <div className="mx-auto max-w-[1600px] px-4 pt-5 pb-10 sm:px-6">
+      <PageHeader
+        icon={<ReportGlyph />}
+        title="Reports"
+        subtitle="Generated Selection Summary reports, grouped by enquiry · open a tag to preview or download it"
+      >
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="relative w-full sm:w-[340px]">
+            <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-fg-3">
+              <SearchGlyph />
+            </span>
+            <input
+              type="search"
+              className="w-full rounded-lg border border-line bg-paper py-2 pr-3 pl-9 text-[13px] text-fg outline-none transition placeholder:text-fg-4 focus:border-accent focus:ring-2 focus:ring-accent-soft"
+              placeholder="Search enquiry, name, client or tag…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </label>
+          <DateRangeFilter state={dates} fromLabel="Generated from" toLabel="Generated to" />
+          {!isLoading && !error && (
+            <div className="ml-auto flex flex-wrap gap-2 text-[12px] text-fg-3">
+              <span className="rounded-lg border border-line bg-paper px-3 py-1.5">
+                <b className="font-mono text-[14px] text-fg">{enquiryCount}</b> enquir{enquiryCount === 1 ? "y" : "ies"}
+              </span>
+              <span className="rounded-lg border border-line bg-paper px-3 py-1.5">
+                <b className="font-mono text-[14px] text-fg">{filtered.length}</b> report{filtered.length === 1 ? "" : "s"}
+              </span>
+              <span className="rounded-lg border border-[var(--pos-soft)] bg-[var(--pos-soft)] px-3 py-1.5 text-pos">
+                <b className="font-mono text-[14px]">{completedTags}</b> completed
+              </span>
+            </div>
+          )}
+        </div>
+      </PageHeader>
+
+      {error && <div className="mt-4 rounded-lg bg-[var(--neg-soft)] px-4 py-3 text-[13px] font-medium text-neg">{error}</div>}
 
       {isLoading && (
-        <div className="summary-panel">
-          <div style={{ padding: 16 }}>
-            <SkeletonRows rows={5} cols={6} />
-          </div>
+        <div className="mt-4 space-y-2.5">
+          {Array.from({ length: 5 }, (_, i) => (
+            <div key={i} className="h-[68px] animate-pulse rounded-xl border border-line bg-paper" />
+          ))}
         </div>
       )}
 
       {!isLoading && !error && reports.length === 0 && (
-        <EmptyState
-          icon="table"
-          title="No reports generated yet"
-          description="Click Confirm Pump Selection on the last wizard step of a tag to generate and save its report here."
-        />
+        <div className="mt-6">
+          <EmptyState
+            icon="table"
+            title="No reports generated yet"
+            description="Click Confirm Pump Selection on the last wizard step of a tag to generate and save its report here."
+          />
+        </div>
       )}
 
       {!isLoading && !error && reports.length > 0 && (
-        <div className="summary-panel">
-          <table className="summary-table">
-            <thead>
-              <tr>
-                <th aria-label="Expand" className="summary-chevron-col" />
-                <th>Enquiry</th>
-                <th>Client</th>
-                <th>Status</th>
-                <th>Latest Report</th>
-                <th>Generated By</th>
-                <th className="summary-actions-col">Document</th>
-              </tr>
-            </thead>
-            <tbody>
+        <div className="mt-4 overflow-hidden rounded-xl border border-line bg-paper shadow-[0_1px_2px_rgba(10,22,40,0.04),0_8px_24px_rgba(10,22,40,0.04)]">
+          {grouped.length === 0 ? (
+            <EmptyState
+              compact
+              icon="search"
+              title={search.trim() ? `No reports match “${search}”` : "No reports in this date range"}
+              description="Try a different enquiry, name, client, tag or date range."
+            />
+          ) : (
+            <>
+            <div className={`hidden border-b border-line bg-elev px-4 py-2.5 lg:grid lg:grid-cols-[28px_minmax(230px,2.4fr)_minmax(110px,0.9fr)_minmax(150px,1.1fr)_minmax(150px,1fr)_minmax(80px,0.6fr)_minmax(110px,0.8fr)_140px] lg:items-center lg:gap-x-4`}>
+              <span />
+              <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Enquiry</span>
+              <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Client Code</span>
+              <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Generated By</span>
+              <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Latest Report</span>
+              <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Reports</span>
+              <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Status</span>
+              <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3 text-right">Document</span>
+            </div>
+            <ul className="divide-y divide-line">
               {grouped.map((g) => {
                 const isOpen = expanded.has(g.project_id);
-                const enquiryStatus = rollupTagStatuses(
-                  g.tags.map((t) => t.status ?? ""),
-                );
+                const enquiryStatus = rollupTagStatuses(g.tags.map((t) => t.status ?? ""));
                 return (
-                  <React.Fragment key={g.project_id}>
-                    <tr>
-                      <td className="summary-chevron-col">
-                        <button
-                          type="button"
-                          className={`summary-chevron${isOpen ? " is-open" : ""}`}
-                          onClick={() => toggleExpanded(g.project_id)}
-                          aria-expanded={isOpen}
-                          aria-label={
-                            isOpen ? "Hide tag reports" : "Show tag reports"
-                          }
-                        >
-                          <ChevronIcon />
-                        </button>
-                      </td>
-                      <td>
-                        <span className="summary-project-code">
-                          {g.project_code}
-                        </span>
-                        <span className="summary-project-name">
+                  <li key={g.project_id} className={isOpen ? "bg-[color-mix(in_srgb,var(--accent-soft)_45%,transparent)]" : ""}>
+                    <div className={`group flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-elev lg:grid lg:grid-cols-[28px_minmax(230px,2.4fr)_minmax(110px,0.9fr)_minmax(150px,1.1fr)_minmax(150px,1fr)_minmax(80px,0.6fr)_minmax(110px,0.8fr)_140px] lg:items-center lg:gap-x-4`}>
+                      <button
+                        type="button"
+                        onClick={() => toggleExpanded(g.project_id)}
+                        aria-expanded={isOpen}
+                        aria-label={isOpen ? "Hide tag reports" : "Show tag reports"}
+                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition ${
+                          isOpen
+                            ? "rotate-90 border-transparent bg-accent text-white"
+                            : "border-line bg-paper text-fg-3 hover:border-accent hover:text-accent"
+                        }`}
+                      >
+                        <ChevronIcon />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleExpanded(g.project_id)}
+                        className="min-w-0 flex-1 text-left"
+                        title={isOpen ? "Hide tag reports" : "Show tag reports"}
+                      >
+                        <span className="block font-mono text-[12.5px] font-bold text-title">{g.project_code}</span>
+                        <span className="mt-0.5 block truncate text-[13.5px] font-semibold text-fg group-hover:text-accent">
                           {g.project_name || "—"}
                         </span>
-                      </td>
-                      <td>{g.client_code || "—"}</td>
-                      <td>
-                        <span className={statusPillClass(enquiryStatus)}>
-                          {enquiryStatus}
+                      </button>
+
+                      <span className="min-w-0">
+                        {g.client_code ? (
+                          <span className="inline-block max-w-full truncate rounded-md bg-elev px-1.5 py-0.5 font-mono text-[11.5px] text-fg-2">
+                            {g.client_code}
+                          </span>
+                        ) : (
+                          <span className="text-fg-4">—</span>
+                        )}
+                      </span>
+
+                      <span className="min-w-0 truncate text-[12.5px] text-fg-2">{g.created_by_name || <span className="text-fg-4">—</span>}</span>
+
+                      <span className="text-[12.5px] whitespace-nowrap text-fg-2">{fmtDate(g.latest_generated_at)}</span>
+
+                      <span>
+                        <span className="rounded-full bg-elev px-2 py-0.5 text-[11.5px] font-semibold text-fg-2">
+                          {g.tags.length} report{g.tags.length === 1 ? "" : "s"}
                         </span>
-                      </td>
-                      <td className="mono">{fmtDate(g.latest_generated_at)}</td>
-                      <td>{g.created_by_name || "—"}</td>
-                      <td className="summary-actions-col">
-                        <button
-                          className="summary-download-btn"
-                          onClick={() => setViewingEnquiry(g)}
-                        >
-                          View Document
+                      </span>
+
+                      <span>
+                        <StatusPill status={enquiryStatus} />
+                      </span>
+
+                      <div className="flex justify-end">
+                        <button type="button" className={btn} onClick={() => setViewingEnquiry(g)}>
+                          <DocGlyph /> View Document
                         </button>
-                      </td>
-                    </tr>
+                      </div>
+                    </div>
+
                     {isOpen && (
-                      <tr className="summary-tags-row">
-                        <td />
-                        <td colSpan={6}>
-                          <div className="summary-tags-panel">
-                            <div className="summary-tags-heading">
-                              {g.tags.length} tag{g.tags.length === 1 ? "" : "s"} with a saved report
-                            </div>
-                            <table className="summary-tags-table">
-                              <thead>
-                                <tr>
-                                  <th>Tag</th>
-                                  <th>Status</th>
-                                  <th>Generated</th>
-                                  <th className="summary-actions-col">Actions</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {g.tags.map((t) => (
-                                  <tr
-                                    key={t.tag_id}
-                                    className="summary-row-clickable"
-                                    onClick={() => setViewing(t)}
-                                  >
-                                    <td className="mono">{t.tag_name}</td>
-                                    <td>
-                                      <span className={statusPillClass(t.status)}>
-                                        {t.status || "—"}
-                                      </span>
-                                    </td>
-                                    <td className="mono">
-                                      {fmtDate(t.document_generated_at)}
-                                    </td>
-                                    <td className="summary-actions-col">
-                                      <button
-                                        className="summary-download-btn"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setChoosingFor(t);
-                                        }}
-                                      >
-                                        Download
-                                      </button>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </td>
-                      </tr>
+                      <div className="px-4 pb-4 sm:pl-14 lg:pl-[60px]">
+                        <ul className="divide-y divide-line rounded-xl border border-line bg-paper">
+                          {g.tags.map((t) => (
+                            <li key={t.tag_id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3.5 py-2.5 hover:bg-elev">
+                              <span className="h-8 w-1 shrink-0 rounded-full" style={{ background: lifecycleStyle(t.status).color }} aria-hidden />
+                              <button
+                                type="button"
+                                onClick={() => setViewing(t)}
+                                className="min-w-[180px] flex-1 text-left"
+                                title="Preview this report"
+                              >
+                                <span className="flex flex-wrap items-center gap-2">
+                                  <span className="text-[13px] font-semibold text-fg hover:text-accent">{t.tag_name}</span>
+                                  <StatusPill status={t.status} />
+                                </span>
+                                <span className="mt-0.5 block text-[11.5px] text-fg-3">Generated {fmtDate(t.document_generated_at)}</span>
+                              </button>
+                              <div className="flex items-center gap-0.5">
+                                <button type="button" className={btn} onClick={() => setViewing(t)}>
+                                  <EyeGlyph /> Preview
+                                </button>
+                                <button type="button" className={btnPrimary} onClick={() => setChoosingFor(t)}>
+                                  <DownloadGlyph /> Download
+                                </button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     )}
-                  </React.Fragment>
+                  </li>
                 );
               })}
-              {grouped.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="summary-empty-cell">
-                    <EmptyState
-                      compact
-                      icon="search"
-                      title={`No reports match “${search}”`}
-                      description="Try a different enquiry, name, client or tag."
-                    />
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+            </ul>
+            </>
+          )}
         </div>
       )}
 
@@ -547,6 +556,36 @@ const ReportSummaryModal = ({
 
 // The chevron ships as a right-arrow; the .summary-chevron.is-open class in
 // SelectionSummaryPage.css rotates it 90 deg down when expanded.
+const ReportGlyph = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+    <path d="M14 3v6h6M8 13h8M8 17h5" />
+  </svg>
+);
+const SearchGlyph = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+    <circle cx="11" cy="11" r="6.5" />
+    <path d="M20 20l-4-4" />
+  </svg>
+);
+const DocGlyph = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+    <path d="M14 3v6h6" />
+  </svg>
+);
+const EyeGlyph = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+const DownloadGlyph = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12 4v11M7 10l5 5 5-5M4 19h16" />
+  </svg>
+);
+
 const ChevronIcon = () => (
   <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
     <path
