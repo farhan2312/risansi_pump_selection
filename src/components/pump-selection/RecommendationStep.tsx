@@ -30,6 +30,7 @@ import { getReportSummary, saveReportSummary, uploadFinalReport } from "../../se
 import FormatChoiceModal, { type DownloadFormat } from "../ui/FormatChoiceModal";
 import { downloadSelectionSummaryExcel } from "../../lib/selection-summary-excel";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
+import { getMotorRating, type MotorRating } from "../../services/motorRatingService";
 import type {
   PumpRecommendation,
   PumpSelectionFormData,
@@ -494,6 +495,34 @@ const RecommendationStep = ({
       typeLine: typeLine || undefined,
     };
   })();
+  // Motor Rating step figures (BKW → Motor KW → Recommended) for the Recheck
+  // PDF, fetched the same way that step does.
+  const [motorRating, setMotorRating] = useState<MotorRating | null>(null);
+  useEffect(() => {
+    if (!formData.selectedModel) {
+      setMotorRating(null);
+      return;
+    }
+    let cancelled = false;
+    getMotorRating(formData)
+      .then((r) => !cancelled && setMotorRating(r))
+      .catch(() => !cancelled && setMotorRating(null));
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.selectedModel, formData.selectedHead, formData.capacity, formData.capacityUnit, formData.head, formData.headUnit, formData.sg]);
+  const roundKw = (n: number | null) => (n === null ? "—" : String(Math.round(n * 1000) / 1000));
+  const recheckMotorRating = motorRating
+    ? {
+        bkw: `${roundKw(motorRating.bkw)} kW`.replace("— kW", "—"),
+        motorKw: `${roundKw(motorRating.motorKw)} kW`.replace("— kW", "—"),
+        recommendedKw: motorRating.recommendedKw !== null ? `${motorRating.recommendedKw} kW` : "—",
+        selectedKw: formData.driveMotorKw ? `${formData.driveMotorKw} kW` : "—",
+        mechEff: `${motorRating.mechEff}%`,
+        remarks: formData.driveMotorKwRemarks || undefined,
+      }
+    : undefined;
   const [downloadingRecheck, setDownloadingRecheck] = useState(false);
   const [recheckError, setRecheckError] = useState<string | null>(null);
   // The Recheck PDF opens in a preview first; Download saves that same file.
@@ -522,6 +551,7 @@ const RecommendationStep = ({
         generatedBy: user?.name || user?.email || undefined,
         tables: recheck,
         pumpCard: recheckPumpCard,
+        motorRating: recheckMotorRating,
       }, { save: false });
       setRecheckPreview({ url: URL.createObjectURL(file.blob), filename: file.filename });
     } catch {

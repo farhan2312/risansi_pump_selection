@@ -322,6 +322,93 @@ export interface RecheckPdfInput {
   tables: RecheckTables;
   /** The selected pump card from Live Recommendation, drawn above the inputs. */
   pumpCard?: RecheckPumpCard;
+  /** Motor Rating step figures, drawn after the pump card. */
+  motorRating?: RecheckMotorRating;
+}
+
+export interface RecheckMotorRating {
+  /** Brake kW at the duty point, already formatted. */
+  bkw: string;
+  /** BKW × 1.2 */
+  motorKw: string;
+  recommendedKw: string;
+  selectedKw: string;
+  mechEff?: string;
+  /** Why the selected rating differs from the recommended one. */
+  remarks?: string;
+}
+
+// Motor Rating figures in the same card style: BKW → Motor KW → Recommended,
+// with the Selected rating emphasised (amber when it differs).
+function drawMotorRatingCard(doc: jsPDF, L: Layout, m: RecheckMotorRating): void {
+  const cells: [string, string][] = [
+    ["BKW", m.bkw],
+    ["Motor KW (BKW × 1.2)", m.motorKw],
+    ["Recommended KW", m.recommendedKw],
+    ["Selected KW", m.selectedKw],
+  ];
+  const differs = m.selectedKw !== "—" && m.recommendedKw !== "—" && parseFloat(m.selectedKw) !== parseFloat(m.recommendedKw);
+  const padX = 14;
+  const gridH = 44;
+  const noteLines: string[] = [];
+  if (m.mechEff) noteLines.push(`Mechanical efficiency ${m.mechEff} · BKW = Capacity × Head ÷ 367 ÷ (ME ÷ 100), at the duty head.`);
+  if (differs && m.remarks) noteLines.push(`Why ${m.selectedKw} instead of ${m.recommendedKw}: ${m.remarks}`);
+  doc.setFontSize(9);
+  const wrapped = noteLines.flatMap((t) => doc.splitTextToSize(t, L.contentWidth - padX * 2) as string[]);
+  const noteH = wrapped.length ? wrapped.length * 12 + 8 : 0;
+  const height = gridH + noteH + 12;
+
+  L.ensureSpace(L.BAND_HEIGHT + height + 16);
+  L.drawSectionBand("Motor Rating");
+  const x = L.margin;
+  const y = L.state.y + 8;
+  const w = L.contentWidth;
+
+  doc.setFillColor(247, 250, 252);
+  doc.setDrawColor(CELL_BORDER[0], CELL_BORDER[1], CELL_BORDER[2]);
+  doc.setLineWidth(0.6);
+  doc.roundedRect(x, y, w, height, 6, 6, "FD");
+
+  const cellW = (w - padX * 2) / cells.length;
+  cells.forEach(([label, value], i) => {
+    const cx = x + padX + i * cellW;
+    const last = i === cells.length - 1;
+    if (last) {
+      // Highlight the final selection.
+      if (differs) doc.setFillColor(254, 243, 199);
+      else doc.setFillColor(POS_SOFT[0], POS_SOFT[1], POS_SOFT[2]);
+      doc.roundedRect(cx - 6, y + 6, cellW - 2, gridH - 6, 5, 5, "F");
+    }
+    // Arrow between the calculation steps.
+    // (Drawn, not a "→" glyph: the built-in PDF fonts have no arrow.)
+    if (i > 0) {
+      doc.setDrawColor(170, 180, 195);
+      doc.setLineWidth(1.2);
+      doc.line(cx - 16, y + 23, cx - 12, y + 27);
+      doc.line(cx - 12, y + 27, cx - 16, y + 31);
+    }
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(110);
+    doc.text(label.toUpperCase(), cx, y + 19);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12.5);
+    if (last && differs) doc.setTextColor(146, 64, 14);
+    else if (last) doc.setTextColor(POS_STRONG[0], POS_STRONG[1], POS_STRONG[2]);
+    else doc.setTextColor(30);
+    doc.text(value || "—", cx, y + 35);
+  });
+
+  if (wrapped.length) {
+    doc.setDrawColor(CELL_BORDER[0], CELL_BORDER[1], CELL_BORDER[2]);
+    doc.line(x + padX, y + gridH + 4, x + w - padX, y + gridH + 4);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(90);
+    wrapped.forEach((line, i) => doc.text(line, x + padX, y + gridH + 18 + i * 12));
+  }
+
+  L.state.y = y + height + 14;
 }
 
 export interface RecheckPumpCard {
@@ -443,6 +530,7 @@ export async function downloadRecheckPdf(
   L.state.y += 14;
 
   if (input.pumpCard) drawPumpCard(doc, L, input.pumpCard);
+  if (input.motorRating) drawMotorRatingCard(doc, L, input.motorRating);
 
   // Inputs: the two-column label/value grid every other section uses. A note
   // ("at selected head 26 MWC") rides along in brackets, as in the popup.
