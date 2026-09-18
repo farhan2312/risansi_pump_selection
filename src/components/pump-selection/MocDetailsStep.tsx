@@ -16,6 +16,7 @@ import {
   type MocComponentSuggestions,
 } from "../../services/mocRecommendationService";
 import { downloadMocReportPdf } from "../../lib/moc-pdf-report";
+import PdfPreviewModal, { type PdfPreview } from "../ui/PdfPreviewModal";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import {
   deleteClientRequirements,
@@ -592,13 +593,29 @@ const MocDetailsStep = ({
 
   const [pdfGenerating, setPdfGenerating] = useState(false);
   const [pdfError, setPdfError] = useState(false);
+  // The report opens in a preview first; Download there saves that same file.
+  const [pdfPreview, setPdfPreview] = useState<(PdfPreview & { bytes: ArrayBuffer }) | null>(null);
+  const closePdfPreview = () => {
+    setPdfPreview((p) => {
+      if (p) URL.revokeObjectURL(p.url);
+      return null;
+    });
+  };
+  // A copy is kept on the server (moc_sealing_input.document) when the user
+  // actually downloads it. Best-effort: a failed upload doesn't block the
+  // download.
+  const handlePdfDownloaded = () => {
+    if (pdfPreview && projectId) {
+      uploadMocDocument(projectId, pdfPreview.filename, pdfPreview.bytes, tagId).catch(() => {});
+    }
+  };
 
   const handleDownloadPdf = async () => {
     if (!aiSuggestion) return;
     setPdfGenerating(true);
     setPdfError(false);
     try {
-      const { filename, bytes } = await downloadMocReportPdf({
+      const { filename, bytes, blob } = await downloadMocReportPdf({
         media,
         head: formData.head || undefined,
         headUnit: formData.headUnit || undefined,
@@ -618,12 +635,8 @@ const MocDetailsStep = ({
         clientRequirements: clientRequirementsLegacyText.trim() || undefined,
         suggestion: aiSuggestion,
         generatedBy: user?.name || user?.email || undefined,
-      });
-      // Best-effort — the browser download above already succeeded either
-      // way, so a failed upload here shouldn't surface as a PDF error.
-      if (projectId) {
-        uploadMocDocument(projectId, filename, bytes, tagId).catch(() => {});
-      }
+      }, { save: false });
+      setPdfPreview({ url: URL.createObjectURL(blob), filename, bytes });
     } catch {
       setPdfError(true);
     } finally {
@@ -634,6 +647,15 @@ const MocDetailsStep = ({
   return (
     <div className="step-container">
       <Stepper currentStep={4} maxStep={formData.wizardMaxStep} onStepClick={onStepClick} />
+
+      {pdfPreview && (
+        <PdfPreviewModal
+          preview={pdfPreview}
+          title="MOC AI Report"
+          onClose={closePdfPreview}
+          onDownload={handlePdfDownloaded}
+        />
+      )}
 
       <div className="step-card">
         <h2>
@@ -887,7 +909,7 @@ const MocDetailsStep = ({
                       className="inline-flex items-center gap-2 rounded-lg border border-blue-300 bg-white px-3 py-2 text-[13px] font-semibold text-blue-700 shadow-sm transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <span>📄</span>
-                      {pdfGenerating ? "Preparing PDF…" : "Download MOC AI Report"}
+                      {pdfGenerating ? "Preparing PDF…" : "View MOC AI Report"}
                     </button>
                   </div>
 
@@ -903,7 +925,7 @@ const MocDetailsStep = ({
                         live in the downloadable PDF report only — not shown
                         inline here to keep the form focused on selection. */}
                     <p className="text-[13px] text-slate-600">
-                      A recommendation is ready. Download the PDF report for the
+                      A recommendation is ready. View the PDF report for the
                       full engineering summary, material breakdown, and
                       alternatives.
                     </p>

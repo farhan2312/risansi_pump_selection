@@ -279,9 +279,16 @@ export interface MocPdfResult {
   /** Raw PDF bytes — lets the caller also upload the same document to the
    * server (see moc_sealing_input.document) without regenerating it. */
   bytes: ArrayBuffer;
+  /** Same document as a Blob, for an in-page preview. */
+  blob: Blob;
 }
 
-export async function downloadMocReportPdf(input: MocPdfInput): Promise<MocPdfResult> {
+/** Builds the MOC report. Saves it straight away unless opts.save is false
+ *  (the MOC step previews it first and saves from the preview). */
+export async function downloadMocReportPdf(
+  input: MocPdfInput,
+  opts: { save?: boolean } = {},
+): Promise<MocPdfResult> {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -442,7 +449,8 @@ export async function downloadMocReportPdf(input: MocPdfInput): Promise<MocPdfRe
   const safeMedia = input.media.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "");
   const dateSlug = new Date().toISOString().slice(0, 10);
   const filename = `MOC-Report-${safeMedia || "media"}-${dateSlug}.pdf`;
-  doc.save(filename);
+  if (opts.save !== false) doc.save(filename);
 
-  return { filename, bytes: doc.output("arraybuffer") };
+  const bytes = doc.output("arraybuffer");
+  return { filename, bytes, blob: new Blob([bytes], { type: "application/pdf" }) };
 }
