@@ -4,6 +4,7 @@ import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
 import { useEffect, useState } from "react";
 import PdfPreviewModal from "../ui/PdfPreviewModal";
+import { gearboxRateItems, upliftedPriceLabel } from "../../lib/motor-price";
 import { getRecommendations } from "../../services/recommendationService";
 import { SIZE_COLUMN_BY_RANGE, sizeForViscosityRange, sizeOverride } from "../../lib/suction-discharge-size";
 import { sealingShort } from "../../lib/sealing";
@@ -386,12 +387,11 @@ const RecommendationStep = ({
     ["Motor Type", formData.driveMotorEfficiency],
     ["LP Price", formData.driveMotorLpPrice],
     ["Final Price", formData.driveMotorFinalPrice],
-    // Standard motors have no uplift, so the uplifted figure would just repeat
-    // Final Price — only Non-Standard gets the extra (increased) price row.
-    ...(isNonStd
-      ? ([
-          ["Final Non-Standard Price", formData.driveMotorPriceUplifted],
-        ] as FieldItem[])
+    // A Standard foot-mounted motor has no uplift, so the uplifted figure
+    // would just repeat Final Price — the row appears only for Non-Standard
+    // and/or a flange mounting (lib/motor-price.ts).
+    ...(upliftedPriceLabel(formData)
+      ? ([[upliftedPriceLabel(formData)!, formData.driveMotorPriceUplifted]] as FieldItem[])
       : []),
   ];
 
@@ -400,7 +400,7 @@ const RecommendationStep = ({
     ["Gearbox Model", formData.gearboxModel],
     ["Gearbox Output RPM", formData.gearboxOutputRpm],
     ["Gearbox Service Factor", formData.gearboxServiceFactor],
-    ["Gearbox Rate", formData.gearboxRatePerNos],
+    ...gearboxRateItems(formData),
   ];
   const gearedInputItems: FieldItem[] = [
     ["Configuration", formData.gearedConfigType],

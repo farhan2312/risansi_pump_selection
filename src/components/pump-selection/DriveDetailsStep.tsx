@@ -30,6 +30,7 @@ import {
 } from "../../services/motorMasterService";
 import { clearWizardInput, saveWizardInput } from "../../services/wizardInputService";
 import { ratingPlateNumber } from "../../lib/rating-plate";
+import { gearboxMountingUpliftPct, gearboxUpliftedRate, mountingUpliftPct } from "../../lib/motor-price";
 import {
   OTHER_OPTION,
   STANDARD_RATING_PLATE,
@@ -828,11 +829,17 @@ const DriveDetailsStep = ({
   // motor's final price (additive, per spec) — not compounded. Efficiency is
   // NOT among them: it filters which motor type (IE class) is offered rather
   // than adding cost.
-  const upliftPct = isNonStandard
+  const nonStdPct = isNonStandard
     ? pct(formData.driveMotorProtectionPct) +
       pct(formData.driveMotorFrequencyPct) +
       pct(formData.driveMotorVoltagePct)
     : 0;
+  // Flange / Foot cum Flange: +3% up to 11 kW, +5% above (lib/motor-price.ts).
+  // Every candidate has the fixed rating, so one % covers the whole list.
+  const mountPct = mountingUpliftPct(formData.driveMotorMounting, formData.driveMotorKw);
+  const upliftPct = nonStdPct + mountPct;
+  // Gear box converted to Flange Mount (B5): +5% on the master rate.
+  const gbFlangePct = gearboxMountingUpliftPct(formData.gearBoxMounting);
 
   const upliftedPrice = (finalPrice: string | null): number | null => {
     const base = finalPrice === null ? NaN : parseFloat(finalPrice);
@@ -1438,6 +1445,14 @@ const DriveDetailsStep = ({
                 <span className="text-slate-500">Rate</span>
                 <b className="mono text-slate-800">{num(o.ratePerNos)}</b>
               </div>
+              {gbFlangePct !== 0 && (
+                <div className="mt-1 flex justify-between text-[12px]">
+                  <span className="text-slate-500">+{gbFlangePct}% Flange</span>
+                  <b className="mono text-orange-900">
+                    {num(gearboxUpliftedRate(o.ratePerNos, formData.gearBoxMounting))}
+                  </b>
+                </div>
+              )}
             </div>
           </div>
         </button>
@@ -1493,6 +1508,14 @@ const DriveDetailsStep = ({
                               {formData.gearboxRatePerNos || "—"}
                             </b>
                           </div>
+                          {gbFlangePct !== 0 && formData.gearboxRatePerNos && (
+                            <div className="mt-1 flex justify-between text-[12px]">
+                              <span className="text-slate-500">+{gbFlangePct}% Flange</span>
+                              <b className="mono text-orange-900">
+                                {num(gearboxUpliftedRate(formData.gearboxRatePerNos, formData.gearBoxMounting))}
+                              </b>
+                            </div>
+                          )}
                         </div>
                       </div>
                       <p className="mt-2 text-[12px] text-orange-900">
@@ -2015,9 +2038,14 @@ const DriveDetailsStep = ({
                       </>
                     )}
                     . Pick a Motor Make above to narrow the list.
-                    {isNonStandard && upliftPct !== 0 && (
+                    {upliftPct !== 0 && (
                       <>
-                        {" "}Non-Standard uplift of{" "}
+                        {" "}
+                        {nonStdPct !== 0 && mountPct !== 0
+                          ? `Non-Standard (${nonStdPct}%) + flange mounting (${mountPct}%) uplift of`
+                          : mountPct !== 0
+                            ? "Flange mounting uplift of"
+                            : "Non-Standard uplift of"}{" "}
                         <b className="mono text-fg-2">{upliftPct}%</b> is applied to
                         each price below.
                       </>
@@ -2119,7 +2147,7 @@ const DriveDetailsStep = ({
                                     {money(m.finalPrice)}
                                   </b>
                                 </div>
-                                {isNonStandard && upliftPct !== 0 && (
+                                {upliftPct !== 0 && (
                                   <div className="mt-1 flex justify-between text-[12px]">
                                     <span className="text-slate-500">
                                       +{upliftPct}% Price
@@ -2306,6 +2334,7 @@ const RecheckModal = ({
                       <tr>
                         <th className="px-3 py-2">On VFD</th>
                         <th className="px-3 py-2 text-right">{tables.vfd.minHeading}</th>
+                        <th className="px-3 py-2 text-right">{tables.vfd.midHeading}</th>
                         <th className="px-3 py-2 text-right">{tables.vfd.maxHeading}</th>
                       </tr>
                     </thead>
@@ -2326,6 +2355,15 @@ const RecheckModal = ({
                             }`}
                           >
                             {row.min}
+                          </td>
+                          <td
+                            className={`px-3 py-2 text-right font-mono ${
+                              row.label === "Pump RPM"
+                                ? "font-semibold text-[var(--pos-strong)]"
+                                : "text-fg"
+                            }`}
+                          >
+                            {row.mid}
                           </td>
                           <td
                             className={`px-3 py-2 text-right font-mono ${

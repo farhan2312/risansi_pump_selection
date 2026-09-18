@@ -13,6 +13,7 @@ import { mechSealDescription } from "./mech-seal";
 import { PUMP_SUPPORT_LABEL, pumpSupportComponentName } from "./pump-support";
 import { frequencyText, voltageText } from "./rating-plate";
 import { RPM_BANDS } from "./rpm-bands";
+import { gearboxRateItems, upliftedPriceLabel } from "./motor-price";
 
 /** The tag's wizard values, every field as a string ("" when unset). */
 export type ApprovalForm = Record<string, string>;
@@ -263,7 +264,7 @@ export function approvalStepGroups(step: number, f: ApprovalForm): DetailGroup[]
                     ["Gearbox Model", f.gearboxModel],
                     ["Gearbox Output RPM", f.gearboxOutputRpm],
                     ["Gearbox Service Factor", f.gearboxServiceFactor],
-                    ["Gearbox Rate", f.gearboxRatePerNos],
+                    ...gearboxRateItems(f),
                   ]
                 : [],
             },
@@ -275,7 +276,7 @@ export function approvalStepGroups(step: number, f: ApprovalForm): DetailGroup[]
             ["Motor Rating", withUnit(f.driveMotorKw, "kW")],
             ["LP Price", f.driveMotorLpPrice],
             ["Final Price", f.driveMotorFinalPrice],
-            ["Final Non-Standard Price", isNonStd ? f.driveMotorPriceUplifted : ""],
+            [upliftedPriceLabel(f) ?? "Final Non-Standard Price", upliftedPriceLabel(f) ? f.driveMotorPriceUplifted : ""],
           ],
         },
       ]);

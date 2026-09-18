@@ -601,22 +601,26 @@ async function buildRecheckDoc(input: RecheckPdfInput, k: number): Promise<jsPDF
   afterTable();
 
   // On a VFD the pump runs across a speed range, so the same figures are
-  // reported at both ends of it.
+  // reported at its min, mid and max.
   if (tables.vfd) {
     L.ensureSpace(L.BAND_HEIGHT + 80);
     L.drawSectionBand("On VFD — Hz Range");
+    // Three value columns (min / mid / max), so each is a bit narrower than
+    // the results table's two.
+    const vfdCol = Math.min(valueCol, (L.contentWidth * 0.66) / 3);
     autoTable(doc, {
       startY: L.state.y,
       margin: { left: L.margin, right: L.margin },
-      head: [["At frequency", tables.vfd.minHeading, tables.vfd.maxHeading]],
-      body: tables.vfd.rows.map((r) => [r.label, r.min, r.max]),
+      head: [["At frequency", tables.vfd.minHeading, tables.vfd.midHeading, tables.vfd.maxHeading]],
+      body: tables.vfd.rows.map((r) => [r.label, r.min, r.mid, r.max]),
       theme: "grid",
       styles: tableStyles,
       headStyles,
       columnStyles: {
-        0: { fontStyle: "bold", cellWidth: L.contentWidth - 2 * valueCol },
-        1: { halign: "right", cellWidth: valueCol },
-        2: { halign: "right", cellWidth: valueCol },
+        0: { fontStyle: "bold", cellWidth: L.contentWidth - 3 * vfdCol },
+        1: { halign: "right", cellWidth: vfdCol },
+        2: { halign: "right", cellWidth: vfdCol },
+        3: { halign: "right", cellWidth: vfdCol },
       },
       didParseCell: (data) => {
         if (data.section === "head" && data.column.index > 0) data.cell.styles.halign = "right";

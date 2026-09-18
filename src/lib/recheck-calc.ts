@@ -87,6 +87,8 @@ export interface RecheckVfdEnd {
 export interface RecheckVfdRange {
   stdHz: number;
   min: RecheckVfdEnd;
+  /** Midpoint of the range: (min Hz + max Hz) / 2, e.g. 30–50 Hz -> 40 Hz. */
+  mid: RecheckVfdEnd;
   max: RecheckVfdEnd;
 }
 
@@ -149,9 +151,12 @@ function vfdRange(
   if (![stdHz, minHz, maxHz].every((v) => Number.isFinite(v) && v > 0)) return null;
   const minRpm = rpmAtHz(finalRpm, minHz, stdHz);
   const maxRpm = rpmAtHz(finalRpm, maxHz, stdHz);
+  const midHz = (minHz + maxHz) / 2;
+  const midRpm = rpmAtHz(finalRpm, midHz, stdHz);
   return {
     stdHz,
     min: { hz: minHz, rpm: minRpm, calc: calcAtRpm(specs, minRpm, headMwc) },
+    mid: { hz: midHz, rpm: midRpm, calc: calcAtRpm(specs, midRpm, headMwc) },
     max: { hz: maxHz, rpm: maxRpm, calc: calcAtRpm(specs, maxRpm, headMwc) },
   };
 }
@@ -208,15 +213,18 @@ export interface RecheckOutputRow {
   highlight?: boolean;
 }
 
-/** One line of the VFD table: the same figure at each end of the Hz range. */
+/** One line of the VFD table: the same figure at the min, mid and max of the
+ *  Hz range. */
 export interface RecheckVfdRow {
   label: string;
   min: string;
+  mid: string;
   max: string;
 }
 
 export interface RecheckVfdTable {
   minHeading: string;
+  midHeading: string;
   maxHeading: string;
   rows: RecheckVfdRow[];
 }
@@ -231,21 +239,30 @@ export interface RecheckTables {
   vfd: RecheckVfdTable | null;
 }
 
-/** Capacity and BKW at each end of the VFD range, at both VE limits. */
+/** Capacity and BKW at the min, mid and max of the VFD range, at both VE
+ *  limits. */
 function vfdTable(vfd: RecheckVfdRange | null): RecheckVfdTable | null {
-  if (!vfd || !vfd.min.calc || !vfd.max.calc) return null;
+  if (!vfd || !vfd.min.calc || !vfd.mid.calc || !vfd.max.calc) return null;
   const minC = vfd.min.calc;
+  const midC = vfd.mid.calc;
   const maxC = vfd.max.calc;
   const num = (v: number, unit?: string) => `${fmtRecheckNum(v)}${unit ? ` ${unit}` : ""}`;
   return {
     minHeading: `Min ${fmtRecheckNum(vfd.min.hz, 0)} Hz`,
+    // Half-hertz midpoints (e.g. 30–55 -> 42.5) keep their decimal.
+    midHeading: `Mid ${fmtRecheckNum(vfd.mid.hz, Number.isInteger(vfd.mid.hz) ? 0 : 1)} Hz`,
     maxHeading: `Max ${fmtRecheckNum(vfd.max.hz, 0)} Hz`,
     rows: [
-      { label: "Pump RPM", min: fmtRecheckNum(vfd.min.rpm, 0), max: fmtRecheckNum(vfd.max.rpm, 0) },
-      { label: "Cap at VE max", min: num(minC.capAtMax, "m³/hr"), max: num(maxC.capAtMax, "m³/hr") },
-      { label: "Cap at VE min", min: num(minC.capAtMin, "m³/hr"), max: num(maxC.capAtMin, "m³/hr") },
-      { label: "BKW at VE max", min: num(minC.bkwAtMax, "kW"), max: num(maxC.bkwAtMax, "kW") },
-      { label: "BKW at VE min", min: num(minC.bkwAtMin, "kW"), max: num(maxC.bkwAtMin, "kW") },
+      {
+        label: "Pump RPM",
+        min: fmtRecheckNum(vfd.min.rpm, 0),
+        mid: fmtRecheckNum(vfd.mid.rpm, 0),
+        max: fmtRecheckNum(vfd.max.rpm, 0),
+      },
+      { label: "Cap at VE max", min: num(minC.capAtMax, "m³/hr"), mid: num(midC.capAtMax, "m³/hr"), max: num(maxC.capAtMax, "m³/hr") },
+      { label: "Cap at VE min", min: num(minC.capAtMin, "m³/hr"), mid: num(midC.capAtMin, "m³/hr"), max: num(maxC.capAtMin, "m³/hr") },
+      { label: "BKW at VE max", min: num(minC.bkwAtMax, "kW"), mid: num(midC.bkwAtMax, "kW"), max: num(maxC.bkwAtMax, "kW") },
+      { label: "BKW at VE min", min: num(minC.bkwAtMin, "kW"), mid: num(midC.bkwAtMin, "kW"), max: num(maxC.bkwAtMin, "kW") },
     ],
   };
 }
