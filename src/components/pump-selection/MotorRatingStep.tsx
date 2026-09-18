@@ -151,9 +151,19 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
     onNext();
   };
 
+  // Jumping forward on the stepper gets the same check as Next; going back
+  // is always allowed.
+  const handleStepClick = (target: number) => {
+    if (target > 6 && errorCount) {
+      setShowErrors(true);
+      return;
+    }
+    onStepClick?.(target);
+  };
+
   return (
     <div className="step-container">
-      <Stepper currentStep={6} maxStep={formData.wizardMaxStep} onStepClick={onStepClick} />
+      <Stepper currentStep={6} maxStep={formData.wizardMaxStep} onStepClick={handleStepClick} />
 
       <div className="step-card">
         <h2>

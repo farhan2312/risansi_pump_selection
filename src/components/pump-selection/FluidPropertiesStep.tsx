@@ -216,22 +216,15 @@ const FluidPropertiesStep = ({
     });
   };
 
-  // Shown as a hint under the size fields so the recommendation stays visible
-  // even after the user types their own value over it. Once a pump is picked
-  // this is that model's own size (the live panel writes it); before then it
-  // falls back to the flat viscosity band table.
+  // Baseline an entered size is checked against (not shown on the form). Once
+  // a pump is picked this is that model's own size (the live panel writes it);
+  // before then it falls back to the flat viscosity band table.
   const recommendedSize =
     (formData.recommendedSize ?? "").trim() ||
     (() => {
       const band = sizeForViscosityRange(formData.viscosityRange);
       return band === null ? "" : String(band);
     })();
-
-  // Says where the recommendation came from, so an override is a deliberate
-  // choice against a known source rather than against an anonymous number.
-  const recommendedLabel = formData.selectedModel
-    ? `Recommended for ${formData.selectedModel}`
-    : "Recommended for this viscosity range";
 
   // Overriding a recommended size is allowed, but it has to be justified —
   // the quotation has to say why the line was sized off-recommendation.
@@ -258,6 +251,16 @@ const FluidPropertiesStep = ({
     onNext();
   };
 
+  // Jumping forward on the stepper gets the same check as Next; going back
+  // is always allowed.
+  const handleStepClick = (target: number) => {
+    if (target > 2 && hasErrors(errors)) {
+      setShowErrors(true);
+      return;
+    }
+    onStepClick?.(target);
+  };
+
   const tempUnit = formData.temperatureUnit;
   const tempRawNum = parseFloat(formData.temperatureRaw ?? "");
   const tempCelsius = Number.isNaN(tempRawNum) ? null : toCelsius(tempRawNum, tempUnit);
@@ -268,7 +271,7 @@ const FluidPropertiesStep = ({
 
   return (
     <div className="step-container">
-      <Stepper currentStep={2} maxStep={formData.wizardMaxStep} onStepClick={onStepClick} />
+      <Stepper currentStep={2} maxStep={formData.wizardMaxStep} onStepClick={handleStepClick} />
 
       <div className="step-card">
         <h2>
@@ -333,10 +336,9 @@ const FluidPropertiesStep = ({
             <label className={label}>Viscosity Unit</label>
             <select
               className={control}
-              value={formData.viscosityUnit}
+              value={formData.viscosityUnit || "cP"}
               onChange={(e) => applyViscosity(formData.viscosity, e.target.value)}
             >
-              <option value="">Select</option>
               <option value="cP">cP</option>
               <option value="cSt">cSt</option>
             </select>
@@ -527,10 +529,10 @@ const FluidPropertiesStep = ({
             </select>
           </div>
 
-          {/* Line sizes, inches only. Both are pre-filled with the recommended
-              size — the confirmed model's own size once a pump is picked — and
-              both stay editable; suction need not match discharge. Overriding
-              either one makes its remarks mandatory. */}
+          {/* Line sizes, inches only. Both start blank for the user to enter
+              (no recommendation shown here); suction need not match discharge.
+              A value that differs from the model's recommended size still
+              needs a remark. */}
           <div className={fieldWrap}>
             <label className={label}>Suction Size (inch)</label>
             <input
@@ -542,12 +544,6 @@ const FluidPropertiesStep = ({
                 setFormData({ ...formData, suctionSize: e.target.value })
               }
             />
-            {recommendedSize && (
-              <span className={hint}>
-                {recommendedLabel}:{" "}
-                <b className="mono font-semibold text-fg">{recommendedSize}&quot;</b>
-              </span>
-            )}
           </div>
 
           <div className={fieldWrap}>
@@ -561,12 +557,6 @@ const FluidPropertiesStep = ({
                 setFormData({ ...formData, dischargeSize: e.target.value })
               }
             />
-            {recommendedSize && (
-              <span className={hint}>
-                {recommendedLabel}:{" "}
-                <b className="mono font-semibold text-fg">{recommendedSize}&quot;</b>
-              </span>
-            )}
           </div>
 
           {suctionDeviates && (

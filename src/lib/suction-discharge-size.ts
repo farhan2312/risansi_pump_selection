@@ -44,10 +44,10 @@ export function sizeForViscosityRange(range: string | null | undefined): number 
 }
 
 /**
- * The formData patch that re-defaults the suction & discharge sizes to a new
- * recommendation. Both take the recommended value and both remarks are
- * cleared, because a remark only ever explains a deviation from the baseline
- * being replaced here.
+ * The formData patch for a new size recommendation. It records the new
+ * baseline and clears both remarks (a remark only ever explains a deviation
+ * from the baseline being replaced). The suction & discharge inputs
+ * themselves are NOT filled in - they start blank and are the user's to enter.
  *
  * Returns null when the recommendation hasn't actually changed, so an
  * override the user typed survives edits that leave the recommendation alone
@@ -59,8 +59,6 @@ export function sizeDefaultsFor(
   recommended: number | null,
 ): {
   recommendedSize: string;
-  suctionSize: string;
-  dischargeSize: string;
   suctionSizeRemarks: string;
   dischargeSizeRemarks: string;
 } | null {
@@ -68,11 +66,34 @@ export function sizeDefaultsFor(
   if (value === (previousRecommended ?? "")) return null;
   return {
     recommendedSize: value,
-    suctionSize: value,
-    dischargeSize: value,
     suctionSizeRemarks: "",
     dischargeSizeRemarks: "",
   };
+}
+
+/**
+ * Suction & discharge values when a pump is picked or unpicked on the live
+ * panel.
+ *  - Picking fills both with the model's own size (still editable after).
+ *  - Unpicking clears a size that still holds that auto-filled value; a size
+ *    the user typed themselves is kept.
+ */
+export function sizesOnPick(
+  picking: boolean,
+  modelSize: number | null,
+  previousRecommended: string | null | undefined,
+  current: { suctionSize?: string | null; dischargeSize?: string | null },
+): { suctionSize: string; dischargeSize: string } {
+  if (picking) {
+    const v = modelSize === null ? "" : String(modelSize);
+    return { suctionSize: v, dischargeSize: v };
+  }
+  const prev = parseFloat((previousRecommended ?? "").trim());
+  const keep = (value: string | null | undefined) => {
+    const t = (value ?? "").trim();
+    return t && parseFloat(t) !== prev ? t : "";
+  };
+  return { suctionSize: keep(current.suctionSize), dischargeSize: keep(current.dischargeSize) };
 }
 
 /** The size actually being quoted: what the user entered on the Fluid step,

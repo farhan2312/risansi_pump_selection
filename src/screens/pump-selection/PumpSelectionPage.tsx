@@ -239,7 +239,7 @@ const PumpSelectionPage = () => {
 
     // Step 2
     viscosity: "",
-    viscosityUnit: "",
+    viscosityUnit: "cP", // default unit; cSt is the alternative
     viscosityRange: "",
     suctionSize: "", // inches - defaulted from the recommendation, editable
     dischargeSize: "",
@@ -409,6 +409,8 @@ const PumpSelectionPage = () => {
               (BOOLEAN_FIELDS.has(key) ? false : NUMBER_FIELDS.has(key) ? 1 : "");
           }
         });
+        // A tag saved before a unit was ever picked still opens on cP.
+        if (!merged.viscosityUnit) merged.viscosityUnit = "cP";
         setFormData((f: typeof formData) => ({ ...f, ...merged }));
         // Reopen the wizard exactly where the user left off.
         setStep(clampStep(merged.wizardStep));
@@ -487,6 +489,16 @@ const PumpSelectionPage = () => {
     setStep(clamped);
   };
 
+  // Stepper / approval-link jumps: back anywhere, forward only as far as the
+  // furthest step already reached or the next one - so a stepper click can't
+  // skip steps whose required fields were never filled. (Each step also runs
+  // its own required-field check before calling this.)
+  const jumpToStep = (target: number) => {
+    const limit = Math.max(clampStep(formData.wizardMaxStep), step + 1);
+    if (target > limit) return;
+    goToStep(target);
+  };
+
   const renderStep = () => {
     switch (step) {
       case 1:
@@ -495,7 +507,7 @@ const PumpSelectionPage = () => {
             onNext={() => goToStep(2)}
             formData={formData}
             setFormData={setFormData}
-            onStepClick={goToStep}
+            onStepClick={jumpToStep}
           />
         );
 
@@ -506,7 +518,7 @@ const PumpSelectionPage = () => {
             onNext={() => goToStep(3)}
             formData={formData}
             setFormData={setFormData}
-            onStepClick={goToStep}
+            onStepClick={jumpToStep}
           />
         );
 
@@ -517,7 +529,7 @@ const PumpSelectionPage = () => {
             onNext={() => goToStep(4)}
             formData={formData}
             setFormData={setFormData}
-            onStepClick={goToStep}
+            onStepClick={jumpToStep}
           />
         );
 
@@ -528,7 +540,7 @@ const PumpSelectionPage = () => {
             onNext={() => goToStep(5)}
             formData={formData}
             setFormData={setFormData}
-            onStepClick={goToStep}
+            onStepClick={jumpToStep}
             projectId={project?.id}
             tagId={project?.tagId}
           />
@@ -541,7 +553,7 @@ const PumpSelectionPage = () => {
             onNext={() => goToStep(6)}
             formData={formData}
             setFormData={setFormData}
-            onStepClick={goToStep}
+            onStepClick={jumpToStep}
           />
         );
 
@@ -552,7 +564,7 @@ const PumpSelectionPage = () => {
             onNext={() => goToStep(7)}
             formData={formData}
             setFormData={setFormData}
-            onStepClick={goToStep}
+            onStepClick={jumpToStep}
           />
         );
 
@@ -563,7 +575,7 @@ const PumpSelectionPage = () => {
             onNext={() => goToStep(8)}
             formData={formData}
             setFormData={setFormData}
-            onStepClick={goToStep}
+            onStepClick={jumpToStep}
             projectId={project?.id}
             tagId={project?.tagId}
           />
@@ -574,7 +586,7 @@ const PumpSelectionPage = () => {
           <ApprovalStep
             onPrevious={() => goToStep(7)}
             onNext={() => goToStep(9)}
-            onStepClick={goToStep}
+            onStepClick={jumpToStep}
             formData={formData}
           />
         );
@@ -586,7 +598,7 @@ const PumpSelectionPage = () => {
             formData={formData}
             selectedPump={selectedPump}
             setSelectedPump={setSelectedPump}
-            onStepClick={goToStep}
+            onStepClick={jumpToStep}
             projectId={project?.id}
             tagId={project?.tagId}
             projectCode={project?.code}
@@ -601,7 +613,7 @@ const PumpSelectionPage = () => {
             onNext={() => goToStep(2)}
             formData={formData}
             setFormData={setFormData}
-            onStepClick={goToStep}
+            onStepClick={jumpToStep}
           />
         );
     }

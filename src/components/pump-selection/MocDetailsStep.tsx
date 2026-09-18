@@ -591,6 +591,16 @@ const MocDetailsStep = ({
     onNext();
   };
 
+  // Jumping forward on the stepper gets the same check as Next; going back
+  // is always allowed.
+  const handleStepClick = (target: number) => {
+    if (target > 4 && hasErrors(mocErrors)) {
+      setShowErrors(true);
+      return;
+    }
+    onStepClick?.(target);
+  };
+
   const [pdfGenerating, setPdfGenerating] = useState(false);
   const [pdfError, setPdfError] = useState(false);
   // The report opens in a preview first; Download there saves that same file.
@@ -646,7 +656,7 @@ const MocDetailsStep = ({
 
   return (
     <div className="step-container">
-      <Stepper currentStep={4} maxStep={formData.wizardMaxStep} onStepClick={onStepClick} />
+      <Stepper currentStep={4} maxStep={formData.wizardMaxStep} onStepClick={handleStepClick} />
 
       {pdfPreview && (
         <PdfPreviewModal

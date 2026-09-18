@@ -189,9 +189,19 @@ const SealingDetailsStep = ({
     onNext();
   };
 
+  // Jumping forward on the stepper gets the same check as Next; going back
+  // is always allowed.
+  const handleStepClick = (target: number) => {
+    if (target > 5 && hasErrors(errors)) {
+      setShowErrors(true);
+      return;
+    }
+    onStepClick?.(target);
+  };
+
   return (
     <div className="step-container">
-      <Stepper currentStep={5} maxStep={formData.wizardMaxStep} onStepClick={onStepClick} />
+      <Stepper currentStep={5} maxStep={formData.wizardMaxStep} onStepClick={handleStepClick} />
 
       <div className="step-card">
         <h2>

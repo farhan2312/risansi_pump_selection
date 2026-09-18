@@ -30,6 +30,7 @@ import {
 } from "../../services/motorMasterService";
 import { clearWizardInput, saveWizardInput } from "../../services/wizardInputService";
 import { ratingPlateNumber } from "../../lib/rating-plate";
+import { Err, ErrorBanner, Req, hasErrors, required } from "./fieldBits";
 import { gearboxMountingUpliftPct, gearboxUpliftedRate, mountingUpliftPct } from "../../lib/motor-price";
 import {
   OTHER_OPTION,
@@ -278,6 +279,8 @@ type RatingOptionFieldProps = {
   fieldHint?: string;
   onChange: (value: string) => void;
   onOptionsChange: (options: DriveOptions) => void;
+  /** Error to show under the field (already gated on showErrors). */
+  error?: string;
 };
 
 /**
@@ -295,6 +298,7 @@ const RatingOptionField = ({
   fieldHint,
   onChange,
   onOptionsChange,
+  error,
 }: RatingOptionFieldProps) => {
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
@@ -379,7 +383,7 @@ const RatingOptionField = ({
 
   return (
     <div className={fieldWrap}>
-      <label className={label}>{fieldLabel}</label>
+      <label className={label}>{fieldLabel}<Req /></label>
       <select
         className={control}
         value={value}
@@ -402,6 +406,7 @@ const RatingOptionField = ({
         <option value={OTHER_OPTION}>{OTHER_OPTION}…</option>
       </select>
       {fieldHint && <span className={hint}>{fieldHint}</span>}
+      {error && <span className={hintError}>{error}</span>}
     </div>
   );
 };
@@ -643,8 +648,82 @@ const DriveDetailsStep = ({
     }
   };
 
+  // Every Drive input is required for the selections made - only the
+  // Non-Standard price % fields are optional. Fields that aren't shown for the
+  // current drive system / coupling / Std-Non-Std / VFD choice aren't asked for.
+  const [showErrors, setShowErrors] = useState(false);
+  const hasCoupling = !!formData.driveCoupling && formData.driveCoupling !== "No Coupling";
+  const driveErrors: Record<string, string> = {
+    driveSystem: required(formData.driveSystem, "Select a drive system."),
+    ...(formData.driveSystem && !isGeared
+      ? { motorRPM: required(formData.motorRPM, "Select the motor RPM.") }
+      : {}),
+    ...(isGeared
+      ? {
+          gearedConfigType: required(formData.gearedConfigType, "Select the configuration."),
+          gearBoxType: required(formData.gearBoxType, "Select the gear box shaft type."),
+          gbConstructionType: required(formData.gbConstructionType, "Select the GB type."),
+          gearBoxMounting: required(formData.gearBoxMounting, "Select the gear box mounting."),
+          driveCoupling: required(formData.driveCoupling, "Select the coupling."),
+          ...(hasCoupling
+            ? {
+                couplingType: required(formData.couplingType, "Select the coupling type."),
+                couplingMake: required(formData.couplingMake, "Select the coupling make."),
+              }
+            : {}),
+          asfRange: required(formData.asfRange, "Select the ASF range."),
+        }
+      : {}),
+    ...(formData.driveSystem
+      ? {
+          driveMotorSpeed: required(formData.driveMotorSpeed, "Enter the drive motor speed."),
+          driveMotorMake: required(formData.driveMotorMake, "Select the motor make."),
+          driveMotorMounting: required(formData.driveMotorMounting, "Select the motor mounting."),
+          driveStdNonStd: required(formData.driveStdNonStd, "Select Standard or Non-Standard."),
+          ...(formData.driveStdNonStd
+            ? {
+                driveMotorEfficiency: required(formData.driveMotorEfficiency, "Select the efficiency."),
+                driveMotorProtection: required(formData.driveMotorProtection, "Select the protection."),
+                driveMotorFrequency: required(formData.driveMotorFrequency, "Select the frequency."),
+                driveMotorVoltage: required(formData.driveMotorVoltage, "Select the voltage."),
+              }
+            : {}),
+          driveStarterType: required(formData.driveStarterType, "Select the starter type."),
+          drivePowerSupply: required(formData.drivePowerSupply, "Select the power supply."),
+          vfdRequired: required(formData.vfdRequired, "Select whether a VFD is required."),
+          ...(formData.vfdRequired === VFD_YES
+            ? {
+                vfdStdHz: required(formData.vfdStdHz, "Enter the std Hz."),
+                vfdHzRange:
+                  !(formData.vfdMinHz ?? "").trim() || !(formData.vfdMaxHz ?? "").trim()
+                    ? "Enter both the min and max Hz."
+                    : "",
+              }
+            : {}),
+        }
+      : {}),
+  };
+  const driveErrorCount = Object.values(driveErrors).filter(Boolean).length;
+
+  const handleStepClick = (target: number) => {
+    if (target > 7 && hasErrors(driveErrors)) {
+      setShowErrors(true);
+      return;
+    }
+    if (target > 7 && (!formData.selectedModel || !formData.driveSystem || !finalPumpRpmRaw)) {
+      void handleRecheck();
+      return;
+    }
+    onStepClick?.(target);
+  };
+
   const handleRecheck = async () => {
     setRecheckError(null);
+    // Required inputs first: the errors show on the form itself.
+    if (hasErrors(driveErrors)) {
+      setShowErrors(true);
+      return;
+    }
     if (!formData.selectedModel) {
       setRecheckError("Confirm a pump model first.");
       setShowRecheck(true);
@@ -1007,7 +1086,7 @@ const DriveDetailsStep = ({
 
   return (
     <div className="step-container">
-      <Stepper currentStep={7} maxStep={formData.wizardMaxStep} onStepClick={onStepClick} />
+      <Stepper currentStep={7} maxStep={formData.wizardMaxStep} onStepClick={handleStepClick} />
 
       <div className="step-card">
         <h2>
@@ -1059,7 +1138,7 @@ const DriveDetailsStep = ({
 
         <div className={grid}>
           <div className={fieldWrap}>
-            <label className={label}>Drive System Type</label>
+            <label className={label}>Drive System Type<Req /></label>
             <select
               className={control}
               value={formData.driveSystem}
@@ -1090,13 +1169,14 @@ const DriveDetailsStep = ({
                 Geared Motor Drive/Gear Box + Motor
               </option>
             </select>
+            <Err show={showErrors} msg={driveErrors.driveSystem} />
           </div>
 
           {/* Motor RPM: only relevant after a drive system is picked. For the
               Geared option it's fixed at 1440 (shown read-only). */}
           {formData.driveSystem && (
             <div className={fieldWrap}>
-              <label className={label}>Motor RPM</label>
+              <label className={label}>Motor RPM<Req /></label>
               {formData.driveSystem === "Geared Motor Drive/Gear Box + Motor" ? (
                 <input
                   type="text"
@@ -1117,13 +1197,14 @@ const DriveDetailsStep = ({
                   <option value="1440">1440</option>
                 </select>
               )}
+              <Err show={showErrors} msg={driveErrors.motorRPM} />
             </div>
           )}
 
           {formData.driveSystem === "Geared Motor Drive/Gear Box + Motor" && (
             <>
               <div className={fieldWrap}>
-                <label className={label}>Configuration</label>
+                <label className={label}>Configuration<Req /></label>
                 <select
                   className={control}
                   value={formData.gearedConfigType ?? ""}
@@ -1138,6 +1219,7 @@ const DriveDetailsStep = ({
                     </option>
                   ))}
                 </select>
+                <Err show={showErrors} msg={driveErrors.gearedConfigType} />
               </div>
 
               <div className={fieldWrap}>
@@ -1153,7 +1235,7 @@ const DriveDetailsStep = ({
               </div>
 
               <div className={fieldWrap}>
-                <label className={label}>Gear Box Shaft Type</label>
+                <label className={label}>Gear Box Shaft Type<Req /></label>
                 <select
                   className={control}
                   value={formData.gearBoxType}
@@ -1182,10 +1264,11 @@ const DriveDetailsStep = ({
                     ? "Vertical pump — defaults to HISO."
                     : "Sets the GB Type list, the mountings and the coupling below."}
                 </span>
+                <Err show={showErrors} msg={driveErrors.gearBoxType} />
               </div>
 
               <div className={fieldWrap}>
-                <label className={label}>GB Type</label>
+                <label className={label}>GB Type<Req /></label>
                 <select
                   className={control}
                   value={formData.gbConstructionType ?? ""}
@@ -1208,10 +1291,11 @@ const DriveDetailsStep = ({
                       ? "Pick the shaft type first."
                       : "Narrows the gearbox recommendation below."}
                 </span>
+                <Err show={showErrors} msg={driveErrors.gbConstructionType} />
               </div>
 
               <div className={fieldWrap}>
-                <label className={label}>Gear Box Mounting</label>
+                <label className={label}>Gear Box Mounting<Req /></label>
                 <select
                   className={control}
                   value={formData.gearBoxMounting ?? ""}
@@ -1229,10 +1313,11 @@ const DriveDetailsStep = ({
                 <span className={hint}>
                   Auto-filled from pump type &amp; shaft type — override if needed.
                 </span>
+                <Err show={showErrors} msg={driveErrors.gearBoxMounting} />
               </div>
 
               <div className={fieldWrap}>
-                <label className={label}>Coupling</label>
+                <label className={label}>Coupling<Req /></label>
                 <select
                   className={control}
                   value={formData.driveCoupling ?? ""}
@@ -1260,6 +1345,7 @@ const DriveDetailsStep = ({
                 <span className={hint}>
                   Auto-filled from pump type &amp; shaft type — override if needed.
                 </span>
+                <Err show={showErrors} msg={driveErrors.driveCoupling} />
               </div>
 
               {/* Coupling construction type + make — only when an actual
@@ -1268,7 +1354,7 @@ const DriveDetailsStep = ({
                 formData.driveCoupling !== "No Coupling" && (
                   <>
                     <div className={fieldWrap}>
-                      <label className={label}>Types of Coupling Options</label>
+                      <label className={label}>Types of Coupling Options<Req /></label>
                       <select
                         className={control}
                         value={formData.couplingType ?? ""}
@@ -1283,10 +1369,11 @@ const DriveDetailsStep = ({
                           </option>
                         ))}
                       </select>
+                      <Err show={showErrors} msg={driveErrors.couplingType} />
                     </div>
 
                     <div className={fieldWrap}>
-                      <label className={label}>Coupling Make</label>
+                      <label className={label}>Coupling Make<Req /></label>
                       <select
                         className={control}
                         value={formData.couplingMake ?? ""}
@@ -1301,12 +1388,13 @@ const DriveDetailsStep = ({
                           </option>
                         ))}
                       </select>
+                      <Err show={showErrors} msg={driveErrors.couplingMake} />
                     </div>
                   </>
                 )}
 
               <div className={fieldWrap}>
-                <label className={label}>ASF Range</label>
+                <label className={label}>ASF Range<Req /></label>
                 <select
                   className={control}
                   value={formData.asfRange}
@@ -1318,6 +1406,7 @@ const DriveDetailsStep = ({
                   <option value="1.4-2">1.4 - 2</option>
                   <option value="2+">2 &amp; Above</option>
                 </select>
+                <Err show={showErrors} msg={driveErrors.asfRange} />
               </div>
             </>
           )}
@@ -1701,7 +1790,7 @@ const DriveDetailsStep = ({
               </div>
 
               <div className={fieldWrap}>
-                <label className={label}>Drive Motor Speed (RPM)</label>
+                <label className={label}>Drive Motor Speed (RPM)<Req /></label>
                 <input
                   type="number"
                   step="any"
@@ -1712,10 +1801,11 @@ const DriveDetailsStep = ({
                     setFormData({ ...formData, driveMotorSpeed: e.target.value })
                   }
                 />
+                <Err show={showErrors} msg={driveErrors.driveMotorSpeed} />
               </div>
 
               <div className={fieldWrap}>
-                <label className={label}>Drive Motor Make</label>
+                <label className={label}>Drive Motor Make<Req /></label>
                 <select
                   className={control}
                   value={formData.driveMotorMake ?? ""}
@@ -1730,10 +1820,11 @@ const DriveDetailsStep = ({
                     </option>
                   ))}
                 </select>
+                <Err show={showErrors} msg={driveErrors.driveMotorMake} />
               </div>
 
               <div className={fieldWrap}>
-                <label className={label}>Motor Mounting</label>
+                <label className={label}>Motor Mounting<Req /></label>
                 <select
                   className={control}
                   value={formData.driveMotorMounting ?? ""}
@@ -1748,12 +1839,13 @@ const DriveDetailsStep = ({
                     </option>
                   ))}
                 </select>
+                <Err show={showErrors} msg={driveErrors.driveMotorMounting} />
               </div>
 
               {/* Std / Non-Std sits directly after Motor Mounting and gates
                   every rating-plate field below it. */}
               <div className={fieldWrap}>
-                <label className={label}>Std / Non-Std</label>
+                <label className={label}>Std / Non-Std<Req /></label>
                 <select
                   className={control}
                   value={formData.driveStdNonStd ?? ""}
@@ -1775,6 +1867,7 @@ const DriveDetailsStep = ({
                     </option>
                   ))}
                 </select>
+                <Err show={showErrors} msg={driveErrors.driveStdNonStd} />
               </div>
 
               {/* Standard → the plain rating-plate fields.
@@ -1796,6 +1889,7 @@ const DriveDetailsStep = ({
                     }
                     onChange={(v) => setFormData({ ...formData, driveMotorEfficiency: v })}
                     onOptionsChange={setDriveOptions}
+                    error={showErrors ? driveErrors.driveMotorEfficiency : ""}
                   />
 
                   <RatingOptionField
@@ -1805,6 +1899,7 @@ const DriveDetailsStep = ({
                     options={driveOptions.protection}
                     onChange={(v) => setFormData({ ...formData, driveMotorProtection: v })}
                     onOptionsChange={setDriveOptions}
+                    error={showErrors ? driveErrors.driveMotorProtection : ""}
                   />
                   {isNonStandard && (
                     <div className={fieldWrap}>
@@ -1833,6 +1928,7 @@ const DriveDetailsStep = ({
                     options={driveOptions.frequency}
                     onChange={(v) => setFormData({ ...formData, driveMotorFrequency: v })}
                     onOptionsChange={setDriveOptions}
+                    error={showErrors ? driveErrors.driveMotorFrequency : ""}
                   />
                   {isNonStandard && (
                     <div className={fieldWrap}>
@@ -1861,6 +1957,7 @@ const DriveDetailsStep = ({
                     options={driveOptions.voltage}
                     onChange={(v) => setFormData({ ...formData, driveMotorVoltage: v })}
                     onOptionsChange={setDriveOptions}
+                    error={showErrors ? driveErrors.driveMotorVoltage : ""}
                   />
                   {isNonStandard && (
                     <div className={fieldWrap}>
@@ -1884,7 +1981,7 @@ const DriveDetailsStep = ({
               )}
 
               <div className={fieldWrap}>
-                <label className={label}>Starter Type</label>
+                <label className={label}>Starter Type<Req /></label>
                 <select
                   className={control}
                   value={formData.driveStarterType ?? ""}
@@ -1899,10 +1996,11 @@ const DriveDetailsStep = ({
                     </option>
                   ))}
                 </select>
+                <Err show={showErrors} msg={driveErrors.driveStarterType} />
               </div>
 
               <div className={fieldWrap}>
-                <label className={label}>Power Supply</label>
+                <label className={label}>Power Supply<Req /></label>
                 <select
                   className={control}
                   value={formData.drivePowerSupply ?? ""}
@@ -1917,12 +2015,13 @@ const DriveDetailsStep = ({
                     </option>
                   ))}
                 </select>
+                <Err show={showErrors} msg={driveErrors.drivePowerSupply} />
               </div>
 
               {/* VFD: a "Yes" opens the Hz range the pump will be run across.
                   The Recheck then reports capacity + BKW at both ends of it. */}
               <div className={fieldWrap}>
-                <label className={label}>VFD Required</label>
+                <label className={label}>VFD Required<Req /></label>
                 <select
                   className={control}
                   value={formData.vfdRequired ?? ""}
@@ -1955,12 +2054,13 @@ const DriveDetailsStep = ({
                   On a VFD the pump runs across a speed range, so the Recheck
                   reports capacity &amp; BKW at both ends.
                 </span>
+                <Err show={showErrors} msg={driveErrors.vfdRequired} />
               </div>
 
               {formData.vfdRequired === VFD_YES && (
                 <>
                   <div className={fieldWrap}>
-                    <label className={label}>Std Hz</label>
+                    <label className={label}>Std Hz<Req /></label>
                     <input
                       type="number"
                       min="1"
@@ -1973,10 +2073,11 @@ const DriveDetailsStep = ({
                     <span className={hint}>
                       Supply frequency the selected speed ({finalPumpRpmRaw || "—"} rpm) is quoted at.
                     </span>
+                    <Err show={showErrors} msg={driveErrors.vfdStdHz} />
                   </div>
 
                   <div className={fieldWrap}>
-                    <label className={label}>VFD Hz Range</label>
+                    <label className={label}>VFD Hz Range<Req /></label>
                     <div className="flex items-center gap-[10px]">
                       <input
                         type="number"
@@ -2002,6 +2103,7 @@ const DriveDetailsStep = ({
                     </div>
                     {vfdSpeedHint && <span className={hint}>{vfdSpeedHint}</span>}
                     {vfdRangeError && <span className={hintError}>{vfdRangeError}</span>}
+                    <Err show={showErrors} msg={driveErrors.vfdHzRange} />
                   </div>
                 </>
               )}
@@ -2179,6 +2281,8 @@ const DriveDetailsStep = ({
             </div>
           </div>
         )}
+
+        <ErrorBanner show={showErrors} count={driveErrorCount} />
 
         {/* BOTTOM-ROW-REMOVED: Clear now lives in the top bar. */}
         <div className={actions}>

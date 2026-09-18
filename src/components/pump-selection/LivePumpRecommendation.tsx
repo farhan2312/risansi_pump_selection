@@ -8,6 +8,7 @@ import type { HeadPoint, PumpRecommendation } from "../../data/Recommendations";
 import {
   SIZE_COLUMN_BY_RANGE,
   sizeDefaultsFor,
+  sizesOnPick,
   sizeOverride,
   sizeForViscosityRange,
 } from "../../lib/suction-discharge-size";
@@ -150,10 +151,10 @@ const LivePumpRecommendation = ({
     const already =
       formData.selectedModel === model &&
       String(formData.selectedHead) === String(headMwc);
-    // Sizes are per-model, so picking a pump re-defaults suction & discharge
-    // to that model's size (and unpinning falls back to the flat viscosity
-    // band size). Any remark explaining a deviation from the old baseline is
-    // cleared along with it — see sizeDefaultsFor.
+    // Sizes are per-model: picking a pump fills suction & discharge with that
+    // model's size and makes it the baseline (unpinning falls back to the flat
+    // viscosity band baseline and clears the auto-filled sizes). Remarks
+    // explaining a deviation from the old baseline are cleared too.
     const rec = recs.find((r) => r.model === model) ?? null;
     const recommended = already || !rec ? fallbackSize : perModelSize(rec);
     setFormData({
@@ -161,6 +162,8 @@ const LivePumpRecommendation = ({
       selectedModel: already ? "" : model,
       selectedHead: already ? "" : String(headMwc),
       ...(sizeDefaultsFor(formData.recommendedSize, recommended) ?? {}),
+      ...sizesOnPick(!already, recommended, formData.recommendedSize, formData),
+      ...(already ? {} : { suctionSizeRemarks: "", dischargeSizeRemarks: "" }),
     });
   };
 

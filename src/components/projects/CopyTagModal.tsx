@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./CreateProjectModal.css";
 import "./CopyTagModal.css";
 import type { TagRecord } from "../../services/tagsService";
@@ -51,6 +51,16 @@ const CopyTagModal = ({
   const [tagId, setTagId] = useState(initialTagId ?? tags[0]?.id ?? "");
   const [dest, setDest] = useState<CopyDestination["kind"]>("same");
   const [targetProjectId, setTargetProjectId] = useState("");
+
+  // Opened from the enquiry's Copy button, the tags are still loading, so the
+  // initial pick above is empty. Once they arrive, pick the first one (what
+  // the dropdown shows) - otherwise nothing is selected and Continue stays
+  // disabled even though a tag appears chosen.
+  useEffect(() => {
+    if (tags.length > 0 && !tags.some((t) => t.id === tagId)) {
+      setTagId(initialTagId && tags.some((t) => t.id === initialTagId) ? initialTagId : tags[0].id);
+    }
+  }, [tags, tagId, initialTagId]);
 
   const selectedTag = tags.find((t) => t.id === tagId) ?? null;
   const canConfirm =
