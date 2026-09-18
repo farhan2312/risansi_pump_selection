@@ -18,8 +18,9 @@
  * base plate on Horizontal / a mounting plate on Vertical - both are resolved
  * per request (see schemaPropertiesFor / buildPrompt).
  * MOC_AI_MATERIALS / MOC_AI_ELASTOMERS below are the options offered in the
- * UI's *manual* dropdowns — they are NOT a hard constraint on the AI's own
- * answer. The AI is free to recommend something outside those lists (e.g. an
+ * UI's *manual* dropdowns. The prompt gives them to the AI as a PREFERENCE
+ * (metals on every metal component, elastomers on the stator rubber) — they
+ * are NOT a hard constraint on the AI's own answer. The AI is free to recommend something outside those lists (e.g. an
  * exotic alloy) when the media genuinely calls for it; it's told to say so
  * explicitly rather than being forced into the closest list entry.
  */
@@ -149,6 +150,14 @@ const WETTED =
   "WETTED - in direct contact with the pumped media. Material must resist the media (corrosion/abrasion) at the stated pH, temperature and solids.";
 const DRY =
   "NON-WETTED structural part - no media contact. Choose for strength and cost; media resistance does not apply, so do not over-specify an expensive alloy here.";
+// Metals the MOC step's dropdowns offer. Preferred so the answer usually maps
+// straight onto a dropdown entry, but not mandatory - the media may need
+// something else.
+const METAL_PREFERENCE =
+  "Preferred metals (not mandatory): " +
+  MOC_AI_MATERIALS.join(", ") +
+  " - another material is fine when the media calls for it; say so explicitly.";
+const metal = (status: string) => `${status} ${METAL_PREFERENCE}`;
 
 // Component groups per pump type × wetted status. The prompt's wettable /
 // non-wettable listing is built from these arrays instead of hardcoded
@@ -229,14 +238,14 @@ function schemaPropertiesFor(pumpType: string | null, pumpSupport: string | null
     // arrangement (Bearing Housing or Close Coupled).
     bearingHousing: {
       type: "string",
-      description: `${DRY} This is the ${pumpSupportComponentName(pumpSupport)}.`,
+      description: `${metal(DRY)} This is the ${pumpSupportComponentName(pumpSupport)}.`,
     },
-    [plateField]: { type: "string", description: DRY },
-    tieRod: { type: "string", description: DRY },
-    nutBolt: { type: "string", description: DRY },
-    pumpHousing: { type: "string", description: WETTED },
-    rotor: { type: "string", description: WETTED },
-    shaft: { type: "string", description: WETTED },
+    [plateField]: { type: "string", description: metal(DRY) },
+    tieRod: { type: "string", description: metal(DRY) },
+    nutBolt: { type: "string", description: metal(DRY) },
+    pumpHousing: { type: "string", description: metal(WETTED) },
+    rotor: { type: "string", description: metal(WETTED) },
+    shaft: { type: "string", description: metal(WETTED) },
     statorRubber: {
       type: "string",
       // Its own group in the UI with its own option list - a metal answer
@@ -250,8 +259,8 @@ function schemaPropertiesFor(pumpType: string | null, pumpSupport: string | null
     statorSleeve: {
       type: "string",
       description: vertical
-        ? "On this VERTICAL pump the stator sleeve is " + WETTED
-        : "On this HORIZONTAL pump the stator sleeve is " + DRY,
+        ? "On this VERTICAL pump the stator sleeve is " + metal(WETTED)
+        : "On this HORIZONTAL pump the stator sleeve is " + metal(DRY),
     },
     sealRecommendation: { type: "string", enum: [...MOC_AI_SEAL_TYPES] },
     sealMoc: {
@@ -321,6 +330,8 @@ function buildPrompt(context: MocAiContext, processData: string): string {
   return (
     `PCP pump. Media: ${context.media}. Pump type: ${pumpType}. Head: ${head}. Capacity: ${capacity}.\n` +
     sleeveClause +
+    `METALS (every component except Stator Rubber): ${METAL_PREFERENCE}
+` +
     MOC_REFERENCE +
     `material choice should be optimum \n`+
     `Recommend low-cost reliable MOC (per component), stator elastomer, the shaft seal type AND the seal's own MOC (mechanical seal: body/face/O-ring; gland packing: packing material).\n` +
