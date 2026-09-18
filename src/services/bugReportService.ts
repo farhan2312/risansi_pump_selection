@@ -42,9 +42,39 @@ export const createBugReport = async (
   return data;
 };
 
-/** system_admin only — the Bug Tracker page's list. */
-export const listBugReports = async (): Promise<BugReportRow[]> => {
-  const { data } = await apiClient.get<BugReportRow[]>("/bug-reports");
+/** Server-side search / filter / paging for the Bug Tracker. */
+export interface BugReportQuery {
+  /** Words searched in title, description, reporter and page. */
+  q?: string;
+  type?: BugReportType;
+  severity?: BugReportSeverity;
+  /** One board column. */
+  status?: BugReportStatus;
+  /** "board": most severe first, then newest. "newest": newest first. */
+  order?: "board" | "newest";
+  offset?: number;
+  /** 0–100; 0 returns only the counts. */
+  limit?: number;
+}
+
+/** Unfiltered header figures. */
+export interface BugReportSummary {
+  total: number;
+  open: number;
+  criticalOpen: number;
+}
+
+export interface BugReportPage {
+  rows: BugReportRow[];
+  /** Rows matching the query (all pages). */
+  total: number;
+  summary: BugReportSummary;
+}
+
+/** system_admin only — one page of the Bug Tracker's reports. */
+export const listBugReports = async (query: BugReportQuery = {}): Promise<BugReportPage> => {
+  const params = Object.fromEntries(Object.entries(query).filter(([, v]) => v !== undefined && v !== ""));
+  const { data } = await apiClient.get<BugReportPage>("/bug-reports", { params });
   return data;
 };
 

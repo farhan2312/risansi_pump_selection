@@ -16,6 +16,7 @@ import EmptyState from "../../components/ui/EmptyState";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import Spinner from "../../components/ui/Spinner";
 import Pagination, { usePagination } from "../../components/ui/Pagination";
+import { FilterBar, SortTh, useTableControls, type ColumnSpec } from "../../components/ui/tableControls";
 import {
   PlusIcon,
   SearchIcon,
@@ -46,6 +47,19 @@ const TABLE_TABS: { key: GearboxTableKey; label: string }[] = [
 
 const val = (v: string | number | null) => (v === null || v === "" ? "—" : v);
 
+// Default order: model, then output RPM ascending.
+const defaultSort = (a: GearboxMasterRow, b: GearboxMasterRow) =>
+  a.model.localeCompare(b.model, undefined, { numeric: true }) || Number(a.outputRpm) - Number(b.outputRpm);
+
+const COLUMNS: ColumnSpec<GearboxMasterRow>[] = [
+  { key: "model", label: "Model", get: (r) => r.model, filter: "select" },
+  { key: "outputRpm", label: "Output RPM", get: (r) => r.outputRpm, numeric: true, filter: "range" },
+  { key: "gearBoxType", label: "Gear Box Type", get: (r) => r.gearBoxType, filter: "select" },
+  { key: "powerRatingKw", label: "Power Rating (kW)", get: (r) => r.powerRatingKw, numeric: true, filter: "range" },
+  { key: "serviceFactor", label: "Service Factor", get: (r) => r.serviceFactor, numeric: true, filter: "range" },
+  { key: "ratePerNos", label: "Rate per Nos.", get: (r) => r.ratePerNos, numeric: true, filter: "range" },
+];
+
 const errorMessage = (err: unknown, fallback: string): string =>
   (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? fallback;
 
@@ -58,7 +72,9 @@ const GearboxMasterPage = () => {
   const [rows, setRows] = useState<GearboxMasterRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
+  // Search / sort / filter over every row (components/ui/tableControls.tsx).
+  const controls = useTableControls(rows, COLUMNS, defaultSort);
+  const filtered = controls.result;
 
   const [detailsRow, setDetailsRow] = useState<GearboxMasterRow | null>(null);
   const [editRow, setEditRow] = useState<GearboxMasterRow | null>(null);
@@ -68,28 +84,18 @@ const GearboxMasterPage = () => {
   useEffect(() => {
     setIsLoading(true);
     setError(null);
-    setSearch("");
+    controls.clearAll();
     listGearboxRows(table)
       .then(setRows)
       .catch(() => setError("Couldn't load gearbox master data."))
       .finally(() => setIsLoading(false));
   }, [table]);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter(
-      (r) =>
-        r.model.toLowerCase().includes(q) ||
-        String(r.outputRpm).includes(q) ||
-        (r.gearBoxType ?? "").toLowerCase().includes(q)
-    );
-  }, [rows, search]);
 
   // 50 rows/page. Resets to page 1 whenever the search or table tab changes.
   const { page, setPage, from, to, pageSize } = usePagination(
     filtered.length,
-    `${table}:${search}`,
+    `${table}:${controls.resetKey}`,
     50
   );
   const paged = useMemo(() => filtered.slice(from, to), [filtered, from, to]);
@@ -132,9 +138,9 @@ const GearboxMasterPage = () => {
             <input
               type="search"
               className="pmm-search"
-              placeholder="Search by model, RPM, GB type…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search model, RPM, GB type, kW…"
+              value={controls.search}
+              onChange={(e) => controls.setSearch(e.target.value)}
             />
           </div>
           <button className="btn-primary" onClick={() => setCreating(true)}>
@@ -184,16 +190,17 @@ const GearboxMasterPage = () => {
 
       {!isLoading && !error && rows.length > 0 && (
         <div className="pmm-panel">
+          <FilterBar controls={controls} columns={COLUMNS} total={rows.length} />
           <div className="pmm-table-wrap">
             <table className="pmm-table">
               <thead>
                 <tr>
-                  <th>Model</th>
-                  <th>Output RPM</th>
-                  <th>Gear Box Type</th>
-                  <th>Power Rating (kW)</th>
-                  <th>Service Factor</th>
-                  <th>Rate per Nos.</th>
+                  <SortTh controls={controls} colKey="model">Model</SortTh>
+                  <SortTh controls={controls} colKey="outputRpm">Output RPM</SortTh>
+                  <SortTh controls={controls} colKey="gearBoxType">Gear Box Type</SortTh>
+                  <SortTh controls={controls} colKey="powerRatingKw">Power Rating (kW)</SortTh>
+                  <SortTh controls={controls} colKey="serviceFactor">Service Factor</SortTh>
+                  <SortTh controls={controls} colKey="ratePerNos">Rate per Nos.</SortTh>
                   <th className="pmm-actions-col">Actions</th>
                 </tr>
               </thead>
@@ -232,8 +239,8 @@ const GearboxMasterPage = () => {
                       <EmptyState
                         compact
                         icon="search"
-                        title={`No rows match “${search}”`}
-                        description="Try a different keyword — model, RPM, or gearbox type."
+                        title="No rows match these filters"
+                        description="Try a different keyword or clear some filters."
                       />
                     </td>
                   </tr>

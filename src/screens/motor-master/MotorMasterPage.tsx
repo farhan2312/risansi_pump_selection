@@ -17,6 +17,7 @@ import EmptyState from "../../components/ui/EmptyState";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import Spinner from "../../components/ui/Spinner";
 import Pagination, { usePagination } from "../../components/ui/Pagination";
+import { FilterBar, SortTh, useTableControls, type ColumnSpec } from "../../components/ui/tableControls";
 import {
   PlusIcon,
   SearchIcon,
@@ -62,6 +63,19 @@ const sortRows = (a: MotorMasterRow, b: MotorMasterRow) => {
   return String(a.brand ?? "").localeCompare(String(b.brand ?? ""));
 };
 
+const COLUMNS: ColumnSpec<MotorMasterRow>[] = [
+  { key: "brand", label: "Brand", get: (r) => r.brand, filter: "select" },
+  { key: "motorKw", label: "Motor kW", get: (r) => r.motorKw, numeric: true, filter: "select" },
+  { key: "motorHp", label: "Motor HP", get: (r) => r.motorHp, numeric: true },
+  { key: "motorRpm", label: "RPM", get: (r) => r.motorRpm, numeric: true, filter: "select" },
+  { key: "motorType", label: "Motor Type", get: (r) => r.motorType, filter: "select" },
+  { key: "frameSize", label: "Frame Size", get: (r) => r.frameSize, filter: "select" },
+  { key: "mounting", label: "Mounting", get: (r) => r.mounting, filter: "select" },
+  { key: "lpPrice", label: "LP Price", get: (r) => r.lpPrice, numeric: true },
+  { key: "finalPrice", label: "Final Price", get: (r) => r.finalPrice, numeric: true, filter: "range" },
+  { key: "effectiveDate", label: "Effective Date", get: (r) => r.effectiveDate },
+];
+
 const errorMessage = (err: unknown, fallback: string): string =>
   (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
   fallback;
@@ -70,7 +84,9 @@ const MotorMasterPage = () => {
   const [rows, setRows] = useState<MotorMasterRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
+  // Search / sort / filter over every row (components/ui/tableControls.tsx).
+  const controls = useTableControls(rows, COLUMNS, sortRows);
+  const filtered = controls.result;
 
   const [detailsRow, setDetailsRow] = useState<MotorMasterRow | null>(null);
   const [editRow, setEditRow] = useState<MotorMasterRow | null>(null);
@@ -86,21 +102,10 @@ const MotorMasterPage = () => {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter(
-      (r) =>
-        String(r.brand ?? "").toLowerCase().includes(q) ||
-        String(r.frameSize ?? "").toLowerCase().includes(q) ||
-        String(r.motorKw ?? "").toLowerCase().includes(q) ||
-        String(r.motorHp ?? "").toLowerCase().includes(q)
-    );
-  }, [rows, search]);
 
   const { page, setPage, from, to, pageSize } = usePagination(
     filtered.length,
-    search,
+    controls.resetKey,
     50
   );
   const paged = useMemo(() => filtered.slice(from, to), [filtered, from, to]);
@@ -137,9 +142,9 @@ const MotorMasterPage = () => {
             <input
               type="search"
               className="pmm-search"
-              placeholder="Search by brand, frame or kW…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search brand, type, frame, kW…"
+              value={controls.search}
+              onChange={(e) => controls.setSearch(e.target.value)}
             />
           </div>
           <button className="btn-primary" onClick={() => setCreating(true)}>
@@ -175,19 +180,20 @@ const MotorMasterPage = () => {
 
       {!isLoading && !error && rows.length > 0 && (
         <div className="pmm-panel">
+          <FilterBar controls={controls} columns={COLUMNS} total={rows.length} />
           <div className="pmm-table-wrap">
             <table className="pmm-table">
               <thead>
                 <tr>
-                  <th>Brand</th>
-                  <th>Motor kW</th>
-                  <th>Motor HP</th>
-                  <th>RPM</th>
-                  <th>Motor Type</th>
-                  <th>Frame Size</th>
-                  <th>LP Price</th>
-                  <th>Final Price</th>
-                  <th>Effective Date</th>
+                  <SortTh controls={controls} colKey="brand">Brand</SortTh>
+                  <SortTh controls={controls} colKey="motorKw">Motor kW</SortTh>
+                  <SortTh controls={controls} colKey="motorHp">Motor HP</SortTh>
+                  <SortTh controls={controls} colKey="motorRpm">RPM</SortTh>
+                  <SortTh controls={controls} colKey="motorType">Motor Type</SortTh>
+                  <SortTh controls={controls} colKey="frameSize">Frame Size</SortTh>
+                  <SortTh controls={controls} colKey="lpPrice">LP Price</SortTh>
+                  <SortTh controls={controls} colKey="finalPrice">Final Price</SortTh>
+                  <SortTh controls={controls} colKey="effectiveDate">Effective Date</SortTh>
                   <th className="pmm-actions-col">Actions</th>
                 </tr>
               </thead>
@@ -229,8 +235,8 @@ const MotorMasterPage = () => {
                       <EmptyState
                         compact
                         icon="search"
-                        title={`No rows match “${search}”`}
-                        description="Try a different keyword — brand, frame size, or kW."
+                        title="No rows match these filters"
+                        description="Try a different keyword or clear some filters."
                       />
                     </td>
                   </tr>

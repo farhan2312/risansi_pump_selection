@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
 import { AuthError, decodeToken, requireSystemAdmin } from "@/lib/auth";
@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 const TYPES = new Set(["bug", "feature"]);
 const SEVERITIES = new Set(["Low", "Medium", "High", "Critical"]);
+const STATUSES = new Set(["Open", "In progress", "Resolved", "Closed"]);
 
 function textOrNull(v: unknown): string | null {
   if (v === null || v === undefined || String(v).trim() === "") return null;
@@ -28,6 +29,68 @@ export async function GET(req: Request) {
     throw e;
   }
 
+  // Server-side paging / search / filters. Query params (all optional):
+  //   q         words searched in title, description, reporter and page
+  //             (every word must match somewhere)
+  //   type      bug | feature
+  //   severity  Low | Medium | High | Critical
+  //   status    Open | In progress | Resolved | Closed (a board column)
+  //   order     "board" = most severe first, then newest (board columns);
+  //             anything else = newest first (list)
+  //   offset    rows to skip (default 0)
+  //   limit     rows to return, 0-100 (default 20; 0 = counts only)
+  // Returns { rows, total, summary } - total is the filtered count, summary
+  // the unfiltered header figures (all / open / critical open).
+  const params = new URL(req.url).searchParams;
+  const filters: SQL[] = [];
+  const type = params.get("type");
+  if (type && TYPES.has(type)) filters.push(eq(bugReportSelection.type, type));
+  const severity = params.get("severity");
+  if (severity && SEVERITIES.has(severity)) filters.push(eq(bugReportSelection.severity, severity));
+  const status = params.get("status");
+  if (status && STATUSES.has(status)) {
+    // A report with no status shows in the Open column (as it always has).
+    filters.push(
+      status === "Open"
+        ? or(eq(bugReportSelection.status, status), sql`${bugReportSelection.status} is null`)!
+        : eq(bugReportSelection.status, status),
+    );
+  }
+  const words = (params.get("q") ?? "").trim().split(/\s+/).filter(Boolean).slice(0, 8);
+  for (const w of words) {
+    // Escape LIKE wildcards so "50%" or "a_b" search literally.
+    const pattern = `%${w.replace(/[\\%_]/g, (c) => "\\" + c)}%`;
+    filters.push(
+      or(
+        ilike(bugReportSelection.title, pattern),
+        ilike(bugReportSelection.description, pattern),
+        ilike(bugReportSelection.reportedByName, pattern),
+        ilike(bugReportSelection.page, pattern),
+      )!,
+    );
+  }
+  const where = filters.length ? and(...filters) : undefined;
+  const offset = Math.max(0, parseInt(params.get("offset") ?? "0", 10) || 0);
+  const limitRaw = parseInt(params.get("limit") ?? "20", 10);
+  const limit = Math.min(100, Math.max(0, Number.isNaN(limitRaw) ? 20 : limitRaw));
+  const severityRank = sql`case ${bugReportSelection.severity} when 'Critical' then 0 when 'High' then 1 when 'Medium' then 2 when 'Low' then 3 else 9 end`;
+  const orderBy =
+    params.get("order") === "board"
+      ? [severityRank, desc(bugReportSelection.createdAt), desc(bugReportSelection.id)]
+      : [desc(bugReportSelection.createdAt), desc(bugReportSelection.id)];
+
+  const [[{ total }], [summary]] = await Promise.all([
+    db.select({ total: sql<number>`count(*)::int` }).from(bugReportSelection).where(where),
+    db
+      .select({
+        total: sql<number>`count(*)::int`,
+        open: sql<number>`count(*) filter (where ${bugReportSelection.status} in ('Open', 'In progress'))::int`,
+        criticalOpen: sql<number>`count(*) filter (where ${bugReportSelection.status} in ('Open', 'In progress') and ${bugReportSelection.severity} = 'Critical')::int`,
+      })
+      .from(bugReportSelection),
+  ]);
+  if (limit === 0) return json({ rows: [], total, summary });
+
   const rows = await db
     .select({
       id: bugReportSelection.id,
@@ -46,9 +109,12 @@ export async function GET(req: Request) {
       updatedAt: bugReportSelection.updatedAt,
     })
     .from(bugReportSelection)
-    .orderBy(desc(bugReportSelection.createdAt));
+    .where(where)
+    .orderBy(...orderBy)
+    .limit(limit)
+    .offset(offset);
 
-  return json(rows);
+  return json({ rows, total, summary });
 }
 
 // Any logged-in user can file a report — this is the "Report a Bug" button

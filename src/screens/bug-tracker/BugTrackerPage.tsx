@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import EmptyState from "../../components/ui/EmptyState";
+import Pagination from "../../components/ui/Pagination";
 import {
   getBugReportScreenshotUrl,
   listBugReports,
   updateBugReportStatus,
+  type BugReportQuery,
   type BugReportRow,
   type BugReportSeverity,
+  type BugReportSummary,
   type BugReportStatus,
   type BugReportType,
 } from "../../services/bugReportService";
@@ -15,6 +18,66 @@ import {
 const STATUSES: BugReportStatus[] = ["Open", "In progress", "Resolved", "Closed"];
 const SEVERITIES: BugReportSeverity[] = ["Critical", "High", "Medium", "Low"];
 const SEVERITY_RANK: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 };
+/** Board: cards shown per column at first, and added each time its end scrolls into view. */
+const BOARD_BATCH = 10;
+/** List: rows per page. */
+const LIST_PAGE_SIZE = 20;
+/** Wait this long after the last keystroke before searching. */
+const SEARCH_DEBOUNCE_MS = 300;
+
+type Column = { rows: BugReportRow[]; total: number; loading: boolean };
+type Board = Record<BugReportStatus, Column>;
+const EMPTY_BOARD = Object.fromEntries(
+  (["Open", "In progress", "Resolved", "Closed"] as const).map((s) => [s, { rows: [], total: 0, loading: false }]),
+) as unknown as Board;
+
+const isOpenStatus = (s: string | null) => s === "Open" || s === "In progress";
+
+/** Board column order - same as the API's order=board. */
+const boardOrder = (a: BugReportRow, b: BugReportRow) =>
+  (SEVERITY_RANK[a.severity] ?? 9) - (SEVERITY_RANK[b.severity] ?? 9) ||
+  b.createdAt.localeCompare(a.createdAt);
+
+/** `value`, updated only after it has stopped changing for `ms`. */
+function useDebounced<T>(value: T, ms: number): T {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return v;
+}
+
+/**
+ * Sits at the end of a board column; when it scrolls into view the column
+ * shows the next batch. The button is the fallback (and keyboard path).
+ */
+function LoadMore({ remaining, loading, onMore }: { remaining: number; loading: boolean; onMore: () => void }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    if (loading) return;
+    const io = new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && onMore(), {
+      rootMargin: "200px 0px",
+    });
+    io.observe(el);
+    return () => io.disconnect();
+    // Re-armed after each batch: a fresh observer reports straight away, so
+    // if the column end is still on screen the next batch loads too.
+  }, [onMore, remaining, loading]);
+  return (
+    <button
+      ref={ref}
+      type="button"
+      onClick={onMore}
+      disabled={loading}
+      className="rounded-lg border border-dashed border-line-strong px-3 py-2 text-[12px] font-semibold text-fg-3 transition hover:border-accent hover:text-accent"
+    >
+      {loading ? "Loading…" : `Show more (${remaining} left)`}
+    </button>
+  );
+}
 
 // Column accent + the soft chip used for that status elsewhere on the page.
 const STATUS_STYLE: Record<BugReportStatus, { dot: string; chip: string; drop: string }> = {
@@ -87,13 +150,19 @@ const SeverityBadge = ({ severity }: { severity: string }) => (
 );
 
 // system_admin only — gated by middleware (/admin/bug-tracker) and by the
-// underlying GET /api/bug-reports route itself. Lists every report filed
+// underlying GET /api/bug-reports route itself. Search, filters and paging run
+// on the server: the board asks for each column BOARD_BATCH cards at a time,
+// the list one LIST_PAGE_SIZE page at a time. Lists every report filed
 // from the "Report a Bug" button across the portal; changing a report's status
 // here (drag to another column, or from the details popup) is what lights up
 // the reporter's bell (see NotificationBell.tsx).
 const BugTrackerPage = () => {
-  const [reports, setReports] = useState<BugReportRow[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [summary, setSummary] = useState<BugReportSummary | null>(null);
+  const [board, setBoard] = useState<Board>(EMPTY_BOARD);
+  const [listRows, setListRows] = useState<BugReportRow[]>([]);
+  const [listTotal, setListTotal] = useState(0);
+  const [isLoading, setIsLoading] = useState(true); // before the first response
+  const [fetching, setFetching] = useState(false); // any later refetch
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -107,12 +176,116 @@ const BugTrackerPage = () => {
   const [dropTarget, setDropTarget] = useState<BugReportStatus | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
 
-  useEffect(() => {
-    listBugReports()
-      .then(setReports)
-      .catch(() => setError("Couldn't load bug reports."))
-      .finally(() => setIsLoading(false));
+  // Search goes to the server only once typing pauses.
+  const debouncedSearch = useDebounced(search.trim(), SEARCH_DEBOUNCE_MS);
+  const filterQuery = useMemo<BugReportQuery>(
+    () => ({
+      q: debouncedSearch || undefined,
+      type: typeFilter === "all" ? undefined : typeFilter,
+      severity: severityFilter === "all" ? undefined : severityFilter,
+    }),
+    [debouncedSearch, typeFilter, severityFilter],
+  );
+  const filterKey = JSON.stringify(filterQuery);
+
+  // Only the newest request may write state: a slow response for an old
+  // filter can't overwrite a newer one.
+  const reqId = useRef(0);
+  const filterRef = useRef(filterQuery);
+  filterRef.current = filterQuery;
+  const boardRef = useRef(board);
+  boardRef.current = board;
+
+  const fail = useCallback((id: number) => {
+    if (id !== reqId.current) return;
+    setError("Couldn't load bug reports.");
   }, []);
+  const settle = useCallback((id: number) => {
+    if (id !== reqId.current) return;
+    setIsLoading(false);
+    setFetching(false);
+  }, []);
+
+  // Board: the first BOARD_BATCH cards of every column, whenever the board
+  // opens or the filters change.
+  useEffect(() => {
+    if (view !== "board") return;
+    const id = ++reqId.current;
+    setFetching(true);
+    Promise.all(
+      STATUSES.map((status) =>
+        listBugReports({ ...filterQuery, status, order: "board", offset: 0, limit: BOARD_BATCH }),
+      ),
+    )
+      .then((pages) => {
+        if (id !== reqId.current) return;
+        setBoard(
+          Object.fromEntries(
+            STATUSES.map((st, i) => [st, { rows: pages[i].rows, total: pages[i].total, loading: false }]),
+          ) as Board,
+        );
+        setSummary(pages[0].summary);
+        setError(null);
+      })
+      .catch(() => fail(id))
+      .finally(() => settle(id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, filterKey]);
+
+  /** Next BOARD_BATCH cards of one column (scrolling / Show more). */
+  const loadMore = useCallback((status: BugReportStatus) => {
+    const col = boardRef.current[status];
+    if (col.loading || col.rows.length >= col.total) return;
+    const id = reqId.current;
+    setBoard((b) => ({ ...b, [status]: { ...b[status], loading: true } }));
+    listBugReports({ ...filterRef.current, status, order: "board", offset: col.rows.length, limit: BOARD_BATCH })
+      .then((res) => {
+        if (id !== reqId.current) return;
+        setBoard((b) => {
+          const have = new Set(b[status].rows.map((r) => r.id));
+          return {
+            ...b,
+            [status]: { rows: [...b[status].rows, ...res.rows.filter((r) => !have.has(r.id))], total: res.total, loading: false },
+          };
+        });
+      })
+      .catch(() => {
+        if (id !== reqId.current) return;
+        setBoard((b) => ({ ...b, [status]: { ...b[status], loading: false } }));
+        setError("Couldn't load more reports.");
+      });
+  }, []);
+  const moreFns = useMemo(
+    () => Object.fromEntries(STATUSES.map((st) => [st, () => loadMore(st)])) as Record<BugReportStatus, () => void>,
+    [loadMore],
+  );
+
+  // List: numbered pages of LIST_PAGE_SIZE, back to page 1 when filters change.
+  const [pageState, setPageState] = useState({ key: filterKey, page: 1 });
+  const page = pageState.key === filterKey ? pageState.page : 1;
+  const setPage = (p: number) => setPageState({ key: filterKey, page: p });
+  useEffect(() => {
+    if (view !== "list") return;
+    const id = ++reqId.current;
+    setFetching(true);
+    listBugReports({ ...filterQuery, order: "newest", offset: (page - 1) * LIST_PAGE_SIZE, limit: LIST_PAGE_SIZE })
+      .then((res) => {
+        if (id !== reqId.current) return;
+        setListRows(res.rows);
+        setListTotal(res.total);
+        setSummary(res.summary);
+        setError(null);
+      })
+      .catch(() => fail(id))
+      .finally(() => settle(id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, filterKey, page]);
+
+  const loaded = useMemo(
+    () => [...listRows, ...STATUSES.flatMap((st) => board[st].rows)],
+    [listRows, board],
+  );
+  const openReport = loaded.find((r) => r.id === openId) ?? null;
 
   // Esc closes the details popup.
   useEffect(() => {
@@ -122,50 +295,38 @@ const BugTrackerPage = () => {
     return () => window.removeEventListener("keydown", onKey);
   }, [openId]);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return reports.filter(
-      (r) =>
-        (typeFilter === "all" || r.type === typeFilter) &&
-        (severityFilter === "all" || r.severity === severityFilter) &&
-        (!q ||
-          r.title.toLowerCase().includes(q) ||
-          (r.description ?? "").toLowerCase().includes(q) ||
-          (r.reportedByName ?? "").toLowerCase().includes(q) ||
-          (r.page ?? "").toLowerCase().includes(q)),
-    );
-  }, [reports, search, typeFilter, severityFilter]);
-
-  // Within a column: most severe first, then newest.
-  const columns = useMemo(() => {
-    const by = new Map<BugReportStatus, BugReportRow[]>(STATUSES.map((s) => [s, []]));
-    for (const r of filtered) (by.get(r.status) ?? by.get("Open")!).push(r);
-    for (const list of by.values()) {
-      list.sort(
-        (a, b) =>
-          (SEVERITY_RANK[a.severity] ?? 9) - (SEVERITY_RANK[b.severity] ?? 9) ||
-          b.createdAt.localeCompare(a.createdAt),
-      );
-    }
-    return by;
-  }, [filtered]);
-
-  const openReport = reports.find((r) => r.id === openId) ?? null;
-
   /** Optimistic: the card moves at once and snaps back if the save fails. */
   const moveTo = async (id: string, status: BugReportStatus) => {
-    const current = reports.find((r) => r.id === id);
+    const current = loaded.find((r) => r.id === id);
     if (!current || current.status === status) return;
+    const before = { board, listRows, summary };
     setSaveError(null);
     setSavingId(id);
-    setReports((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)));
+    const moved = { ...current, status };
+    const from = (current.status as BugReportStatus) in board ? (current.status as BugReportStatus) : "Open";
+    setBoard((b) => {
+      if (!b[from].rows.some((r) => r.id === id)) return b;
+      return {
+        ...b,
+        [from]: { ...b[from], rows: b[from].rows.filter((r) => r.id !== id), total: b[from].total - 1 },
+        [status]: { ...b[status], rows: [...b[status].rows, moved].sort(boardOrder), total: b[status].total + 1 },
+      };
+    });
+    setListRows((rows) => rows.map((r) => (r.id === id ? moved : r)));
+    // Worked out now, not inside the updater, so the figures are from before
+    // the move whenever React runs it.
+    const openDelta = Number(isOpenStatus(status)) - Number(isOpenStatus(current.status));
+    const criticalDelta = current.severity === "Critical" ? openDelta : 0;
+    setSummary((sm) => (sm ? { ...sm, open: sm.open + openDelta, criticalOpen: sm.criticalOpen + criticalDelta } : sm));
     try {
       const updated = await updateBugReportStatus(id, status);
-      setReports((prev) =>
-        prev.map((r) => (r.id === id ? { ...r, status: updated.status, updatedAt: updated.updatedAt } : r)),
-      );
+      const patch = (r: BugReportRow) => (r.id === id ? { ...r, status: updated.status, updatedAt: updated.updatedAt } : r);
+      setBoard((b) => ({ ...b, [status]: { ...b[status], rows: b[status].rows.map(patch) } }));
+      setListRows((rows) => rows.map(patch));
     } catch {
-      setReports((prev) => prev.map((r) => (r.id === id ? { ...r, status: current.status } : r)));
+      setBoard(before.board);
+      setListRows(before.listRows);
+      setSummary(before.summary);
       setSaveError(`Couldn't move "${current.title}". Please try again.`);
     } finally {
       setSavingId(null);
@@ -180,10 +341,8 @@ const BugTrackerPage = () => {
     if (id) void moveTo(id, status);
   };
 
-  const openCount = reports.filter((r) => r.status === "Open" || r.status === "In progress").length;
-  const criticalOpen = reports.filter(
-    (r) => (r.status === "Open" || r.status === "In progress") && r.severity === "Critical",
-  ).length;
+  const openCount = summary?.open ?? 0;
+  const criticalOpen = summary?.criticalOpen ?? 0;
   const filtersOn = Boolean(search.trim()) || typeFilter !== "all" || severityFilter !== "all";
 
   const selectCls =
@@ -210,7 +369,7 @@ const BugTrackerPage = () => {
               </div>
             )}
             <div className="rounded-lg border border-line bg-paper px-3 py-1.5 text-[12px] text-fg-3">
-              <b className="font-mono text-[15px] text-fg">{reports.length}</b> total
+              <b className="font-mono text-[15px] text-fg">{summary?.total ?? 0}</b> total
             </div>
           </div>
         )}
@@ -286,7 +445,7 @@ const BugTrackerPage = () => {
         </div>
       )}
 
-      {!isLoading && !error && reports.length === 0 && (
+      {!isLoading && !error && summary?.total === 0 && (
         <div className="mt-6">
           <EmptyState
             icon="folder"
@@ -297,10 +456,15 @@ const BugTrackerPage = () => {
       )}
 
       {/* Board */}
-      {!isLoading && !error && reports.length > 0 && view === "board" && (
-        <div className="mt-4 grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {!isLoading && !!summary?.total && view === "board" && (
+        <div
+          className={`mt-4 grid grid-cols-1 items-start gap-4 transition-opacity md:grid-cols-2 xl:grid-cols-4 ${
+            fetching ? "opacity-60" : ""
+          }`}
+        >
           {STATUSES.map((status) => {
-            const cards = columns.get(status) ?? [];
+            const col = board[status];
+            const cards = col.rows;
             const style = STATUS_STYLE[status];
             const isTarget = dropTarget === status;
             return (
@@ -325,7 +489,7 @@ const BugTrackerPage = () => {
                     <span className={`h-2.5 w-2.5 rounded-full ${style.dot}`} />
                     <h2 className="text-[13px] font-semibold text-fg">{status}</h2>
                     <span className="rounded-full bg-paper px-2 py-0.5 font-mono text-[11px] font-semibold text-fg-3">
-                      {cards.length}
+                      {col.total}
                     </span>
                   </div>
                 </header>
@@ -405,6 +569,9 @@ const BugTrackerPage = () => {
                       </div>
                     </article>
                   ))}
+                  {col.total > cards.length && (
+                    <LoadMore remaining={col.total - cards.length} loading={col.loading} onMore={moreFns[status]} />
+                  )}
                 </div>
               </section>
             );
@@ -413,9 +580,13 @@ const BugTrackerPage = () => {
       )}
 
       {/* List */}
-      {!isLoading && !error && reports.length > 0 && view === "list" && (
-        <div className="mt-4 overflow-hidden rounded-xl border border-line bg-paper">
-          {filtered.length === 0 ? (
+      {!isLoading && !!summary?.total && view === "list" && (
+        <div
+          className={`mt-4 overflow-hidden rounded-xl border border-line bg-paper transition-opacity ${
+            fetching ? "opacity-60" : ""
+          }`}
+        >
+          {listTotal === 0 ? (
             <EmptyState compact icon="search" title="No matching reports" description="Try a different filter." />
           ) : (
             <div className="overflow-x-auto">
@@ -433,7 +604,7 @@ const BugTrackerPage = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {filtered.map((r) => (
+                  {listRows.map((r) => (
                     <tr key={r.id} className="cursor-pointer transition-colors hover:bg-elev" onClick={() => setOpenId(r.id)}>
                       <td className="w-10 px-4 py-2.5">
                         <TypeIcon type={r.type} />
@@ -468,6 +639,15 @@ const BugTrackerPage = () => {
                 </tbody>
               </table>
             </div>
+          )}
+          {listTotal > 0 && (
+            <Pagination
+              page={page}
+              totalItems={listTotal}
+              pageSize={LIST_PAGE_SIZE}
+              onPageChange={setPage}
+              itemLabel="reports"
+            />
           )}
         </div>
       )}

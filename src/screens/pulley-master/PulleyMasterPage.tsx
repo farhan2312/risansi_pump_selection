@@ -18,6 +18,8 @@ import EmptyState from "../../components/ui/EmptyState";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import Spinner from "../../components/ui/Spinner";
 import Pagination, { usePagination } from "../../components/ui/Pagination";
+import { FilterBar, SortTh, useTableControls, type ColumnSpec } from "../../components/ui/tableControls";
+import { comparePumpFamilies, comparePumpModels, pumpModelFamily } from "../../lib/pump-model-order";
 import {
   PlusIcon,
   SearchIcon,
@@ -44,6 +46,23 @@ const FIELDS: FieldDef[] = [
 ];
 
 const val = (v: string | number | null) => (v === null || v === "" ? "—" : v);
+
+// Default order: model family (Barrel -> H -> 2H -> 4H -> 8H), size within
+// the family, then motor kW ascending (then motor RPM).
+const defaultSort = (a: PulleyMotorRow, b: PulleyMotorRow) =>
+  comparePumpModels(a.model, b.model) ||
+  Number(a.motorKw ?? 0) - Number(b.motorKw ?? 0) ||
+  a.motorRpm - b.motorRpm;
+
+const COLUMNS: ColumnSpec<PulleyMotorRow>[] = [
+  { key: "family", label: "Family", get: (r) => pumpModelFamily(r.model), filter: "select", optionCompare: comparePumpFamilies },
+  { key: "model", label: "Model", get: (r) => r.model, filter: "select", optionCompare: comparePumpModels, compare: defaultSort },
+  { key: "motorRpm", label: "Motor RPM", get: (r) => r.motorRpm, numeric: true, filter: "select" },
+  { key: "motorHp", label: "Motor HP", get: (r) => r.motorHp, numeric: true },
+  { key: "motorKw", label: "Motor kW", get: (r) => r.motorKw, numeric: true, filter: "select" },
+  { key: "grooves", label: "Grooves", get: (r) => r.grooves, filter: "select" },
+  { key: "maxCapAt60Mwc", label: "Max Cap @ 60 MWC", get: (r) => r.maxCapAt60Mwc, numeric: true, filter: "range" },
+];
 
 const errorMessage = (err: unknown, fallback: string): string =>
   (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? fallback;
@@ -125,7 +144,9 @@ const PulleyMasterPage = () => {
   const [rows, setRows] = useState<PulleyMotorRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
+  // Search / sort / filter over every row (components/ui/tableControls.tsx).
+  const controls = useTableControls(rows, COLUMNS, defaultSort);
+  const filtered = controls.result;
 
   const [detailsRow, setDetailsRow] = useState<PulleyMotorRow | null>(null);
   const [editRow, setEditRow] = useState<PulleyMotorRow | null>(null);
@@ -141,21 +162,11 @@ const PulleyMasterPage = () => {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter(
-      (r) =>
-        r.model.toLowerCase().includes(q) ||
-        String(r.motorRpm).includes(q) ||
-        (r.grooves ?? "").toLowerCase().includes(q)
-    );
-  }, [rows, search]);
 
   // 50 rows/page. Resets to page 1 whenever the search changes.
   const { page, setPage, from, to, pageSize } = usePagination(
     filtered.length,
-    search,
+    controls.resetKey,
     50
   );
   const paged = useMemo(() => filtered.slice(from, to), [filtered, from, to]);
@@ -197,9 +208,9 @@ const PulleyMasterPage = () => {
             <input
               type="search"
               className="pmm-search"
-              placeholder="Search by model, rpm, groove…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search model, RPM, kW, groove…"
+              value={controls.search}
+              onChange={(e) => controls.setSearch(e.target.value)}
             />
           </div>
           <button className="btn-primary" onClick={() => setCreating(true)}>
@@ -235,16 +246,17 @@ const PulleyMasterPage = () => {
 
       {!isLoading && !error && rows.length > 0 && (
         <div className="pmm-panel">
+          <FilterBar controls={controls} columns={COLUMNS} total={rows.length} />
           <div className="pmm-table-wrap">
             <table className="pmm-table">
               <thead>
                 <tr>
-                  <th>Model</th>
-                  <th>Motor RPM</th>
-                  <th>Motor HP</th>
-                  <th>Motor kW</th>
-                  <th>Grooves</th>
-                  <th>Max Cap @ 60 MWC</th>
+                  <SortTh controls={controls} colKey="model">Model</SortTh>
+                  <SortTh controls={controls} colKey="motorRpm">Motor RPM</SortTh>
+                  <SortTh controls={controls} colKey="motorHp">Motor HP</SortTh>
+                  <SortTh controls={controls} colKey="motorKw">Motor kW</SortTh>
+                  <SortTh controls={controls} colKey="grooves">Grooves</SortTh>
+                  <SortTh controls={controls} colKey="maxCapAt60Mwc">Max Cap @ 60 MWC</SortTh>
                   <th className="pmm-actions-col">Actions</th>
                 </tr>
               </thead>
@@ -283,8 +295,8 @@ const PulleyMasterPage = () => {
                       <EmptyState
                         compact
                         icon="search"
-                        title={`No rows match “${search}”`}
-                        description="Try a different keyword — model, motor RPM, or groove."
+                        title="No rows match these filters"
+                        description="Try a different keyword or clear some filters."
                       />
                     </td>
                   </tr>

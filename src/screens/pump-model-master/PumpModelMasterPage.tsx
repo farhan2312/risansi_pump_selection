@@ -15,6 +15,8 @@ import EmptyState from "../../components/ui/EmptyState";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import Spinner from "../../components/ui/Spinner";
 import Pagination, { usePagination } from "../../components/ui/Pagination";
+import { FilterBar, SortTh, useTableControls, type ColumnSpec } from "../../components/ui/tableControls";
+import { comparePumpFamilies, comparePumpModels, pumpModelFamily } from "../../lib/pump-model-order";
 import {
   PlusIcon,
   SearchIcon,
@@ -51,6 +53,25 @@ const FIELDS: FieldDef[] = [
 
 const val = (v: string | number | null) => (v === null || v === "" ? "—" : v);
 
+// Default order: model family (Barrel -> H -> 2H -> 4H -> 8H), size within
+// the family, then head ascending.
+const defaultSort = (a: PumpModelRow, b: PumpModelRow) =>
+  comparePumpModels(a.model, b.model) || Number(a.headMwc) - Number(b.headMwc);
+
+// Search / sort / filter columns (see components/ui/tableControls.tsx).
+const COLUMNS: ColumnSpec<PumpModelRow>[] = [
+  { key: "family", label: "Family", get: (r) => pumpModelFamily(r.model), filter: "select", optionCompare: comparePumpFamilies },
+  { key: "model", label: "Model", get: (r) => r.model, filter: "select", optionCompare: comparePumpModels, compare: defaultSort },
+  { key: "stage", label: "Stage", get: (r) => r.stage, numeric: true, filter: "select" },
+  { key: "headMwc", label: "Head (MWC)", get: (r) => r.headMwc, numeric: true, filter: "range" },
+  { key: "voleMin", label: "VOLE Min", get: (r) => r.voleMin, numeric: true },
+  { key: "voleMax", label: "VOLE Max", get: (r) => r.voleMax, numeric: true },
+  { key: "mechEff", label: "Mech Eff", get: (r) => r.mechEff, numeric: true },
+  { key: "qth", label: "QTH", get: (r) => r.qth, numeric: true, filter: "range" },
+  { key: "minKwTested", label: "Min kW Tested", get: (r) => r.minKwTested, numeric: true, filter: "range" },
+  { key: "testingRemarks", label: "Remarks", get: (r) => r.testingRemarks },
+];
+
 const errorMessage = (err: unknown, fallback: string): string =>
   (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
   fallback;
@@ -59,7 +80,6 @@ const PumpModelMasterPage = () => {
   const [rows, setRows] = useState<PumpModelRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
 
   const [detailsRow, setDetailsRow] = useState<PumpModelRow | null>(null);
   const [editRow, setEditRow] = useState<PumpModelRow | null>(null);
@@ -75,21 +95,14 @@ const PumpModelMasterPage = () => {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter(
-      (r) =>
-        r.model.toLowerCase().includes(q) ||
-        String(r.headMwc).toLowerCase().includes(q)
-    );
-  }, [rows, search]);
+  const controls = useTableControls(rows, COLUMNS, defaultSort);
+  const filtered = controls.result;
 
-  // 50 rows/page. Resets to page 1 whenever the search query changes so
-  // filtering doesn't strand the user on an empty page beyond the new end.
+  // 50 rows/page. Resets to page 1 whenever the search, filters or sort
+  // change so the user isn't stranded on an empty page beyond the new end.
   const { page, setPage, from, to, pageSize } = usePagination(
     filtered.length,
-    search,
+    controls.resetKey,
     50
   );
   const paged = useMemo(() => filtered.slice(from, to), [filtered, from, to]);
@@ -131,9 +144,9 @@ const PumpModelMasterPage = () => {
             <input
               type="search"
               className="pmm-search"
-              placeholder="Search by model or head…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search model, head, remarks…"
+              value={controls.search}
+              onChange={(e) => controls.setSearch(e.target.value)}
             />
           </div>
           <button className="btn-primary" onClick={() => setCreating(true)}>
@@ -169,19 +182,20 @@ const PumpModelMasterPage = () => {
 
       {!isLoading && !error && rows.length > 0 && (
         <div className="pmm-panel">
+          <FilterBar controls={controls} columns={COLUMNS} total={rows.length} />
           <div className="pmm-table-wrap">
             <table className="pmm-table">
               <thead>
                 <tr>
-                  <th>Model</th>
-                  <th>Stage</th>
-                  <th>Head (MWC)</th>
-                  <th>VOLE Min</th>
-                  <th>VOLE Max</th>
-                  <th>Mech Eff</th>
-                  <th>QTH</th>
-                  <th>Min kW Tested</th>
-                  <th>Remarks</th>
+                  <SortTh controls={controls} colKey="model">Model</SortTh>
+                  <SortTh controls={controls} colKey="stage">Stage</SortTh>
+                  <SortTh controls={controls} colKey="headMwc">Head (MWC)</SortTh>
+                  <SortTh controls={controls} colKey="voleMin">VOLE Min</SortTh>
+                  <SortTh controls={controls} colKey="voleMax">VOLE Max</SortTh>
+                  <SortTh controls={controls} colKey="mechEff">Mech Eff</SortTh>
+                  <SortTh controls={controls} colKey="qth">QTH</SortTh>
+                  <SortTh controls={controls} colKey="minKwTested">Min kW Tested</SortTh>
+                  <SortTh controls={controls} colKey="testingRemarks">Remarks</SortTh>
                   <th className="pmm-actions-col">Actions</th>
                 </tr>
               </thead>
@@ -223,8 +237,8 @@ const PumpModelMasterPage = () => {
                       <EmptyState
                         compact
                         icon="search"
-                        title={`No rows match “${search}”`}
-                        description="Try a different keyword — model name or head value."
+                        title="No rows match these filters"
+                        description="Try a different keyword or clear some filters."
                       />
                     </td>
                   </tr>
