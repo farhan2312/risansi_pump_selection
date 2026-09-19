@@ -125,6 +125,7 @@ const GeneralInformationStep = ({
               <option value="">Select</option>
               <option value="M3/hr">M³/hr</option>
               <option value="LPH">LPH</option>
+              <option value="LPM">LPM</option>
               <option value="GPM">GPM</option>
               <option value="KLPD">KLPD</option>
               <option value="TPH">TPH</option>
