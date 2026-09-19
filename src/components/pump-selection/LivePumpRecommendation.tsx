@@ -10,7 +10,6 @@ import {
   sizeDefaultsFor,
   sizesOnPick,
   sizeOverride,
-  sizeForViscosityRange,
 } from "../../lib/suction-discharge-size";
 import { sealingShort } from "../../lib/sealing";
 import { AG_BK_NOT_REQUIRED } from "./OperatingConditionsStep";
@@ -26,16 +25,15 @@ type Props = {
   /** The tag being edited. Wizard rows are keyed by tag; absent falls
    *  back to the project's Default tag server-side. */
   tagId?: string;
-  /** Read-only mode (steps past Sealing): the confirmed pump stays visible as
-   * a reference card, but it can no longer be re-picked or unconfirmed — from
-   * Motor Rating on, the wizard is configuring the chosen pump, and swapping
-   * it there would silently invalidate the motor/drive work already done. */
+  /** Read-only mode (steps after Fluid): the confirmed pump stays visible as a
+   * reference card, but it can no longer be re-picked or unconfirmed — the
+   * later steps are configured for the chosen pump, and swapping it there
+   * would silently invalidate that work. */
   locked?: boolean;
-  /** Whether the Confirm action is offered here. The model is confirmed from
-   * the Fluid step onward, not on General Information — step 1 is still being
-   * filled in, so its matches are a preview rather than a decision. Picking a
-   * card stays available everywhere; only the commit moves. */
-  canConfirm?: boolean;
+  /** Whether a model can be picked and confirmed here - only on the Fluid
+   * step. On General Information the matches are a read-only preview (capacity
+   * and head are still being entered). */
+  canPick?: boolean;
 };
 
 type Status = "idle" | "loading" | "ready" | "empty" | "error";
@@ -71,7 +69,7 @@ const LivePumpRecommendation = ({
   projectId,
   tagId,
   locked = false,
-  canConfirm = true,
+  canPick = true,
 }: Props) => {
   const [recs, setRecs] = useState<PumpRecommendation[]>([]);
   const [status, setStatus] = useState<Status>("idle");
@@ -121,9 +119,9 @@ const LivePumpRecommendation = ({
   // on a later visit to step 1), drop the confirmation so the user must pick
   // again — this also re-locks step navigation past the Fluid step.
   useEffect(() => {
-    // Never while locked: past Sealing the motor/drive steps are already built
-    // on this pump, so silently dropping the confirmation there would unlock
-    // navigation and invalidate that work rather than helping.
+    // Never while locked: after the Fluid step the later steps are already
+    // built on this pump, so silently dropping the confirmation there would
+    // unlock navigation and invalidate that work rather than helping.
     if (!locked && confirmed && status === "ready" && formData.selectedModel && !hasConfirmedRec) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setFormData((f: any) => ({ ...f, modelConfirmed: false }));
@@ -147,16 +145,16 @@ const LivePumpRecommendation = ({
   // Pick a specific head of a model. Re-clicking the already-selected head
   // clears the selection.
   const selectHead = (model: string, headMwc: number) => {
-    if (locked) return;
+    if (locked || !canPick) return;
     const already =
       formData.selectedModel === model &&
       String(formData.selectedHead) === String(headMwc);
     // Sizes are per-model: picking a pump fills suction & discharge with that
-    // model's size and makes it the baseline (unpinning falls back to the flat
-    // viscosity band baseline and clears the auto-filled sizes). Remarks
-    // explaining a deviation from the old baseline are cleared too.
+    // model's size and makes it the baseline (unpinning leaves no baseline and
+    // clears the auto-filled sizes). Remarks explaining a deviation from the
+    // old baseline are cleared too.
     const rec = recs.find((r) => r.model === model) ?? null;
-    const recommended = already || !rec ? fallbackSize : perModelSize(rec);
+    const recommended = already || !rec ? null : perModelSize(rec);
     setFormData({
       ...formData,
       selectedModel: already ? "" : model,
@@ -188,15 +186,39 @@ const LivePumpRecommendation = ({
 
   // Per-model suction/discharge pipe size — looked up from the pump's own
   // pump_model_master.size_visc_* column matching the chosen viscosity range.
-  // Falls back to the flat SIZE_BY_RANGE hint when the model isn't covered
-  // by Model_vs_Viscosity_vs_Size.xlsx (mostly L-variants).
-  const fallbackSize = sizeForViscosityRange(formData.viscosityRange);
+  // Null when the range isn't chosen yet or the model has no size for it.
   const perModelSize = (r: PumpRecommendation): number | null => {
     const col = SIZE_COLUMN_BY_RANGE[formData.viscosityRange as string];
     if (!col) return null;
-    const v = r[col];
-    return v ?? fallbackSize;
+    return r[col] ?? null;
   };
+
+  // Keep the size baseline in step with the picked pump. A pump can be picked
+  // before the viscosity range is chosen (both are on the Fluid step), and the
+  // range can change after picking - either way the baseline must be the
+  // model's size for the current range, not the flat viscosity-band size.
+  // Sizes that are blank or still hold the previous auto-filled value follow
+  // the new size; a size the user typed is kept (and still needs a remark if
+  // it differs).
+  const pickedSize = confirmedRec ? perModelSize(confirmedRec) : null;
+  useEffect(() => {
+    if (locked || !formData.selectedModel || !confirmedRec) return;
+    const patch = sizeDefaultsFor(formData.recommendedSize, pickedSize);
+    if (!patch) return;
+    const prev = parseFloat((formData.recommendedSize ?? "").trim());
+    const follow = (v: string | null | undefined) => {
+      const t = (v ?? "").trim();
+      return !t || parseFloat(t) === prev ? patch.recommendedSize : t;
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    setFormData((f: any) => ({
+      ...f,
+      ...patch,
+      suctionSize: follow(f.suctionSize),
+      dischargeSize: follow(f.dischargeSize),
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locked, formData.selectedModel, pickedSize, formData.recommendedSize, !!confirmedRec]);
   const seal = sealingShort(formData.sealingType);
   // "Not Required" is an explicit omission, not a feed option, so it is kept
   // out of the terse spec code line below.
@@ -336,7 +358,7 @@ const LivePumpRecommendation = ({
       {status === "idle" && !confirmedView && !locked && (
         <p className="live-rec-hint">
           Enter <strong>capacity</strong> and <strong>head</strong> to see live pump
-          matches. After the Fluid step you&apos;ll pick one and confirm it to continue.
+          matches. You&apos;ll pick one and confirm it on the Fluid step.
         </p>
       )}
 
@@ -355,7 +377,7 @@ const LivePumpRecommendation = ({
         <>
           <p className="live-rec-hint">
             {locked
-              ? "Locked in — the motor and drive steps are configured for this pump. Go back to Sealing or earlier to change it."
+              ? "Locked in — the later steps are configured for this pump. Go back to the Fluid step to change it."
               : "Model confirmed — the rest of the wizard is configured for this pump."}
           </p>
           <div className="live-rec-cards live-rec-cards--single">
@@ -363,7 +385,7 @@ const LivePumpRecommendation = ({
               {cardInner(confirmedRec, false, true, selectedPointFor(confirmedRec))}
             </div>
           </div>
-          {!locked && (
+          {!locked && canPick && (
             <button type="button" className="live-rec-change" onClick={changeModel}>
               Change model
             </button>
@@ -380,7 +402,7 @@ const LivePumpRecommendation = ({
           ) : formData.selectedModel ? (
             <>
               Selected pump: <strong>{formData.selectedModel}</strong>. Go back to
-              Sealing or earlier to change it.
+              the Fluid step to change it.
             </>
           ) : (
             "No pump model was confirmed for this enquiry."
@@ -391,8 +413,10 @@ const LivePumpRecommendation = ({
           {options.length > 0 && (
             <p className="live-rec-hint">
               {options.length} matching {options.length === 1 ? "option" : "options"} —
-              each card is a model at one head, with its own figures. Click the one you
-              want{canConfirm ? ", then confirm." : "."}
+              each card is a model at one head, with its own figures.{" "}
+              {canPick
+                ? "Click the one you want, then confirm."
+                : "Preview only — you'll pick and confirm a model on the Fluid step."}
             </p>
           )}
 
@@ -401,10 +425,19 @@ const LivePumpRecommendation = ({
               <div className="live-rec-cards">
                 {options.map(({ rec, point }) => {
                   const selected = isSelectedOption(rec, point);
+                  const key = `${rec.id}-${point ? point.headMwc : "na"}`;
+                  // Preview (General Information): the same card, not clickable.
+                  if (!canPick) {
+                    return (
+                      <div key={key} className={`live-rec-card is-preview${selected ? " is-selected" : ""}`}>
+                        {cardInner(rec, true, false, point, selected)}
+                      </div>
+                    );
+                  }
                   return (
                     <button
                       type="button"
-                      key={`${rec.id}-${point ? point.headMwc : "na"}`}
+                      key={key}
                       className={`live-rec-card${selected ? " is-selected" : ""}`}
                       onClick={() => point && selectHead(rec.model, point.headMwc)}
                       aria-pressed={selected}
@@ -416,7 +449,7 @@ const LivePumpRecommendation = ({
               </div>
             )}
 
-          {canConfirm && hasConfirmedRec && formData.selectedHead && (
+          {canPick && hasConfirmedRec && formData.selectedHead && (
             <div className="live-rec-confirm-bar">
               <span>
                 Confirm <strong>{formData.selectedModel}</strong> at{" "}

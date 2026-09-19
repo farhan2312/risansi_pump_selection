@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import PdfPreviewModal from "../ui/PdfPreviewModal";
 import { gearboxRateItems, upliftedPriceLabel } from "../../lib/motor-price";
 import { getRecommendations } from "../../services/recommendationService";
-import { SIZE_COLUMN_BY_RANGE, sizeForViscosityRange, sizeOverride } from "../../lib/suction-discharge-size";
+import { SIZE_COLUMN_BY_RANGE, sizeOverride } from "../../lib/suction-discharge-size";
 import { sealingShort } from "../../lib/sealing";
 import { AG_BK_NOT_REQUIRED } from "./OperatingConditionsStep";
 import { RPM_BANDS } from "../../lib/rpm-bands";
@@ -191,15 +191,13 @@ const RecommendationStep = ({
   const confirmedPump =
     recommendations.find((p) => p.model === formData.selectedModel) || null;
 
-  // Prefer the confirmed model's own per-viscosity size; fall back to the
-  // flat SIZE_BY_RANGE hint when the model isn't covered by the per-model
-  // sheet (mostly L-variants). Lifted out of the card's render so the PDF
-  // export below can reuse the exact same value.
+  // The confirmed model's own per-viscosity size (null when the model has no
+  // size for this range - then only what was entered is shown). Lifted out of
+  // the card's render so the PDF export below can reuse the exact same value.
   const cardSize = confirmedPump
     ? (() => {
         const col = SIZE_COLUMN_BY_RANGE[formData.viscosityRange as string];
-        const perModel = col ? confirmedPump[col] : null;
-        return perModel ?? sizeForViscosityRange(formData.viscosityRange);
+        return col ? confirmedPump[col] ?? null : null;
       })()
     : null;
 

@@ -1,22 +1,10 @@
 /**
- * Step-5 Suction & Discharge Size — a fixed viscosity-range → size table that
- * applies to every selected model (per spec; not per-model). Above 10 000 cP
- * the numeric size (12) still applies, but the BK and AG feed/construction
- * options are additionally recommended for the thick media.
- *
- * Keys match the `viscosityRange` values the Fluid Properties step stores.
+ * Suction & discharge size. The recommended size is the picked pump model's
+ * own size for the chosen viscosity range (pump_model_master's size_visc_*
+ * columns, from Model_vs_Viscosity_vs_Size.xlsx). There is no generic
+ * fallback: a model without a size for that range has no recommendation, so
+ * the sizes are simply entered by hand (and no remark is asked for).
  */
-// Fallback lookup used only as a rough hint on the Fluid step (before a pump
-// model is confirmed). Per-model sizes live on pump_model_master's
-// size_visc_* columns and take precedence on the live pump card + summary.
-// Keys match the 5 viscosity buckets from Model_vs_Viscosity_vs_Size.xlsx.
-export const SIZE_BY_RANGE: Record<string, number> = {
-  "0-1000": 4,
-  "1000-3000": 6,
-  "3000-5000": 8,
-  "5000-10000": 10,
-  ">10000": 12,
-};
 
 // Map a viscosity range key to the matching per-model column name on
 // pump_model_master. Lets consumers pick the right size column given the
@@ -35,13 +23,6 @@ export const SIZE_COLUMN_BY_RANGE: Record<
   "5000-10000": "sizeVisc5000To10000In",
   ">10000": "sizeViscGt10000In",
 };
-
-/** The recommended size for a stored viscosityRange, or null if unknown/unset. */
-export function sizeForViscosityRange(range: string | null | undefined): number | null {
-  if (!range) return null;
-  const size = SIZE_BY_RANGE[range];
-  return size === undefined ? null : size;
-}
 
 /**
  * The formData patch for a new size recommendation. It records the new

@@ -276,7 +276,7 @@ export interface PumpRecommendation {
   stage: number | null;
   /** Suction/discharge pipe sizes (inches) per viscosity band, sourced from
    * pump_model_master. NULL when this model isn't covered by the source sheet
-   * (the flat SIZE_BY_RANGE fallback is used then). */
+   * (the model then has no recommended size). */
   sizeVisc0To1000In: number | null;
   sizeVisc1000To3000In: number | null;
   sizeVisc3000To5000In: number | null;

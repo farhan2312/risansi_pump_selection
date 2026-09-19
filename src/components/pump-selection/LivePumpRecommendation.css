@@ -72,6 +72,17 @@
   background: var(--accent-soft);
 }
 
+/* General Information preview: the same cards, but not pickable there. */
+.live-rec-card.is-preview {
+  cursor: default;
+}
+.live-rec-card.is-preview:hover {
+  border-color: var(--line);
+}
+.live-rec-card.is-preview.is-selected:hover {
+  border-color: var(--title);
+}
+
 /* Confirmed single-model view: not clickable, no hover affordance. */
 .live-rec-cards--single {
   grid-template-columns: minmax(0, 320px);

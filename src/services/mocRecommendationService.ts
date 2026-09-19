@@ -19,6 +19,13 @@ export const MOC_AI_MATERIALS = [
   "Others"
 ] as const;
 
+/** Rotor and Shaft only: the standard list plus Tool Steel (before "Others"). */
+export const ROTOR_SHAFT_MATERIALS = [
+  ...MOC_AI_MATERIALS.filter((m) => m !== "Others"),
+  "Tool Steel",
+  "Others",
+] as const;
+
 export const MOC_AI_ELASTOMERS = [
   "Nitrile",
   "FG Nitrile",

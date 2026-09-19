@@ -667,22 +667,18 @@ const PumpSelectionPage = () => {
       <ProjectHeader project={project} />
       {renderStep()}
       {/* Live recommendation that refines as the user fills each step. Sits at
-          the bottom of the page. Through Sealing (step 5) it is interactive:
-          pick and confirm a model. From Motor Rating (6) on it stays visible
-          as a read-only reference card (locked) - those steps configure the
-          chosen pump, so the model can no longer be swapped there, which would
-          silently invalidate the motor/drive selections built on it. */}
+          the bottom of the page. A model is picked and confirmed on the Fluid
+          step (2) only: on General Information the matches are a read-only
+          preview, and from Specifications (3) on the confirmed pump is a
+          locked reference card - the later steps are configured for it, so
+          swapping it there would silently invalidate that work. */}
       <LivePumpRecommendation
         formData={formData}
         setFormData={setFormData}
         projectId={project?.id}
         tagId={project?.tagId}
-        locked={step > 5}
-        /* Confirming happens from the Fluid step (2) on. On General
-           Information the list is still a preview - capacity/head are being
-           entered, so a confirmation there would be premature (and the Fluid
-           step is what gates on it). */
-        canConfirm={step >= 2}
+        locked={step > 2}
+        canPick={step === 2}
       />
     </ApprovalProvider>
   );

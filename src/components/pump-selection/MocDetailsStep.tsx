@@ -12,6 +12,7 @@ import {
   MOC_AI_ELASTOMERS,
   MOC_AI_MATERIALS,
   MOC_AI_PROVIDERS,
+  ROTOR_SHAFT_MATERIALS,
   type MocAiProvider,
   type MocComponentSuggestions,
 } from "../../services/mocRecommendationService";
@@ -212,13 +213,13 @@ const WETTABLE_BASE_ROWS: ComponentRow[] = [
     key: "mocAiRotor",
     label: "Rotor",
     aiKey: "rotor",
-    options: MOC_AI_MATERIALS,
+    options: ROTOR_SHAFT_MATERIALS,
   },
   {
     key: "mocAiShaft",
     label: "Shaft",
     aiKey: "shaft",
-    options: MOC_AI_MATERIALS,
+    options: ROTOR_SHAFT_MATERIALS,
   },
 ];
 

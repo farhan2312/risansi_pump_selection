@@ -151,7 +151,7 @@ export interface Candidate {
   /** Suction/discharge pipe size (inches) per viscosity band, from
    * pump_model_master's size_visc_* columns (sourced from
    * Model_vs_Viscosity_vs_Size.xlsx). NULL when this model isn't covered by
-   * the source sheet — the flat SIZE_BY_RANGE fallback is used then. */
+   * the source sheet — the model then has no recommended size. */
   sizeVisc0To1000In: number | null;
   sizeVisc1000To3000In: number | null;
   sizeVisc3000To5000In: number | null;

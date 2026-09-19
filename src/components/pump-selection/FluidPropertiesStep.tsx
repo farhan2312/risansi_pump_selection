@@ -3,12 +3,7 @@ import Stepper from "./Stepper";
 import StepApprovalBadge from "./approval/StepApprovalBadge";
 import "./GeneralInformationStep.css";
 import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, hint, label } from "./formStyles";
-import {
-  needsBkAg,
-  sizeDefaultsFor,
-  sizeDeviates,
-  sizeForViscosityRange,
-} from "../../lib/suction-discharge-size";
+import { needsBkAg, sizeDeviates } from "../../lib/suction-discharge-size";
 import { Err, ErrorBanner, Req, hasErrors } from "./fieldBits";
 import { toCp } from "../../utils/units";
 import type { FluidMode } from "../../lib/fluid-inputs";
@@ -148,14 +143,6 @@ const FluidPropertiesStep = ({
       viscosityRange,
       viscosityCp,
       viscosityCpMax,
-      // A new band means a new recommended size - unless a pump is already
-      // picked, whose own size wins over the flat band table.
-      ...(formData.selectedModel
-        ? {}
-        : sizeDefaultsFor(
-            formData.recommendedSize,
-            sizeForViscosityRange(viscosityRange),
-          ) ?? {}),
     });
   };
 
@@ -216,15 +203,11 @@ const FluidPropertiesStep = ({
     });
   };
 
-  // Baseline an entered size is checked against (not shown on the form). Once
-  // a pump is picked this is that model's own size (the live panel writes it);
-  // before then it falls back to the flat viscosity band table.
-  const recommendedSize =
-    (formData.recommendedSize ?? "").trim() ||
-    (() => {
-      const band = sizeForViscosityRange(formData.viscosityRange);
-      return band === null ? "" : String(band);
-    })();
+  // Baseline an entered size is checked against (not shown on the form): the
+  // picked pump's own size for the viscosity range, which the live panel keeps
+  // in formData.recommendedSize. No pump, or a pump without a size for this
+  // range, means no baseline - nothing to deviate from, so no remark.
+  const recommendedSize = formData.selectedModel ? (formData.recommendedSize ?? "").trim() : "";
 
   // Overriding a recommended size is allowed, but it has to be justified —
   // the quotation has to say why the line was sized off-recommendation.
@@ -350,16 +333,7 @@ const FluidPropertiesStep = ({
               className={control}
               value={formData.viscosityRange}
               onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  viscosityRange: e.target.value,
-                  ...(formData.selectedModel
-                    ? {}
-                    : sizeDefaultsFor(
-                        formData.recommendedSize,
-                        sizeForViscosityRange(e.target.value),
-                      ) ?? {}),
-                })
+                setFormData({ ...formData, viscosityRange: e.target.value })
               }
             >
               <option value="">Select Range</option>
