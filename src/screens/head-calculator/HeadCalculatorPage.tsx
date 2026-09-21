@@ -10,6 +10,13 @@ import {
   LINE_SIZES,
   type HeadCalcInput,
 } from "../../lib/head-calculator";
+import {
+  calculateDischarge,
+  DEFAULT_DISCHARGE_INPUT,
+  DISCHARGE_BEND_ANGLES,
+  DISCHARGE_LINE_SIZES,
+  type DischargeCalcInput,
+} from "../../lib/discharge-calculator";
 
 const fmt = (v: number) => (Number.isFinite(v) ? v.toFixed(2) : "—");
 
@@ -62,11 +69,19 @@ const Note = ({ children }: { children: ReactNode }) => (
   <p className="rounded-lg bg-elev px-3 py-2 text-[11.5px] leading-relaxed text-fg-3 sm:col-span-2">{children}</p>
 );
 
+type CalcMode = "suction" | "discharge";
+
 /**
- * NPSH and suction-line calculator. Everything recalculates as you type; the
- * formulas live in lib/head-calculator.ts (ported from calculator/App.jsx).
+ * Head Calculator, two modes:
+ *  - Suction: NPSH and suction-line losses (lib/head-calculator.ts, ported
+ *    from calculator/App.jsx).
+ *  - Discharge: head the pump must develop on the discharge line
+ *    (lib/discharge-calculator.ts, from the discharge-line workbook).
+ * Everything recalculates as you type.
  */
 const HeadCalculatorPage = () => {
+  const [mode, setMode] = useState<CalcMode>("suction");
+  const [discharge, setDischarge] = useState<DischargeCalcInput>(DEFAULT_DISCHARGE_INPUT);
   const [form, setForm] = useState<HeadCalcInput>(DEFAULT_HEAD_CALC_INPUT);
   const result = useMemo(() => calculateHead(form), [form]);
   const style = STATUS_STYLE[result.status];
@@ -98,7 +113,11 @@ const HeadCalculatorPage = () => {
       <PageHeader
         icon={<CalcGlyph />}
         title="Head Calculator"
-        subtitle="NPSH and suction line calculator · process engineering, pump suction sizing"
+        subtitle={
+          mode === "suction"
+            ? "NPSH and suction line calculator · process engineering, pump suction sizing"
+            : "Discharge line calculator · head the pump must develop on the discharge side"
+        }
         actions={
           <>
             <span className="inline-flex items-center gap-2 rounded-full bg-[var(--pos-soft)] px-3 py-1.5 text-[12px] font-semibold text-pos">
@@ -107,7 +126,7 @@ const HeadCalculatorPage = () => {
             </span>
             <button
               type="button"
-              onClick={() => setForm(DEFAULT_HEAD_CALC_INPUT)}
+              onClick={() => (mode === "suction" ? setForm(DEFAULT_HEAD_CALC_INPUT) : setDischarge(DEFAULT_DISCHARGE_INPUT))}
               className="rounded-lg border border-line bg-paper px-3 py-1.5 text-[12.5px] font-semibold text-fg-2 transition hover:border-accent hover:text-accent"
             >
               Reset
@@ -116,6 +135,32 @@ const HeadCalculatorPage = () => {
         }
       />
 
+      {/* Suction / Discharge */}
+      <div className="mt-4 inline-flex rounded-xl border border-line bg-paper p-1" role="tablist" aria-label="Calculator">
+        {(
+          [
+            ["suction", "Suction (NPSH)"],
+            ["discharge", "Discharge"],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={mode === key}
+            onClick={() => setMode(key)}
+            className={`rounded-lg px-4 py-1.5 text-[13px] font-semibold transition-colors ${
+              mode === key ? "bg-accent text-white shadow-[0_1px_2px_rgba(10,61,143,0.2)]" : "text-fg-3 hover:bg-elev hover:text-fg"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {mode === "discharge" ? (
+        <DischargePanel form={discharge} setForm={setDischarge} />
+      ) : (
       <div className="mt-4 grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
         {/* Inputs */}
         <div className="space-y-4">
@@ -288,9 +333,182 @@ const HeadCalculatorPage = () => {
           </section>
         </div>
       </div>
+      )}
     </div>
   );
 };
+
+/** Discharge-line calculator: inputs on the left, the head and its make-up on the right. */
+function DischargePanel({
+  form,
+  setForm,
+}: {
+  form: DischargeCalcInput;
+  setForm: React.Dispatch<React.SetStateAction<DischargeCalcInput>>;
+}) {
+  const result = useMemo(() => calculateDischarge(form), [form]);
+  const set =
+    (key: keyof DischargeCalcInput) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+      setForm((f) => ({ ...f, [key]: e.target.value }));
+  const numberInput = (key: keyof DischargeCalcInput, step: string, min = "0") => (
+    <input type="number" inputMode="decimal" className={inputCls} value={form[key]} onChange={set(key)} step={step} min={min} />
+  );
+
+  const breakdown = [
+    { label: "Static height × SG", value: result.pressureFromHeight, hint: `${form.verticalHeight || 0} m × ${form.specificGravity || 0}` },
+    {
+      label: "Line friction",
+      value: result.frictionLossLine,
+      hint: `${form.lineSize}" line (${Number(result.lineLossBase.toFixed(4))} MWC base) · ${fmt(result.capacityTph)} TPH · ${form.viscosity || 0} cP · ${fmt(result.totalDistance)} m`,
+    },
+    { label: "Bends", value: result.frictionLossBends, hint: `${form.noBends || 0} × ${result.bendLossPerBend} (${form.bendAngle}°)` },
+    { label: "Discharge valves", value: result.frictionLossValves, hint: `${form.valves || 0} × 1.00` },
+    { label: "NRVs", value: result.frictionLossNRV, hint: `${form.nrv || 0} × 1.00` },
+  ];
+  const maxLoss = Math.max(0.0001, ...breakdown.map((b) => b.value));
+  const friction = result.frictionLossLine + result.frictionLossBends + result.frictionLossValves + result.frictionLossNRV;
+
+  return (
+    <div className="mt-4 grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+      <div className="space-y-4">
+        <Section icon={<DropGlyph />} title="Fluid & Duty">
+          <Field label="Application">
+            <input type="text" className={inputCls} value={form.application} onChange={set("application")} />
+          </Field>
+          <Field label="Specific Gravity" unit="–">
+            {numberInput("specificGravity", "0.01", "0.01")}
+          </Field>
+          <Field label="Capacity">
+            <div className="flex min-w-0 gap-2">
+              <div className="min-w-0 flex-1">{numberInput("capacity", "0.1")}</div>
+              <select className={`${inputCls.replace("w-full ", "")} w-[96px] shrink-0`} value={form.capacityUnit} onChange={set("capacityUnit")}>
+                <option value="TPH">TPH</option>
+                <option value="M3">m³/hr</option>
+              </select>
+            </div>
+          </Field>
+          <Field label="Viscosity" unit="cP">
+            {numberInput("viscosity", "100")}
+          </Field>
+          {form.capacityUnit === "M3" && (
+            <Note>
+              1 TPH = 1 m³/hr × Specific Gravity. The m³/hr entered is converted automatically (
+              <b className="font-mono text-fg-2">{fmt(result.capacityTph)} TPH</b>).
+            </Note>
+          )}
+        </Section>
+
+        <Section icon={<PipeGlyph />} title="Discharge Line and Fittings">
+          <Field label="Discharge Line Size" unit="in" span>
+            <select className={inputCls} value={form.lineSize} onChange={set("lineSize")}>
+              {DISCHARGE_LINE_SIZES.map((s) => (
+                <option key={s} value={s}>
+                  {s}&quot;
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Vertical Height" unit="m">
+            {numberInput("verticalHeight", "0.1")}
+          </Field>
+          <Field label="Horizontal Distance" unit="m">
+            {numberInput("horizontalDistance", "0.1")}
+          </Field>
+          <Field label="Angle of Bends" unit="°">
+            <select className={inputCls} value={form.bendAngle} onChange={set("bendAngle")}>
+              {DISCHARGE_BEND_ANGLES.map((a) => (
+                <option key={a} value={a}>
+                  {a}°
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="No. of Bends" unit="–">
+            {numberInput("noBends", "1")}
+          </Field>
+          <Field label="Discharge Valves" unit="count">
+            {numberInput("valves", "1")}
+          </Field>
+          <Field label="NRVs" unit="count">
+            {numberInput("nrv", "1")}
+          </Field>
+          <Note>
+            Vertical height is how far the liquid is lifted from the pump to the discharge point; total pipe length =
+            vertical + horizontal ({fmt(result.totalDistance)} m).
+          </Note>
+        </Section>
+      </div>
+
+      <div className="space-y-4 xl:sticky xl:top-4">
+        <section className="relative overflow-hidden rounded-2xl border border-line bg-[linear-gradient(160deg,#0a1628_0%,#132a4d_60%,#0f3a5c_100%)] p-5 text-white shadow-[0_12px_32px_rgba(10,22,40,0.25)]">
+          <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-[var(--brand-cyan)] opacity-30 blur-3xl" />
+          <div className="relative">
+            <h2 className="text-[16px] font-semibold">Discharge Head</h2>
+            <p className="text-[12px] text-white/60">
+              Head the pump must develop on the discharge line{form.application ? ` · ${form.application}` : ""}
+            </p>
+
+            <div className="mt-5 rounded-xl bg-white/[0.06] px-4 py-3.5 ring-1 ring-white/10">
+              <div className="text-[10.5px] font-semibold tracking-[0.1em] text-white/55 uppercase">Total discharge head</div>
+              <div className="mt-1 font-mono text-[34px] leading-none font-bold tabular-nums">
+                {fmt(result.totalHead)}
+                <span className="ml-1.5 font-sans text-[13px] font-medium text-white/60">MWC</span>
+              </div>
+              <div className="mt-2 text-[12px] text-white/60">
+                ≈ <b className="font-mono text-white/85">{fmt(result.totalKgCm2)}</b> kg/cm² ·{" "}
+                <b className="font-mono text-white/85">{fmt(result.totalBar)}</b> bar
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              {[
+                { label: "Static head", v: result.pressureFromHeight },
+                { label: "Friction losses", v: friction },
+              ].map((t) => (
+                <div key={t.label} className="rounded-xl bg-white/[0.06] px-4 py-3 ring-1 ring-white/10">
+                  <div className="text-[10.5px] font-semibold tracking-[0.08em] text-white/55 uppercase">{t.label}</div>
+                  <div className="mt-1 font-mono text-[20px] font-bold tabular-nums">
+                    {fmt(t.v)}
+                    <span className="ml-1 font-sans text-[11px] font-medium text-white/60">MWC</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-line bg-paper">
+          <header className="border-b border-line px-4 py-3">
+            <h2 className="text-[13.5px] font-semibold text-fg">Head breakdown</h2>
+            <p className="text-[11.5px] text-fg-3">How the total discharge head is made up (MWC)</p>
+          </header>
+          <ul className="space-y-3 p-4">
+            {breakdown.map((b) => (
+              <li key={b.label}>
+                <div className="mb-1 flex items-baseline justify-between gap-3 text-[12.5px]">
+                  <span className="text-fg-2">{b.label}</span>
+                  <span className="font-mono font-semibold text-fg tabular-nums">{fmt(b.value)}</span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-sunk">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-[var(--brand-blue)] to-[var(--brand-cyan)] transition-[width] duration-500"
+                    style={{ width: `${Math.max(0, (b.value / maxLoss) * 100)}%` }}
+                  />
+                </div>
+                <div className="mt-0.5 text-[11px] text-fg-3">{b.hint}</div>
+              </li>
+            ))}
+            <li className="flex items-baseline justify-between border-t border-line pt-3 text-[13px] font-semibold">
+              <span className="text-fg">Total discharge head</span>
+              <span className="font-mono text-title tabular-nums">{fmt(result.totalHead)}</span>
+            </li>
+          </ul>
+        </section>
+      </div>
+    </div>
+  );
+}
 
 const svgProps = {
   viewBox: "0 0 24 24",
