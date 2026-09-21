@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Pagination from "../../components/ui/Pagination";
+import { useCallback, useEffect, useRef, useState } from "react";
 import StatusPill from "../../components/ui/StatusPill";
 import { fmtNum } from "../../components/charts/charts";
 import {
@@ -19,14 +18,16 @@ export interface DashboardListTarget {
   title: string;
 }
 
-const PAGE_SIZE = 20;
+/** Rows fetched per batch; the next batch loads as the list is scrolled to its end. */
+const BATCH = 10;
 const SEARCH_DEBOUNCE_MS = 300;
 
 const fmtDate = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
 /**
- * The list behind a Dashboard KPI card. Paged and searched on the server, with
+ * The list behind a Dashboard KPI card. Loaded BATCH rows at a time as it is
+ * scrolled, and searched on the server, with
  * the dashboard's own period and "Created by me" scope, so its total always
  * matches the number on the card. Clicking a row opens that enquiry / tag.
  */
@@ -50,51 +51,80 @@ export default function DashboardListModal({
 }) {
   const [search, setSearch] = useState("");
   const [q, setQ] = useState("");
-  const [page, setPage] = useState(1);
   const [rows, setRows] = useState<(DashboardListEnquiry | DashboardListTag)[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLButtonElement>(null);
+  // Only the newest request may write rows (a slow batch for an old search
+  // can't land in a new one).
+  const reqId = useRef(0);
 
-  // Search is sent once typing pauses, and starts again from page 1.
+  // Search is sent once typing pauses.
   useEffect(() => {
-    const t = setTimeout(() => {
-      setQ(search.trim());
-      setPage(1);
-    }, SEARCH_DEBOUNCE_MS);
+    const t = setTimeout(() => setQ(search.trim()), SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [search]);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-    setError(null);
-    getDashboardList(
-      {
+  const fetchBatch = useCallback(
+    (offset: number) => {
+      const id = ++reqId.current;
+      setLoading(true);
+      setError(null);
+      getDashboardList({
         kind: target.kind,
         status: target.status,
         q,
-        offset: (page - 1) * PAGE_SIZE,
-        limit: PAGE_SIZE,
+        offset,
+        limit: BATCH,
         from: period.from,
         to: period.to,
         mine,
-      },
-      controller.signal,
-    )
-      .then((res) => {
-        setRows(res.rows);
-        setTotal(res.total);
       })
-      .catch((err) => {
-        if (controller.signal.aborted || err?.code === "ERR_CANCELED") return;
-        setError("Couldn't load this list.");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, [target.kind, target.status, q, page, period.from, period.to, mine]);
+        .then((res) => {
+          if (id !== reqId.current) return;
+          setTotal(res.total);
+          setRows((prev) => {
+            if (offset === 0) return res.rows;
+            const have = new Set(prev.map((r) => r.id));
+            return [...prev, ...res.rows.filter((r) => !have.has(r.id))];
+          });
+        })
+        .catch(() => {
+          if (id === reqId.current) setError("Couldn't load this list.");
+        })
+        .finally(() => {
+          if (id === reqId.current) setLoading(false);
+        });
+    },
+    [target.kind, target.status, q, period.from, period.to, mine],
+  );
+
+  // First batch - again whenever the search (or list) changes, from the top.
+  useEffect(() => {
+    setRows([]);
+    scrollRef.current?.scrollTo({ top: 0 });
+    fetchBatch(0);
+  }, [fetchBatch]);
+
+  const hasMore = rows.length < total;
+  const loadMore = useCallback(() => {
+    if (!loading && hasMore && !error) fetchBatch(rows.length);
+  }, [loading, hasMore, error, fetchBatch, rows.length]);
+
+  // Next batch when the end of the list scrolls into view. Re-armed after
+  // every batch, so a list shorter than the window keeps filling it.
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !hasMore || loading || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && loadMore(), {
+      root: scrollRef.current,
+      rootMargin: "120px 0px",
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hasMore, loading, loadMore, rows.length]);
 
   // Esc closes.
   useEffect(() => {
@@ -148,7 +178,7 @@ export default function DashboardListModal({
         </div>
 
         {/* Rows */}
-        <div className={`min-h-[120px] flex-1 overflow-y-auto transition-opacity ${loading && rows.length ? "opacity-60" : ""}`}>
+        <div ref={scrollRef} className="min-h-[120px] flex-1 overflow-y-auto">
           {error && <p className="px-5 py-6 text-center text-[13px] text-neg">{error}</p>}
           {!error && loading && !rows.length && <p className="px-5 py-6 text-center text-[13px] text-fg-3">Loading…</p>}
           {!error && !loading && !rows.length && (
@@ -216,17 +246,26 @@ export default function DashboardListModal({
               ),
             )}
           </ul>
+          {hasMore && rows.length > 0 && (
+            <div className="px-5 py-3 text-center">
+              <button
+                ref={sentinelRef}
+                type="button"
+                onClick={loadMore}
+                disabled={loading}
+                className="rounded-lg border border-dashed border-line-strong px-3 py-1.5 text-[12px] font-semibold text-fg-3 transition hover:border-accent hover:text-accent disabled:cursor-wait"
+              >
+                {loading ? "Loading…" : `Show more (${fmtNum(total - rows.length)} left)`}
+              </button>
+            </div>
+          )}
         </div>
 
-        {total > PAGE_SIZE && (
-          <div className="border-t border-line px-3">
-            <Pagination
-              page={page}
-              totalItems={total}
-              pageSize={PAGE_SIZE}
-              onPageChange={setPage}
-              itemLabel={isTags ? "tags" : "enquiries"}
-            />
+        {rows.length > 0 && (
+          <div className="border-t border-line px-5 py-2 text-[11.5px] text-fg-3">
+            Showing <b className="font-mono text-fg">{fmtNum(rows.length)}</b> of{" "}
+            <b className="font-mono text-fg">{fmtNum(total)}</b> {isTags ? "tags" : "enquiries"}
+            {!hasMore && total > BATCH ? " · end of list" : ""}
           </div>
         )}
       </div>
