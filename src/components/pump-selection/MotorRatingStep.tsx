@@ -229,8 +229,14 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
                 BKW = Capacity × Head ÷ 367 ÷ (ME ÷ 100), at the entered duty head{" "}
                 {round(rating.dutyHeadMwc)} MWC. ME ({rating.mechEff}%) is read at the
                 selected head, {rating.headMwc} MWC. Recommendation = nearest standard
-                motor KW ≥ Motor KW.
+                motor KW ≥ Motor KW{rating.stage === 4 ? ", one rating higher for a 4-stage pump" : ""}.
               </p>
+              {rating.steppedUpFromKw !== null && (
+                <p className="mt-2 text-[12px] text-accent">
+                  4-stage pump: stepped up one rating from {rating.steppedUpFromKw} kW to{" "}
+                  {rating.recommendedKw} kW.
+                </p>
+              )}
               {rating.exceedsMinTested && (
                 <p className="mt-2 text-[12px] text-warn">
                   Recommended {rating.recommendedKw} kW exceeds this model&apos;s Min KW so

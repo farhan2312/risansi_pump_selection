@@ -430,8 +430,13 @@ export interface MotorRating {
    *  adequate-with-margin size. */
   kwOptions: number[];
   /** Nearest standard KW (from kwOptions) >= Motor KW (or the largest
-   *  available if none reach it). */
+   *  available if none reach it) - one rating higher for a 4-stage pump. */
   recommendedKw: number | null;
+  /** The model's stage count (1, 2, 4, 8), from pump_model_master. */
+  stage: number | null;
+  /** Set when the 4-stage step-up was applied: the size the load alone would
+   *  have been recommended (recommendedKw is the next standard rating up). */
+  steppedUpFromKw: number | null;
   /** True when recommendedKw exceeds minKwTested — recommend it anyway, but flag. */
   exceedsMinTested: boolean;
 }
@@ -449,6 +454,8 @@ export interface MotorRating {
  *     below Motor KW — since the final call is the engineer's; the
  *     recommendation is marked in the list rather than enforced by hiding the
  *     alternatives.
+ *   4-stage pumps: the recommendation goes one standard rating higher than
+ *     the load needs (e.g. 0.75 -> 1.1 kW), per house rule.
  * Final KW selection is manual, from the dropdown.
  */
 export async function computeMotorRating(
@@ -502,13 +509,25 @@ export async function computeMotorRating(
   // as `recommendedKw` below, so the guidance survives without the hard cut.
   const kwOptions = allKw;
 
+  const stage = toNumOrNull(nearest.stage);
   let recommendedKw: number | null = null;
+  let steppedUpFromKw: number | null = null;
   let exceedsMinTested = false;
   if (motorKw !== null && kwOptions.length > 0) {
     // Nearest standard size that meets the load with its safety margin; if
     // none reach it, the largest available (best effort — the caller/UI can
     // flag under-sizing).
     recommendedKw = kwOptions.find((k) => k >= motorKw) ?? kwOptions[kwOptions.length - 1];
+    // House rule: a 4-stage pump gets one standard rating more than the load
+    // needs (0.75 -> 1.1, 1.1 -> 1.5, …). At the top of the list there is
+    // nothing higher, so it stays.
+    if (stage === 4) {
+      const next = kwOptions.find((k) => k > recommendedKw!);
+      if (next !== undefined) {
+        steppedUpFromKw = recommendedKw;
+        recommendedKw = next;
+      }
+    }
     if (minKwTested !== null && recommendedKw > minKwTested) exceedsMinTested = true;
   }
 
@@ -522,6 +541,8 @@ export async function computeMotorRating(
     minKwTested,
     kwOptions,
     recommendedKw,
+    stage,
+    steppedUpFromKw,
     exceedsMinTested,
   };
 }

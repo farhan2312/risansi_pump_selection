@@ -13,6 +13,10 @@ export interface MotorRating {
   minKwTested: number | null;
   kwOptions: number[];
   recommendedKw: number | null;
+  /** The model's stage count (1, 2, 4, 8). */
+  stage: number | null;
+  /** 4-stage pumps: the size the load alone called for, before the one-rating step-up. */
+  steppedUpFromKw: number | null;
   exceedsMinTested: boolean;
 }
 
