@@ -105,22 +105,32 @@ export function Segmented<T extends string>({
   value,
   options,
   onChange,
+  loading = false,
 }: {
   value: T;
   options: { key: T; label: string }[];
   onChange: (v: T) => void;
+  /** Shows a spinner on the active option and blocks switching while its data loads. */
+  loading?: boolean;
 }) {
   return (
-    <div className="inline-flex rounded-lg bg-sunk p-0.5">
+    <div className="inline-flex rounded-lg bg-sunk p-0.5" aria-busy={loading || undefined}>
       {options.map((o) => (
         <button
           key={o.key}
           type="button"
+          disabled={loading}
           onClick={() => onChange(o.key)}
-          className={`rounded-md px-2.5 py-1 text-[12px] font-medium whitespace-nowrap transition-colors ${
+          className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-medium whitespace-nowrap transition-colors disabled:cursor-wait ${
             value === o.key ? "bg-paper text-fg shadow-[0_1px_2px_rgba(10,22,40,0.12)]" : "text-fg-3 hover:text-fg"
           }`}
         >
+          {loading && value === o.key && (
+            <span
+              aria-hidden="true"
+              className="h-3 w-3 animate-spin rounded-full border-[1.5px] border-current border-t-transparent"
+            />
+          )}
           {o.label}
         </button>
       ))}

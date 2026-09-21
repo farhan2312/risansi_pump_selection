@@ -86,6 +86,7 @@ export async function getDashboardData({
     db
       .select({
         awaiting: sql<number>`count(*) filter (where ${stepApproval.status} = 'Awaiting Approval')::int`,
+        awaitingTags: sql<number>`count(distinct ${stepApproval.tagId}) filter (where ${stepApproval.status} = 'Awaiting Approval')::int`,
         approved: sql<number>`count(*) filter (where ${stepApproval.status} = 'Approved')::int`,
         rejected: sql<number>`count(*) filter (where ${stepApproval.status} = 'Rejected')::int`,
       })
@@ -251,6 +252,7 @@ export async function getDashboardData({
       completed: tagCounts?.completed ?? 0,
       reports: tagCounts?.reports ?? 0,
       awaitingApproval: approvalCounts?.awaiting ?? 0,
+      awaitingTags: approvalCounts?.awaitingTags ?? 0,
     },
     trend,
     enquiryStatus: order

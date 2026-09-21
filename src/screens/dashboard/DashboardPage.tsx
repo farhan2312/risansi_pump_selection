@@ -11,6 +11,7 @@ import { getDashboard, type DashboardData, type DashboardEnquiry, type Dashboard
 import { Avatar, Card, Icons, Segmented } from "../admin/audit/auditUi";
 import { SELECTED_PROJECT_KEY } from "../projects/ProjectsPage";
 import DateRangeFilter, { useDateRange } from "../../components/ui/DateRangeFilter";
+import DashboardListModal, { type DashboardListTarget } from "./DashboardListModal";
 
 const STATUS_STYLE: Record<string, { pill: string; dot: string; color: string }> = {
   Pending: { pill: "bg-[var(--warn-soft)] text-warn", dot: "bg-warn", color: "var(--warn)" },
@@ -28,37 +29,59 @@ const StatusPill = ({ status }: { status: string }) => (
 
 const greetingFor = (d: Date) => (d.getHours() < 12 ? "Good morning" : d.getHours() < 17 ? "Good afternoon" : "Good evening");
 
-function Kpi({
+/** A KPI card with two figures side by side - enquiries and tags. */
+function KpiSplit({
   label,
-  value,
-  sub,
+  cells,
   icon,
   tone,
-  href,
 }: {
   label: string;
-  value: ReactNode;
-  sub?: ReactNode;
+  /** A half with onClick is its own button, opening that half's list. */
+  cells: { label: string; value: ReactNode; sub?: ReactNode; onClick?: () => void; hint?: string }[];
   icon: ReactNode;
   tone: string;
-  href?: string;
 }) {
-  const body = (
-    <div className="group flex h-full items-start justify-between gap-3 rounded-xl border border-line bg-paper p-4 transition hover:-translate-y-px hover:border-line-strong hover:shadow-[0_6px_18px_rgba(10,22,40,0.07)]">
-      <div className="min-w-0">
+  return (
+    <div className="flex h-full flex-col gap-2 rounded-xl border border-line bg-paper p-3 transition hover:border-line-strong hover:shadow-[0_6px_18px_rgba(10,22,40,0.07)]">
+      <div className="flex items-center justify-between gap-3 px-1">
         <div className="text-[11px] font-semibold tracking-[0.08em] text-fg-3 uppercase">{label}</div>
-        <div className="mt-1.5 font-mono text-[26px] leading-none font-bold text-fg tabular-nums">{value}</div>
-        {sub && <div className="mt-2 text-[11.5px] text-fg-3">{sub}</div>}
+        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${tone}`}>{icon}</span>
       </div>
-      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${tone}`}>{icon}</span>
+      <div className="grid flex-1 grid-cols-2 gap-1.5">
+        {cells.map((c) => {
+          const inner = (
+            <>
+              <span className="flex items-center justify-between gap-1 text-[10.5px] font-semibold tracking-[0.06em] text-fg-4 uppercase">
+                {c.label}
+                {c.onClick && (
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className="h-3 w-3 opacity-0 transition group-hover/cell:opacity-100">
+                    <path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </span>
+              <span className="mt-1 block font-mono text-[24px] leading-none font-bold text-fg tabular-nums">{c.value}</span>
+              {c.sub && <span className="mt-1.5 block text-[11.5px] leading-snug text-fg-3">{c.sub}</span>}
+            </>
+          );
+          return c.onClick ? (
+            <button
+              key={c.label}
+              type="button"
+              onClick={c.onClick}
+              title={c.hint}
+              className="group/cell min-w-0 rounded-lg bg-[color-mix(in_srgb,var(--bg-elev)_60%,transparent)] px-2.5 py-2 text-left transition hover:bg-accent-soft hover:text-accent focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+            >
+              {inner}
+            </button>
+          ) : (
+            <div key={c.label} className="min-w-0 rounded-lg px-2.5 py-2">
+              {inner}
+            </div>
+          );
+        })}
+      </div>
     </div>
-  );
-  return href ? (
-    <Link href={href} className="block">
-      {body}
-    </Link>
-  ) : (
-    body
   );
 }
 
@@ -200,7 +223,10 @@ const DashboardPage = () => {
     };
   }, [query, scope]);
 
-  const openTag = (enquiry: DashboardEnquiry, tag?: DashboardTag) => {
+  const openTag = (
+    enquiry: Pick<DashboardEnquiry, "id" | "code" | "client" | "customer" | "status">,
+    tag?: Pick<DashboardTag, "id" | "name">,
+  ) => {
     sessionStorage.setItem(
       SELECTED_PROJECT_KEY,
       JSON.stringify({
@@ -216,8 +242,17 @@ const DashboardPage = () => {
     router.push("/pump-selection");
   };
 
+  // The KPI list open in the modal (null = closed).
+  const [listTarget, setListTarget] = useState<DashboardListTarget | null>(null);
+  const scopeText = scope === "mine" ? "Created by me" : "All enquiries";
+  const openList = (kind: DashboardListTarget["kind"], status: DashboardListTarget["status"], title: string) => () =>
+    setListTarget({ kind, status, title });
+
   const k = data?.kpis;
   const pct = (n: number) => (k && k.tags ? Math.round((n / k.tags) * 100) : 0);
+  // Enquiries by rolled-up status (same rule as the Enquiries list).
+  const enqCount = (label: string) => data?.enquiryStatus.find((s) => s.label === label)?.count ?? 0;
+  const enqPct = (n: number) => (k && k.enquiries ? Math.round((n / k.enquiries) * 100) : 0);
   const now = new Date();
   const firstName = user?.name?.split(" ")[0] || "there";
   const windowLabel = dates.label;
@@ -264,6 +299,7 @@ const DashboardPage = () => {
           <Segmented
             value={scope}
             onChange={setScope}
+            loading={isLoading}
             options={[
               { key: "all", label: "All enquiries" },
               { key: "mine", label: "Created by me" },
@@ -275,37 +311,76 @@ const DashboardPage = () => {
 
       {error && <div className="mt-4 rounded-lg bg-[var(--neg-soft)] px-4 py-3 text-[13px] font-medium text-neg">{error}</div>}
 
+      {/* Everything below the filters dims while a reload (scope / period) is loading. */}
+      <div className={`transition-opacity ${isLoading && data ? "pointer-events-none opacity-60" : ""}`} aria-busy={isLoading || undefined}>
       {/* KPIs */}
-      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {isLoading && !data
-          ? Array.from({ length: 6 }, (_, i) => <div key={i} className="h-[104px] animate-pulse rounded-xl border border-line bg-paper" />)
+          ? Array.from({ length: 5 }, (_, i) => <div key={i} className="h-[124px] animate-pulse rounded-xl border border-line bg-paper" />)
           : k && (
               <>
-                <Kpi label="Enquiries" value={fmtNum(k.enquiries)} sub={windowLabel} icon={Icons.folder} tone="bg-accent-soft text-accent" href="/projects" />
-                <Kpi
-                  label="Tags"
-                  value={fmtNum(k.tags)}
-                  sub={k.enquiries ? `${(k.tags / k.enquiries).toFixed(1)} per enquiry` : "—"}
-                  icon={Icons.tag}
-                  tone="bg-[color-mix(in_srgb,var(--brand-cyan)_15%,transparent)] text-[var(--brand-cyan)]"
+                <KpiSplit
+                  label="Enquiries & Tags"
+                  cells={[
+                    { label: "Enquiries", value: fmtNum(k.enquiries), sub: windowLabel, onClick: openList("enquiries", "all", "All enquiries"), hint: "Show the enquiries" },
+                    { label: "Tags", value: fmtNum(k.tags), sub: windowLabel, onClick: openList("tags", "all", "All tags"), hint: "Show the tags" },
+                  ]}
+                  icon={Icons.folder}
+                  tone="bg-accent-soft text-accent"
                 />
-                <Kpi label="Pending" value={fmtNum(k.pending)} sub={`${pct(k.pending)}% of tags`} icon={Icons.clock} tone="bg-[var(--warn-soft)] text-warn" />
-                <Kpi label="In progress" value={fmtNum(k.inProgress)} sub={`${pct(k.inProgress)}% of tags`} icon={Icons.activity} tone="bg-accent-soft text-accent" />
-                <Kpi
-                  label="Completed"
-                  value={fmtNum(k.completed)}
-                  sub={`${pct(k.completed)}% · ${fmtNum(k.reports)} report${k.reports === 1 ? "" : "s"}`}
-                  icon={Icons.check}
-                  tone="bg-[var(--pos-soft)] text-pos"
-                  href="/selection-summary"
-                />
-                <Kpi
+                {(
+                  [
+                    ["Pending", "Pending", k.pending, Icons.clock, "bg-[var(--warn-soft)] text-warn"],
+                    ["In progress", "In Progress", k.inProgress, Icons.activity, "bg-accent-soft text-accent"],
+                    ["Completed", "Completed", k.completed, Icons.check, "bg-[var(--pos-soft)] text-pos"],
+                  ] as const
+                ).map(([label, status, tagCount, icon, tone]) => (
+                  <KpiSplit
+                    key={status}
+                    label={label}
+                    cells={[
+                      {
+                        label: "Enquiries",
+                        value: fmtNum(enqCount(status)),
+                        sub: `${enqPct(enqCount(status))}% of all`,
+                        onClick: openList("enquiries", status, `${label} enquiries`),
+                        hint: `Show the ${label.toLowerCase()} enquiries`,
+                      },
+                      {
+                        label: "Tags",
+                        value: fmtNum(tagCount),
+                        sub:
+                          status === "Completed"
+                            ? `${pct(tagCount)}% of all · ${fmtNum(k.reports)} report${k.reports === 1 ? "" : "s"}`
+                            : `${pct(tagCount)}% of all`,
+                        onClick: openList("tags", status, `${label} tags`),
+                        hint: `Show the ${label.toLowerCase()} tags`,
+                      },
+                    ]}
+                    icon={icon}
+                    tone={tone}
+                  />
+                ))}
+                <KpiSplit
                   label="Awaiting approval"
-                  value={fmtNum(k.awaitingApproval)}
-                  sub="steps sent for approval"
+                  cells={[
+                    {
+                      label: "Tags",
+                      value: fmtNum(k.awaitingTags),
+                      sub: "with steps sent",
+                      onClick: openList("tags", "awaiting", "Tags awaiting approval"),
+                      hint: "Show the tags awaiting approval",
+                    },
+                    {
+                      label: "Steps",
+                      value: fmtNum(k.awaitingApproval),
+                      sub: "awaiting a decision",
+                      onClick: openList("tags", "awaiting", "Tags awaiting approval"),
+                      hint: "Show the tags awaiting approval",
+                    },
+                  ]}
                   icon={Icons.shield}
                   tone="bg-[color-mix(in_srgb,var(--purple)_14%,transparent)] text-[var(--purple)]"
-                  href={canApprove(user?.role) ? "/approvals" : undefined}
                 />
               </>
             )}
@@ -448,6 +523,19 @@ const DashboardPage = () => {
             </p>
           )}
         </>
+      )}
+      </div>
+
+      {listTarget && (
+        <DashboardListModal
+          target={listTarget}
+          period={query}
+          mine={scope === "mine"}
+          scopeLabel={`${scopeText} · ${windowLabel}`}
+          onClose={() => setListTarget(null)}
+          onOpenEnquiry={(r) => openTag(r)}
+          onOpenTag={(r) => openTag({ ...r.enquiry, status: r.enquiry.status ?? "" }, r)}
+        />
       )}
     </div>
   );

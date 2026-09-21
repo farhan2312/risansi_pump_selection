@@ -39,7 +39,10 @@ export interface DashboardData {
     inProgress: number;
     completed: number;
     reports: number;
+    /** Steps sent for approval and not yet decided. */
     awaitingApproval: number;
+    /** Tags with at least one such step. */
+    awaitingTags: number;
   };
   /** IST days, zero-filled, capped to the last 92. */
   trend: { day: string; enquiries: number; tags: number; completed: number }[];
@@ -48,4 +51,56 @@ export interface DashboardData {
   engineers: { label: string; enquiries: number; tags: number }[];
   approvals: { awaiting: number; approved: number; rejected: number };
   recent: DashboardEnquiry[];
+}
+
+// --- GET /api/dashboard/list: the list behind a KPI card ----------------------
+
+export type DashboardListKind = "enquiries" | "tags";
+/** Enquiry (rolled-up) or tag status; "awaiting" = tags with a step awaiting approval. */
+export type DashboardListStatus = "all" | "Pending" | "In Progress" | "Completed" | "awaiting";
+
+export interface DashboardListQuery {
+  kind: DashboardListKind;
+  status: DashboardListStatus;
+  q?: string;
+  offset?: number;
+  limit?: number;
+}
+
+export interface DashboardListEnquiry {
+  kind: "enquiry";
+  id: string;
+  code: string;
+  client: string;
+  customer: string | null;
+  status: string;
+  createdByName: string | null;
+  createdAt: string | null;
+  tagCount: number;
+}
+
+export interface DashboardListTag {
+  kind: "tag";
+  id: string;
+  name: string;
+  status: string;
+  liquid: string | null;
+  model: string | null;
+  awaitingSteps: number;
+  reportGeneratedAt: string | null;
+  createdAt: string | null;
+  enquiry: {
+    id: string;
+    code: string;
+    client: string;
+    customer: string | null;
+    status: string | null;
+    createdByName: string | null;
+  };
+}
+
+export interface DashboardListPage {
+  rows: (DashboardListEnquiry | DashboardListTag)[];
+  /** Rows matching the query (all pages). */
+  total: number;
 }
