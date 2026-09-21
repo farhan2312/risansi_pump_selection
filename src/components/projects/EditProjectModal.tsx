@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import "./CreateProjectModal.css";
+import ClientLookup from "./ClientLookup";
+import type { ClientLookupRow } from "../../services/clientsService";
 import type { ProjectRecord } from "../../services/projectService";
 
 type Props = {
@@ -39,6 +41,13 @@ const EditProjectModal = ({ isOpen, project, isSaving, onClose, onSave }: Props)
 
   if (!isOpen || !project) return null;
 
+  // Picking a client from the master fills the three client fields (still editable).
+  const handleSelect = (row: ClientLookupRow) => {
+    setName(row.legal_name);
+    setClientCode(row.code);
+    setIndustry(row.industry ?? "");
+  };
+
   return (
     <div className="modal-overlay">
       <div className="modal">
@@ -49,6 +58,13 @@ const EditProjectModal = ({ isOpen, project, isSaving, onClose, onSave }: Props)
             <label>Enquiry date</label>
             <input type="date" value={enquiryDate} onChange={(e) => setEnquiryDate(e.target.value)} />
           </div>
+
+          {/* Keyed by enquiry so each edit starts with an empty search. */}
+          <ClientLookup
+            key={project.id}
+            hint="Searches the client master. Pick a result to replace the client details below."
+            onSelect={handleSelect}
+          />
 
           <div className="form-group">
             <label>Client Name</label>
