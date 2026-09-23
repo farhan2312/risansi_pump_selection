@@ -47,7 +47,10 @@ export function rpmBandFor(rpm: number): RpmBand {
  */
 export function rpmBandOverlaps(band: RpmBand, lo: number, hi: number): boolean {
   const [windowLo, windowHi] = lo <= hi ? [lo, hi] : [hi, lo];
-  return windowLo <= band.max && windowHi >= band.min;
+  // The band's top follows its own rule: exclusive for vlow/low (a window
+  // sitting exactly at 200 is Medium, not Low), inclusive for the rest.
+  const reachesTop = band.maxInclusive ? windowLo <= band.max : windowLo < band.max;
+  return reachesTop && windowHi >= band.min;
 }
 
 /** Human label for one rpm value (e.g. the per-VOLE-end class on a card). */
