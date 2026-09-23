@@ -60,6 +60,7 @@ const prettyRole = (role: string | null | undefined) =>
 /** "user.role_change" -> "Role change". */
 /** master.create/update/delete read as what happened to the master row. */
 const MASTER_ACTIONS: Record<string, string> = {
+  "end_connection.add": "End connection added",
   "master.create": "Master added",
   "master.update": "Master edited",
   "master.delete": "Master deleted",

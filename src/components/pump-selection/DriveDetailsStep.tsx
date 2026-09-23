@@ -148,7 +148,7 @@ const COUPLING_OPTIONS = ["No Coupling", "Driven Coupling", "Drive + Driven Coup
 // also picks its construction type and make.
 const COUPLING_TYPES = [
   "Flexible Bush Pin Type Coupling",
-  "Spacer Bush Pin Type Coupling",
+  "Spacer Type Coupling",
   "Tyre Type Coupling",
 ];
 const COUPLING_MAKES = ["Rathi", "Fenner"];

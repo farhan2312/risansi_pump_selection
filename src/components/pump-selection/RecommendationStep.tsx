@@ -221,6 +221,7 @@ const RecommendationStep = ({
     ["Temperature", temperatureDisplay(formData)],
     ["Viscosity", viscosityDisplay(formData)],
     ["Viscosity Range", formData.viscosityRange ? `${formData.viscosityRange} cP` : ""],
+    ["End Connection", formData.endConnection],
     ["Solids", formData.solidPercentage ? `${formData.solidPercentage}%` : ""],
     [
       "Particle Size",
@@ -280,12 +281,13 @@ const RecommendationStep = ({
         [PUMP_SUPPORT_LABEL, formData.bearingHousing],
         ["Suction Housing", formData.suctionHousing],
         ["Joint Type", formData.jointType],
-        // Vertical pumps only - FieldGrid drops the row for every other type.
+        // "Yes — 1.5 mt" / "No". Empty (and dropped by FieldGrid) on older
+        // tags saved before the Yes/No question existed.
         [
-          "Negative Suction Size",
-          formData.negativeSuctionSize
-            ? `${formData.negativeSuctionSize} ${formData.negativeSuctionUnit || "mt"}`
-            : "",
+          "Negative Suction",
+          formData.negativeSuction === "Yes"
+            ? `Yes${formData.negativeSuctionSize ? ` — ${formData.negativeSuctionSize} ${formData.negativeSuctionUnit || "mt"}` : ""}`
+            : formData.negativeSuction ?? "",
         ],
       ]
     : [];

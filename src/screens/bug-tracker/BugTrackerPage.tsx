@@ -50,22 +50,35 @@ function useDebounced<T>(value: T, ms: number): T {
 
 /**
  * Sits at the end of a board column; when it scrolls into view the column
- * shows the next batch. The button is the fallback (and keyboard path).
+ * shows the next batch. `scrollRef` is that column's own scroll box, so the
+ * next batch loads when you reach the end of THAT column rather than the page.
+ * The button is the fallback (and keyboard path).
  */
-function LoadMore({ remaining, loading, onMore }: { remaining: number; loading: boolean; onMore: () => void }) {
+function LoadMore({
+  remaining,
+  loading,
+  onMore,
+  scrollRef,
+}: {
+  remaining: number;
+  loading: boolean;
+  onMore: () => void;
+  scrollRef: React.RefObject<HTMLDivElement | null>;
+}) {
   const ref = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     const el = ref.current;
     if (!el || typeof IntersectionObserver === "undefined") return;
     if (loading) return;
     const io = new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && onMore(), {
-      rootMargin: "200px 0px",
+      root: scrollRef.current,
+      rootMargin: "120px 0px",
     });
     io.observe(el);
     return () => io.disconnect();
     // Re-armed after each batch: a fresh observer reports straight away, so
     // if the column end is still on screen the next batch loads too.
-  }, [onMore, remaining, loading]);
+  }, [onMore, remaining, loading, scrollRef]);
   return (
     <button
       ref={ref}
@@ -191,6 +204,9 @@ const BugTrackerPage = () => {
   // Only the newest request may write state: a slow response for an old
   // filter can't overwrite a newer one.
   const reqId = useRef(0);
+  // Each board column scrolls on its own; its box is what LoadMore watches.
+  const colRefs = useRef<Record<string, React.RefObject<HTMLDivElement | null>>>({});
+  const colRef = (status: string) => (colRefs.current[status] ??= { current: null });
   const filterRef = useRef(filterQuery);
   filterRef.current = filterQuery;
   const boardRef = useRef(board);
@@ -494,7 +510,12 @@ const BugTrackerPage = () => {
                   </div>
                 </header>
 
-                <div className="flex flex-1 flex-col gap-2.5 px-2.5 pb-3">
+                <div
+                  ref={(el) => {
+                    colRef(status).current = el;
+                  }}
+                  className="flex max-h-[min(68vh,620px)] flex-1 flex-col gap-2.5 overflow-y-auto px-2.5 pb-3"
+                >
                   {cards.length === 0 && (
                     <div
                       className={`flex flex-1 items-center justify-center rounded-lg border border-dashed px-3 py-8 text-center text-[12px] ${
@@ -570,7 +591,12 @@ const BugTrackerPage = () => {
                     </article>
                   ))}
                   {col.total > cards.length && (
-                    <LoadMore remaining={col.total - cards.length} loading={col.loading} onMore={moreFns[status]} />
+                    <LoadMore
+                      remaining={col.total - cards.length}
+                      loading={col.loading}
+                      onMore={moreFns[status]}
+                      scrollRef={colRef(status)}
+                    />
                   )}
                 </div>
               </section>

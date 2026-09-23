@@ -1,11 +1,24 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Stepper from "./Stepper";
 import StepApprovalBadge from "./approval/StepApprovalBadge";
 import "./GeneralInformationStep.css";
-import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, hint, label } from "./formStyles";
+import {
+  actions,
+  btnGhost,
+  btnGhostSm,
+  btnPrimary,
+  btnPrimarySm,
+  control,
+  fieldWrap,
+  grid,
+  hint,
+  hintError,
+  label,
+} from "./formStyles";
 import { needsBkAg, sizeDeviates } from "../../lib/suction-discharge-size";
 import { Err, ErrorBanner, Req, hasErrors } from "./fieldBits";
 import { toCp } from "../../utils/units";
+import { addEndConnection, listEndConnections } from "../../services/endConnectionService";
 import type { FluidMode } from "../../lib/fluid-inputs";
 
 type Props = {
@@ -94,6 +107,129 @@ const RangeLabel = ({
 // keep behaving exactly as they did.
 const modeOf = (value: unknown): FluidMode =>
   value === "range" ? "range" : "single";
+
+const OTHER_END_CONNECTION = "__other__";
+
+/**
+ * End Connection dropdown, backed by end_connection_master. Picking "Other"
+ * swaps the list for a box: what is typed there is saved to the list, so the
+ * next enquiry can pick it instead of retyping it.
+ */
+const EndConnectionField = ({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) => {
+  const [options, setOptions] = useState<string[]>([]);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [addError, setAddError] = useState("");
+
+  useEffect(() => {
+    listEndConnections()
+      .then(setOptions)
+      .catch(() => setLoadFailed(true));
+  }, []);
+
+  const save = async () => {
+    const trimmed = draft.trim();
+    if (!trimmed) return;
+    setSaving(true);
+    setAddError("");
+    try {
+      const res = await addEndConnection(trimmed);
+      setOptions(res.options);
+      // The server returns the stored spelling, so a case-different repeat
+      // selects the existing value rather than adding a near-duplicate.
+      onChange(res.value);
+      setAdding(false);
+      setDraft("");
+    } catch {
+      setAddError("Couldn't save it. Check your connection and try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // A value saved earlier always stays selectable, even if the list failed to
+  // load or the value was since removed.
+  const shown = value && !options.some((o) => o.toLowerCase() === value.toLowerCase()) ? [...options, value] : options;
+
+  if (adding) {
+    return (
+      <div className={fieldWrap}>
+        <label className={label}>End Connection</label>
+        <div className="flex items-center gap-[8px]">
+          <input
+            autoFocus
+            type="text"
+            className={`${control} flex-1`}
+            value={draft}
+            placeholder="New end connection"
+            onChange={(e) => {
+              setDraft(e.target.value);
+              if (addError) setAddError("");
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void save();
+              }
+            }}
+          />
+          <button type="button" className={btnPrimarySm} onClick={() => void save()} disabled={saving}>
+            {saving ? "Adding…" : "Add"}
+          </button>
+          <button
+            type="button"
+            className={btnGhostSm}
+            onClick={() => {
+              setAdding(false);
+              setDraft("");
+              setAddError("");
+            }}
+            disabled={saving}
+          >
+            Cancel
+          </button>
+        </div>
+        <span className={hint}>Saved to the end connection list for future enquiries.</span>
+        {addError && <span className={hintError}>{addError}</span>}
+      </div>
+    );
+  }
+
+  return (
+    <div className={fieldWrap}>
+      <label className={label}>End Connection</label>
+      <select
+        className={control}
+        value={value}
+        onChange={(e) => {
+          if (e.target.value === OTHER_END_CONNECTION) {
+            setAdding(true);
+            setDraft("");
+            return;
+          }
+          onChange(e.target.value);
+        }}
+      >
+        <option value="">Select End Connection</option>
+        {shown.map((o) => (
+          <option key={o} value={o}>
+            {o}
+          </option>
+        ))}
+        <option value={OTHER_END_CONNECTION}>Other (type manually)…</option>
+      </select>
+      {loadFailed && <span className={hintError}>Couldn&apos;t load the end connection list — try again.</span>}
+    </div>
+  );
+};
 
 
 const FluidPropertiesStep = ({
@@ -502,6 +638,11 @@ const FluidPropertiesStep = ({
               <option value="K">K</option>
             </select>
           </div>
+
+          <EndConnectionField
+            value={formData.endConnection ?? ""}
+            onChange={(v) => setFormData({ ...formData, endConnection: v })}
+          />
 
           {/* Line sizes, inches only. Both start blank for the user to enter
               (no recommendation shown here); suction need not match discharge.

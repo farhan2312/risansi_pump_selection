@@ -211,6 +211,8 @@ export const fluidPropertiesInput = pgTable("fluid_properties_input", {
   solidSizeMax: varchar("solid_size_max", { length: 50 }),
   solidSizeMode: varchar("solid_size_mode", { length: 10 }),
   solidType: varchar("solid_type", { length: 20 }),
+  /** Pipe end connection standard, from end_connection_master. */
+  endConnection: varchar("end_connection", { length: 120 }),
   ph: varchar("ph", { length: 50 }),
   temperature: varchar("temperature", { length: 50 }), // canonical °C
   temperatureRaw: varchar("temperature_raw", { length: 50 }), // as-entered value
@@ -269,6 +271,8 @@ export const operatingConditionsInput = pgTable("operating_conditions_input", {
   // Vertical pumps hang into the sump, so the depth below the mounting flange
   // has to be stated. Only vertical pump types carry these; every other type
   // leaves them null.
+  /** "Yes" / "No" - asked for every pump type; the size below applies when Yes. */
+  negativeSuction: varchar("negative_suction", { length: 10 }),
   negativeSuctionSize: varchar("negative_suction_size", { length: 50 }),
   negativeSuctionUnit: varchar("negative_suction_unit", { length: 10 }),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
@@ -603,6 +607,17 @@ export const driveOptionMaster = pgTable("drive_option_master", {
   kind: varchar("kind", { length: 20 }).notNull(),
   value: varchar("value", { length: 50 }).notNull(),
   /** Seeded values sort first; anything added later falls in after them. */
+  sortOrder: integer("sort_order").notNull().default(100),
+  createdBy: uuid("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+});
+
+/** End Connection options for the Fluid step's dropdown. "Other" on the form
+ *  inserts here, so a value added once is offered to everyone afterwards. */
+export const endConnectionMaster = pgTable("end_connection_master", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  value: varchar("value", { length: 120 }).notNull().unique(),
+  /** Seeded standards sort first; anything added later falls in after them. */
   sortOrder: integer("sort_order").notNull().default(100),
   createdBy: uuid("created_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),

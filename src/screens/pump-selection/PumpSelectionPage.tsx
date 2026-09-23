@@ -53,11 +53,12 @@ const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
     "suctionSize", "dischargeSize", "recommendedSize",
     "suctionSizeRemarks", "dischargeSizeRemarks",
     "solidPercentage", "solidSize", "solidSizeMax", "solidSizeMode", "solidType",
+    "endConnection",
     "ph", "temperature", "temperatureRaw", "temperatureUnit",
   ],
   "operating-conditions": [
     "pumpType", "agBk", "agBkRemarks", "bearingHousing", "suctionHousing", "jointType",
-    "negativeSuctionSize", "negativeSuctionUnit",
+    "negativeSuction", "negativeSuctionSize", "negativeSuctionUnit",
   ],
   "moc-sealing": [
     "sealingType", "sealingSubType", "glandPackingType", "glandPackingMake",
@@ -252,12 +253,14 @@ const PumpSelectionPage = () => {
     solidSizeMax: "",
     solidSizeMode: "single",
     solidType: "", // "Hard Solid" / "Soft Solid" — only meaningful when solidPercentage > 0
+    endConnection: "", // pipe end connection standard (end_connection_master)
 
     // Step 3
     pumpType: "",
     agBk: "", // AG / BK feed option — only shown when viscosity > 10000 cP
     agBkRemarks: "", // why AG/BK was marked Not Required (mandatory when it is)
-    negativeSuctionSize: "", // vertical pumps only - depth below the flange
+    negativeSuction: "", // "Yes" / "No" - any pump type
+    negativeSuctionSize: "", // depth below the flange, when negativeSuction is Yes
     negativeSuctionUnit: "mt",
     bearingHousing: "",
     suctionHousing: "",

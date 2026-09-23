@@ -61,6 +61,7 @@ const FIELDS: Record<TableKey, readonly string[]> = {
     "suctionSize", "dischargeSize", "recommendedSize",
     "suctionSizeRemarks", "dischargeSizeRemarks",
     "solidPercentage", "solidSize", "solidSizeMax", "solidSizeMode", "solidType",
+    "endConnection",
     // Temperature + pH are entered on the Fluid step, so they persist here.
     "ph", "temperature", "temperatureRaw", "temperatureUnit",
     // Single-or-range support (see fluid-inputs.ts): mode flags + max bounds.
@@ -70,7 +71,7 @@ const FIELDS: Record<TableKey, readonly string[]> = {
   ],
   "operating-conditions": [
     "pumpType", "agBk", "agBkRemarks", "bearingHousing", "suctionHousing", "jointType",
-    "negativeSuctionSize", "negativeSuctionUnit",
+    "negativeSuction", "negativeSuctionSize", "negativeSuctionUnit",
   ],
   "moc-sealing": [
     "sealingType", "sealingSubType", "glandPackingType", "glandPackingMake",

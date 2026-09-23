@@ -101,6 +101,7 @@ export function approvalStepGroups(step: number, f: ApprovalForm): DetailGroup[]
             ["Temperature", temperatureDisplay(f)],
             ["Solids", f.solidPercentage ? `${f.solidPercentage}%` : ""],
             ["Particle Size", size ? `${size} mm${f.solidType ? ` (${f.solidType})` : ""}` : ""],
+            ["End Connection", f.endConnection],
           ],
         },
         {
@@ -125,6 +126,7 @@ export function approvalStepGroups(step: number, f: ApprovalForm): DetailGroup[]
             [PUMP_SUPPORT_LABEL, f.bearingHousing],
             ["Suction Housing", f.suctionHousing],
             ["Joint Type", f.jointType],
+            ["Negative Suction", f.negativeSuction],
             ["Negative Suction Size", withUnit(f.negativeSuctionSize, f.negativeSuctionUnit || "mt")],
           ],
         },

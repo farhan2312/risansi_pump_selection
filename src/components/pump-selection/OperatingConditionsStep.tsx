@@ -53,9 +53,6 @@ const SUCTION_HOUSINGS_BY_PUMP_TYPE: Record<string, string[]> = {
 // picking it makes the remarks box mandatory so the reason is on record.
 export const AG_BK_NOT_REQUIRED = "Not Required";
 
-// Only vertical pumps hang into the sump, so only they are asked how far the
-// suction reaches below the mounting flange.
-const VERTICAL_PUMP_TYPE = "Vertical";
 // Metres or feet — this is a sump depth, so both units are whole-length ones.
 // (It was mt/mm; millimetres were the wrong scale for the measurement.) The
 // first entry is the default for a newly-shown field.
@@ -94,18 +91,13 @@ const OperatingConditionsStep = ({
             : agOpts.includes(formData.agBk)
               ? formData.agBk
               : "";
-    const isVertical = pumpType === VERTICAL_PUMP_TYPE;
     setFormData({
       ...formData,
       pumpType,
       agBk,
       agBkRemarks: agBk === AG_BK_NOT_REQUIRED ? formData.agBkRemarks ?? "" : "",
-      // A depth captured for a vertical pump means nothing once the type
-      // changes, so it is dropped rather than carried into the quotation.
-      negativeSuctionSize: isVertical ? formData.negativeSuctionSize ?? "" : "",
-      negativeSuctionUnit: isVertical
-        ? formData.negativeSuctionUnit || NEGATIVE_SUCTION_UNITS[0]
-        : "",
+      // Negative suction is asked for every pump type now, so the answer and
+      // its depth survive a pump-type change.
       suctionHousing: suctionOpts.includes(formData.suctionHousing)
         ? formData.suctionHousing
         : "",
@@ -115,7 +107,17 @@ const OperatingConditionsStep = ({
   const agBkOptions = agBkOptionsFor(formData.pumpType);
   const suctionHousingOptions = suctionHousingOptionsFor(formData.pumpType);
   const agBkNotRequired = formData.agBk === AG_BK_NOT_REQUIRED;
-  const isVertical = formData.pumpType === VERTICAL_PUMP_TYPE;
+  const hasNegativeSuction = formData.negativeSuction === "Yes";
+
+  // "No" drops any depth already entered, so nothing stale reaches the
+  // quotation from a field that is no longer shown.
+  const handleNegativeSuctionChange = (value: string) =>
+    setFormData({
+      ...formData,
+      negativeSuction: value,
+      negativeSuctionSize: value === "Yes" ? formData.negativeSuctionSize ?? "" : "",
+      negativeSuctionUnit: value === "Yes" ? formData.negativeSuctionUnit || NEGATIVE_SUCTION_UNITS[0] : "",
+    });
 
   // Remarks only belong to "Not Required" - switching back to a real option
   // drops them so a stale justification cannot follow the pump into a
@@ -144,14 +146,13 @@ const OperatingConditionsStep = ({
       : "Select a pump support and drive arrangement.",
     suctionHousing: formData.suctionHousing ? "" : "Select a suction housing.",
     jointType: formData.jointType ? "" : "Select a joint type.",
+    negativeSuction: formData.negativeSuction ? "" : "Select whether the pump has a negative suction.",
     negativeSuctionSize:
-      !isVertical || (formData.negativeSuctionSize ?? "").trim()
+      !hasNegativeSuction || (formData.negativeSuctionSize ?? "").trim()
         ? ""
-        : "Negative suction size is required for a vertical pump.",
+        : "Enter the negative suction size.",
     negativeSuctionUnit:
-      !isVertical || formData.negativeSuctionUnit
-        ? ""
-        : "Select a negative suction unit.",
+      !hasNegativeSuction || formData.negativeSuctionUnit ? "" : "Select a negative suction unit.",
   };
   const errorCount = Object.values(errors).filter(Boolean).length;
 
@@ -307,9 +308,23 @@ const OperatingConditionsStep = ({
             <Err show={showErrors} msg={errors.jointType} />
           </div>
 
-          {/* Vertical pumps only: how far the suction hangs below the mounting
-              flange. Entered in metres or millimetres. */}
-          {isVertical && (
+          {/* Asked for every pump type: does the suction hang below the pump's
+              mounting flange, and if so by how much (metres or millimetres). */}
+          <div className={fieldWrap}>
+            <label className={label}>Negative Suction<Req /></label>
+            <select
+              className={control}
+              value={formData.negativeSuction ?? ""}
+              onChange={(e) => handleNegativeSuctionChange(e.target.value)}
+            >
+              <option value="">Select</option>
+              <option value="Yes">Yes</option>
+              <option value="No">No</option>
+            </select>
+            <Err show={showErrors} msg={errors.negativeSuction} />
+          </div>
+
+          {hasNegativeSuction && (
             <div className={fieldWrap}>
               <label className={label}>Negative Suction Size<Req /></label>
               <div className="flex gap-2">

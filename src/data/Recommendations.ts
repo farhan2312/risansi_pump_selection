@@ -91,6 +91,7 @@ export interface PumpSelectionFormData {
   solidSizeMax?: string;
   solidSizeMode?: string;
   solidType?: string; // "Hard Solid" | "Soft Solid" — only relevant when solids > 0
+  endConnection?: string; // pipe end connection standard (end_connection_master)
   pumpType: string;
   suctionSize?: string; // inches — defaults to the recommended size
   dischargeSize?: string; // inches — defaults to the recommended size
@@ -132,7 +133,8 @@ export interface PumpSelectionFormData {
   gbConstructionType?: string; // IN LINE HELICAL / PLANTERY — Geared Motor Drive only
   gearBoxMounting?: string; // Foot Mount B3 (Gear Box + Motor) / Flange Mount B5 / Foot cum Flange B35 (Geared Motor) — cascades on gearedConfigType
   driveCoupling?: string; // No Coupling / Driven Coupling / Drive + Driven Coupling (auto-filled from pump type + GB type)
-  couplingType?: string; // Flexible Bush Pin / Spacer Bush Pin / Tyre Type — only when a coupling is present
+  couplingType?: string; // Flexible Bush Pin / Spacer / Tyre Type — only when a coupling is present
+  negativeSuction?: string; // "Yes" | "No" — whether the pump has a negative suction
   couplingMake?: string; // Rathi / Fenner — only when a coupling is present
   asfRange?: string; // Application Service Factor band — Geared Motor Drive only
   // Gearbox drive recommendation (manual pick from PBL/PTL/Top Gear masters,
