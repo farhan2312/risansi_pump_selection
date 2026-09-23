@@ -297,4 +297,7 @@ export interface HeadPoint {
   qth: number | null;
   /** "VOLE-max rpm–VOLE-min rpm" at this head, or "—" when not computable. */
   rpmRange: string;
+  /** The same window as numbers (best-case low / high speed), or null. */
+  rpmLo?: number | null;
+  rpmHi?: number | null;
 }

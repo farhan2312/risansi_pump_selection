@@ -143,6 +143,12 @@ export interface Candidate {
   rpmAtVoleMin: number | null;
   /** RPM computed using VOLE MAX (higher efficiency ⇒ the lower, best-case speed). */
   rpmAtVoleMax: number | null;
+  /** RPM window used to screen against the manual RPM band: the widest window
+   *  across the head points actually offered on the card (a model is a match
+   *  when ANY head it can be run at reaches the band). Falls back to the
+   *  nearest-head window when no head point has one. */
+  screenRpmLo: number | null;
+  screenRpmHi: number | null;
   rpmClassAtVoleMin: string | null;
   rpmClassAtVoleMax: string | null;
   /** Max hard-solid particle size this model can pass (mm), or null if unrecorded. */
@@ -177,6 +183,9 @@ export interface HeadPoint {
   qth: number | null;
   /** "VOLE-max rpm–VOLE-min rpm" at this head, or "—" when not computable. */
   rpmRange: string;
+  /** The same window as numbers (best-case low / high speed), or null. */
+  rpmLo: number | null;
+  rpmHi: number | null;
 }
 
 type ModelRow = typeof schema.pumpModelMaster.$inferSelect;
@@ -342,6 +351,8 @@ export async function findCandidates(
           mechEff: toNumOrNull(p.mechEff),
           qth: q,
           rpmRange: rpmRangeAt(capacityM3hr, q, vMin, vMax),
+          rpmLo: rpmWindowFrom(capacityM3hr, q, vMin, vMax)?.lo ?? null,
+          rpmHi: rpmWindowFrom(capacityM3hr, q, vMin, vMax)?.hi ?? null,
         };
       })
       .sort((a, b) => a.headMwc - b.headMwc);
@@ -367,6 +378,15 @@ export async function findCandidates(
           inBand.find((p) => p.headMwc > headMwc),
         ].filter((p): p is HeadPoint => p != null);
 
+    // Screening window across the offered heads (see screenRpmLo above).
+    const pointWindows = headPoints.filter((p) => p.rpmLo !== null && p.rpmHi !== null);
+    const screenRpmLo = pointWindows.length
+      ? Math.min(...pointWindows.map((p) => p.rpmLo!))
+      : rpmAtVoleMax;
+    const screenRpmHi = pointWindows.length
+      ? Math.max(...pointWindows.map((p) => p.rpmHi!))
+      : rpmAtVoleMin;
+
     candidates.push({
       model: modelName,
       stage,
@@ -379,6 +399,8 @@ export async function findCandidates(
       testingRemarks: nearest.testingRemarks,
       rpmAtVoleMin,
       rpmAtVoleMax,
+      screenRpmLo,
+      screenRpmHi,
       rpmClassAtVoleMin: rpmAtVoleMin !== null ? classifyRpm(rpmAtVoleMin) : null,
       rpmClassAtVoleMax: rpmAtVoleMax !== null ? classifyRpm(rpmAtVoleMax) : null,
       hardSolidMm,

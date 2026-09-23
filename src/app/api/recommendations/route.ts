@@ -69,9 +69,12 @@ export async function POST(req: Request) {
     const windowHi = hi ?? lo!;
     return rpmBandOverlaps(rpmBand, windowLo, windowHi);
   };
-  const candidates = allCandidates.filter((c) =>
-    inBand(c.rpmAtVoleMax, c.rpmAtVoleMin),
-  );
+  // Screened on the window across the heads the card actually offers - a
+  // model qualifies when ANY of them reaches the band. Screening on the
+  // nearest head alone hid models whose other offered head covered it (e.g.
+  // H60L6 at 20 MWC runs 161-218, a Medium match, while its 30 MWC head is
+  // 196 and looked Low-only).
+  const candidates = allCandidates.filter((c) => inBand(c.screenRpmLo, c.screenRpmHi));
 
   const selectedModel = typeof body.selectedModel === "string" ? body.selectedModel : null;
 
