@@ -610,6 +610,7 @@ const PumpSelectionPage = () => {
             projectCode={project?.code}
             projectName={project?.name}
             customerName={project?.customer}
+            tagName={project?.tagName}
           />
         );
 

@@ -315,6 +315,8 @@ export async function downloadSelectionSummaryPdf(
 
 export interface RecheckPdfInput {
   projectCode: string;
+  /** The tag being rechecked - part of the file name. */
+  tagName?: string;
   projectName?: string;
   customerName?: string;
   generatedBy?: string;
@@ -656,7 +658,12 @@ export async function downloadRecheckPdf(
   }
 
   const dateSlug = new Date().toISOString().slice(0, 10);
-  const filename = `Recheck-${safeSlug(input.projectCode) || "project"}-${dateSlug}.pdf`;
+  // Tag + client + enquiry no. in the name, so a saved file is recognisable
+  // on its own: Recheck_<Tag>_<Client>_<Enquiry no>_<date>.pdf
+  const filename = `${["Recheck", input.tagName, input.projectName, input.projectCode, dateSlug]
+    .map((p) => safeSlug(p ?? ""))
+    .filter(Boolean)
+    .join("_")}.pdf`;
   if (opts.save !== false) doc!.save(filename);
   return { filename, blob: doc!.output("blob") };
 }

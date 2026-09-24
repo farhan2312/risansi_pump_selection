@@ -52,6 +52,8 @@ type Props = {
   projectCode?: string;
   projectName?: string;
   customerName?: string;
+  /** The tag's name - used in the Recheck PDF file name. */
+  tagName?: string;
 };
 
 // Combines a manual material selection with its open-remarks note into one
@@ -149,6 +151,7 @@ const RecommendationStep = ({
   projectCode,
   projectName,
   customerName,
+  tagName,
 }: Props) => {
   const { user } = useCurrentUser();
   const [recommendations, setRecommendations] = useState<PumpRecommendation[]>([]);
@@ -544,6 +547,7 @@ const RecommendationStep = ({
     try {
       const file = await downloadRecheckPdf({
         projectCode: projectCode || "",
+        tagName,
         projectName,
         customerName,
         generatedBy: user?.name || user?.email || undefined,
