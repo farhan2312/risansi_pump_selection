@@ -4,11 +4,11 @@ import { error, json } from "@/lib/api";
 import { AuthError, decodeToken } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { db } from "@/lib/db";
-import { endConnectionMaster } from "@/lib/db/schema";
+import { flangeStandardMaster } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
 
-// End Connection options for the Fluid step's dropdown.
+// Flange standard options for the Fluid step (Suction and Discharge Flange Std share this list).
 //
 //   GET            the list
 //   POST {value}   add a value typed into "Other", then return the updated
@@ -23,9 +23,9 @@ const MAX_LENGTH = 120;
 
 async function list(): Promise<string[]> {
   const rows = await db
-    .select({ value: endConnectionMaster.value })
-    .from(endConnectionMaster)
-    .orderBy(asc(endConnectionMaster.sortOrder), asc(endConnectionMaster.value));
+    .select({ value: flangeStandardMaster.value })
+    .from(flangeStandardMaster)
+    .orderBy(asc(flangeStandardMaster.sortOrder), asc(flangeStandardMaster.value));
   return rows.map((r) => r.value);
 }
 
@@ -61,17 +61,17 @@ export async function POST(req: Request) {
 
   // Case-insensitive match first, so "BSP Type" doesn't become a second "BSP type".
   const [existing] = await db
-    .select({ value: endConnectionMaster.value })
-    .from(endConnectionMaster)
-    .where(sql`lower(${endConnectionMaster.value}) = lower(${value})`)
+    .select({ value: flangeStandardMaster.value })
+    .from(flangeStandardMaster)
+    .where(sql`lower(${flangeStandardMaster.value}) = lower(${value})`)
     .limit(1);
 
   if (!existing) {
-    await db.insert(endConnectionMaster).values({ value, createdBy: claims.sub });
+    await db.insert(flangeStandardMaster).values({ value, createdBy: claims.sub });
     await logAudit(req, {
-      action: "end_connection.add",
-      entity: "end_connection_master",
-      detail: `Added End Connection "${value}"`,
+      action: "flange_standard.add",
+      entity: "flange_standard_master",
+      detail: `Added flange standard "${value}"`,
     });
   }
 

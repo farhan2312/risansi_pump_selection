@@ -221,7 +221,10 @@ const RecommendationStep = ({
     ["Temperature", temperatureDisplay(formData)],
     ["Viscosity", viscosityDisplay(formData)],
     ["Viscosity Range", formData.viscosityRange ? `${formData.viscosityRange} cP` : ""],
-    ["End Connection", formData.endConnection],
+    ["Suction Connection", formData.suctionConnection],
+    ["Suction Flange Std", formData.suctionFlangeStd],
+    ["End Connection (Discharge)", formData.endConnection],
+    ["Discharge Flange Std", formData.dischargeFlangeStd],
     ["Solids", formData.solidPercentage ? `${formData.solidPercentage}%` : ""],
     [
       "Particle Size",

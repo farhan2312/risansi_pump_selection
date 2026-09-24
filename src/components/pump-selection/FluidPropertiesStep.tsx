@@ -18,7 +18,7 @@ import {
 import { needsBkAg, sizeDeviates } from "../../lib/suction-discharge-size";
 import { Err, ErrorBanner, Req, hasErrors } from "./fieldBits";
 import { toCp } from "../../utils/units";
-import { addEndConnection, listEndConnections } from "../../services/endConnectionService";
+import { addFlangeStandard, listFlangeStandards } from "../../services/flangeStandardService";
 import type { FluidMode } from "../../lib/fluid-inputs";
 
 type Props = {
@@ -108,32 +108,62 @@ const RangeLabel = ({
 const modeOf = (value: unknown): FluidMode =>
   value === "range" ? "range" : "single";
 
-const OTHER_END_CONNECTION = "__other__";
+const OTHER_FLANGE_STD = "__other__";
 
-/**
- * End Connection dropdown, backed by end_connection_master. Picking "Other"
- * swaps the list for a box: what is typed there is saved to the list, so the
- * next enquiry can pick it instead of retyping it.
- */
-const EndConnectionField = ({
+/** Connection types - fixed lists. */
+const SUCTION_CONNECTIONS = ["Flange", "BSP Type", "BSP with Flange"];
+const END_CONNECTIONS = ["End Cover", "End Plate", "BSP Type", "BSP with Flange"];
+
+/** Plain dropdown for a connection type; a saved value outside the list stays selectable. */
+const ConnectionSelect = ({
+  fieldLabel,
   value,
+  options,
   onChange,
 }: {
+  fieldLabel: string;
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+}) => (
+  <div className={fieldWrap}>
+    <label className={label}>{fieldLabel}</label>
+    <select className={control} value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">Select</option>
+      {(value && !options.includes(value) ? [...options, value] : options).map((o) => (
+        <option key={o} value={o}>
+          {o}
+        </option>
+      ))}
+    </select>
+  </div>
+);
+
+/**
+ * Flange standard dropdown, backed by flange_standard_master (Suction and
+ * Discharge Flange Std share the list, loaded once by the step). Picking
+ * "Other" swaps the list for a box: what is typed there is saved to the list,
+ * so the next enquiry can pick it instead of retyping it.
+ */
+const FlangeStdField = ({
+  fieldLabel,
+  value,
+  onChange,
+  options,
+  setOptions,
+  loadFailed,
+}: {
+  fieldLabel: string;
   value: string;
   onChange: (value: string) => void;
+  options: string[];
+  setOptions: (options: string[]) => void;
+  loadFailed: boolean;
 }) => {
-  const [options, setOptions] = useState<string[]>([]);
-  const [loadFailed, setLoadFailed] = useState(false);
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [addError, setAddError] = useState("");
-
-  useEffect(() => {
-    listEndConnections()
-      .then(setOptions)
-      .catch(() => setLoadFailed(true));
-  }, []);
 
   const save = async () => {
     const trimmed = draft.trim();
@@ -141,7 +171,7 @@ const EndConnectionField = ({
     setSaving(true);
     setAddError("");
     try {
-      const res = await addEndConnection(trimmed);
+      const res = await addFlangeStandard(trimmed);
       setOptions(res.options);
       // The server returns the stored spelling, so a case-different repeat
       // selects the existing value rather than adding a near-duplicate.
@@ -162,14 +192,14 @@ const EndConnectionField = ({
   if (adding) {
     return (
       <div className={fieldWrap}>
-        <label className={label}>End Connection</label>
+        <label className={label}>{fieldLabel}</label>
         <div className="flex items-center gap-[8px]">
           <input
             autoFocus
             type="text"
             className={`${control} flex-1`}
             value={draft}
-            placeholder="New end connection"
+            placeholder="New flange standard"
             onChange={(e) => {
               setDraft(e.target.value);
               if (addError) setAddError("");
@@ -197,7 +227,7 @@ const EndConnectionField = ({
             Cancel
           </button>
         </div>
-        <span className={hint}>Saved to the end connection list for future enquiries.</span>
+        <span className={hint}>Saved to the flange standard list for future enquiries.</span>
         {addError && <span className={hintError}>{addError}</span>}
       </div>
     );
@@ -205,12 +235,12 @@ const EndConnectionField = ({
 
   return (
     <div className={fieldWrap}>
-      <label className={label}>End Connection</label>
+      <label className={label}>{fieldLabel}</label>
       <select
         className={control}
         value={value}
         onChange={(e) => {
-          if (e.target.value === OTHER_END_CONNECTION) {
+          if (e.target.value === OTHER_FLANGE_STD) {
             setAdding(true);
             setDraft("");
             return;
@@ -218,15 +248,15 @@ const EndConnectionField = ({
           onChange(e.target.value);
         }}
       >
-        <option value="">Select End Connection</option>
+        <option value="">Select Flange Std</option>
         {shown.map((o) => (
           <option key={o} value={o}>
             {o}
           </option>
         ))}
-        <option value={OTHER_END_CONNECTION}>Other (type manually)…</option>
+        <option value={OTHER_FLANGE_STD}>Other (type manually)…</option>
       </select>
-      {loadFailed && <span className={hintError}>Couldn&apos;t load the end connection list — try again.</span>}
+      {loadFailed && <span className={hintError}>Couldn&apos;t load the flange standard list — try again.</span>}
     </div>
   );
 };
@@ -241,6 +271,15 @@ const FluidPropertiesStep = ({
 }: Props) => {
   // Single-vs-range mode per field (see fluid-inputs.ts). Absent = "single",
   // so drafts saved before ranges existed behave exactly as before.
+  // Flange standards: one list shared by the suction and discharge fields.
+  const [flangeStds, setFlangeStds] = useState<string[]>([]);
+  const [flangeStdsFailed, setFlangeStdsFailed] = useState(false);
+  useEffect(() => {
+    listFlangeStandards()
+      .then(setFlangeStds)
+      .catch(() => setFlangeStdsFailed(true));
+  }, []);
+
   const phMode = modeOf(formData.phMode);
   const viscosityMode = modeOf(formData.viscosityMode);
   const temperatureMode = modeOf(formData.temperatureMode);
@@ -639,9 +678,33 @@ const FluidPropertiesStep = ({
             </select>
           </div>
 
-          <EndConnectionField
+          <ConnectionSelect
+            fieldLabel="Suction Connection"
+            value={formData.suctionConnection ?? ""}
+            options={SUCTION_CONNECTIONS}
+            onChange={(v) => setFormData({ ...formData, suctionConnection: v })}
+          />
+          <FlangeStdField
+            fieldLabel="Suction Flange Std"
+            value={formData.suctionFlangeStd ?? ""}
+            onChange={(v) => setFormData({ ...formData, suctionFlangeStd: v })}
+            options={flangeStds}
+            setOptions={setFlangeStds}
+            loadFailed={flangeStdsFailed}
+          />
+          <ConnectionSelect
+            fieldLabel="End Connection (Discharge)"
             value={formData.endConnection ?? ""}
+            options={END_CONNECTIONS}
             onChange={(v) => setFormData({ ...formData, endConnection: v })}
+          />
+          <FlangeStdField
+            fieldLabel="Discharge Flange Std"
+            value={formData.dischargeFlangeStd ?? ""}
+            onChange={(v) => setFormData({ ...formData, dischargeFlangeStd: v })}
+            options={flangeStds}
+            setOptions={setFlangeStds}
+            loadFailed={flangeStdsFailed}
           />
 
           {/* Line sizes, inches only. Both start blank for the user to enter

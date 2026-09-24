@@ -53,7 +53,7 @@ const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
     "suctionSize", "dischargeSize", "recommendedSize",
     "suctionSizeRemarks", "dischargeSizeRemarks",
     "solidPercentage", "solidSize", "solidSizeMax", "solidSizeMode", "solidType",
-    "endConnection",
+    "endConnection", "suctionConnection", "suctionFlangeStd", "dischargeFlangeStd",
     "ph", "temperature", "temperatureRaw", "temperatureUnit",
   ],
   "operating-conditions": [
@@ -253,7 +253,10 @@ const PumpSelectionPage = () => {
     solidSizeMax: "",
     solidSizeMode: "single",
     solidType: "", // "Hard Solid" / "Soft Solid" — only meaningful when solidPercentage > 0
-    endConnection: "", // pipe end connection standard (end_connection_master)
+    endConnection: "", // discharge end connection type
+    suctionConnection: "", // suction connection type
+    suctionFlangeStd: "", // flange standards (flange_standard_master)
+    dischargeFlangeStd: "",
 
     // Step 3
     pumpType: "",

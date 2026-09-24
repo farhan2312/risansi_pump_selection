@@ -91,7 +91,10 @@ export interface PumpSelectionFormData {
   solidSizeMax?: string;
   solidSizeMode?: string;
   solidType?: string; // "Hard Solid" | "Soft Solid" — only relevant when solids > 0
-  endConnection?: string; // pipe end connection standard (end_connection_master)
+  endConnection?: string; // discharge end connection: End Cover / End Plate / BSP Type / BSP with Flange
+  suctionConnection?: string; // Flange / BSP Type / BSP with Flange
+  suctionFlangeStd?: string; // flange standard (flange_standard_master)
+  dischargeFlangeStd?: string;
   pumpType: string;
   suctionSize?: string; // inches — defaults to the recommended size
   dischargeSize?: string; // inches — defaults to the recommended size

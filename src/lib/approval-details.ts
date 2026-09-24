@@ -101,7 +101,10 @@ export function approvalStepGroups(step: number, f: ApprovalForm): DetailGroup[]
             ["Temperature", temperatureDisplay(f)],
             ["Solids", f.solidPercentage ? `${f.solidPercentage}%` : ""],
             ["Particle Size", size ? `${size} mm${f.solidType ? ` (${f.solidType})` : ""}` : ""],
-            ["End Connection", f.endConnection],
+            ["Suction Connection", f.suctionConnection],
+            ["Suction Flange Std", f.suctionFlangeStd],
+            ["End Connection (Discharge)", f.endConnection],
+            ["Discharge Flange Std", f.dischargeFlangeStd],
           ],
         },
         {

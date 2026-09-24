@@ -211,8 +211,13 @@ export const fluidPropertiesInput = pgTable("fluid_properties_input", {
   solidSizeMax: varchar("solid_size_max", { length: 50 }),
   solidSizeMode: varchar("solid_size_mode", { length: 10 }),
   solidType: varchar("solid_type", { length: 20 }),
-  /** Pipe end connection standard, from end_connection_master. */
+  /** Discharge end connection type: End Cover / End Plate / BSP Type / BSP with Flange. */
   endConnection: varchar("end_connection", { length: 120 }),
+  /** Suction connection type: Flange / BSP Type / BSP with Flange. */
+  suctionConnection: varchar("suction_connection", { length: 120 }),
+  /** Flange standards (flange_standard_master), one per side. */
+  suctionFlangeStd: varchar("suction_flange_std", { length: 120 }),
+  dischargeFlangeStd: varchar("discharge_flange_std", { length: 120 }),
   ph: varchar("ph", { length: 50 }),
   temperature: varchar("temperature", { length: 50 }), // canonical °C
   temperatureRaw: varchar("temperature_raw", { length: 50 }), // as-entered value
@@ -612,9 +617,10 @@ export const driveOptionMaster = pgTable("drive_option_master", {
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
 
-/** End Connection options for the Fluid step's dropdown. "Other" on the form
- *  inserts here, so a value added once is offered to everyone afterwards. */
-export const endConnectionMaster = pgTable("end_connection_master", {
+/** Flange standard options for the Fluid step (Suction and Discharge Flange Std
+ *  share this list). "Other" on the form inserts here, so a value added once is
+ *  offered to everyone afterwards. */
+export const flangeStandardMaster = pgTable("flange_standard_master", {
   id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   value: varchar("value", { length: 120 }).notNull().unique(),
   /** Seeded standards sort first; anything added later falls in after them. */

@@ -18,6 +18,7 @@ export const prettyRole = (role: string | null | undefined): string =>
 /** master.create/update/delete read as what happened to the master row. */
 const MASTER_ACTIONS: Record<string, string> = {
   "end_connection.add": "End connection added",
+  "flange_standard.add": "Flange standard added",
   "master.create": "Master added",
   "master.update": "Master edited",
   "master.delete": "Master deleted",
@@ -207,7 +208,7 @@ function actionTone(action: string, eventType?: string): string {
   if (action.startsWith("wizard.")) return "bg-accent-soft text-accent";
   if (action.startsWith("enquiry.") || action.startsWith("tag.")) return "bg-[color-mix(in_srgb,var(--brand-cyan)_15%,transparent)] text-[var(--brand-cyan)]";
   if (action.startsWith("approval.")) return "bg-[var(--warn-soft)] text-warn";
-  if (action.startsWith("master.") || action.startsWith("drive_option.") || action.startsWith("end_connection."))
+  if (action.startsWith("master.") || action.startsWith("drive_option.") || action.startsWith("end_connection.") || action.startsWith("flange_standard."))
     return "bg-[color-mix(in_srgb,#f97316_14%,transparent)] text-[#ea580c]";
   if (action === "user.approve") return "bg-[var(--pos-soft)] text-pos";
   if (action === "user.reject" || action === "user.delete") return "bg-[var(--neg-soft)] text-neg";
