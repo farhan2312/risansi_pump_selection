@@ -205,7 +205,9 @@ in `src/data/Recommendations.ts`):
    flagged if it exceeds the model's "min KW so far tested" cap but still
    shown. Because `motor_rating` is model-agnostic, every model now gets a
    real dropdown (previously some models with no pulley data fell back to
-   free-text entry).
+   free-text entry). House rules on top: 4-stage pumps step up one standard
+   rating; per-model floors in `MIN_RECOMMENDED_KW` (H40L6 ≥ 1.5 kW, user
+   rule 2026-09-25 — H40L6 only, NOT a general "Min KW existing" floor).
 7. **Drive Details** — Drive System Type: Direct Drive / V-Belt Drive /
    **"Geared Motor Drive/Gear Box + Motor"** (renamed from "Geared Motor
    Drive"). Motor RPM field only appears after a drive type is chosen; fixed

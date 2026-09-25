@@ -459,9 +459,19 @@ export interface MotorRating {
   /** Set when the 4-stage step-up was applied: the size the load alone would
    *  have been recommended (recommendedKw is the next standard rating up). */
   steppedUpFromKw: number | null;
+  /** Set when the model's fixed minimum (MIN_RECOMMENDED_KW) raised the
+   *  recommendation: the size it would otherwise have been. */
+  raisedToMinFromKw: number | null;
   /** True when recommendedKw exceeds minKwTested — recommend it anyway, but flag. */
   exceedsMinTested: boolean;
 }
+
+/** Per-model minimum motor rating (kW): the recommendation never goes below
+ *  it, whatever the duty. A house rule for specific models, not derived from
+ *  the pump master. */
+export const MIN_RECOMMENDED_KW: Record<string, number> = {
+  H40L6: 1.5,
+};
 
 /**
  * Motor Rating KW calculation (wizard step after MOC). Per the spec:
@@ -534,6 +544,7 @@ export async function computeMotorRating(
   const stage = toNumOrNull(nearest.stage);
   let recommendedKw: number | null = null;
   let steppedUpFromKw: number | null = null;
+  let raisedToMinFromKw: number | null = null;
   let exceedsMinTested = false;
   if (motorKw !== null && kwOptions.length > 0) {
     // Nearest standard size that meets the load with its safety margin; if
@@ -550,6 +561,13 @@ export async function computeMotorRating(
         recommendedKw = next;
       }
     }
+    // Model floor (e.g. H40L6 never below 1.5 kW), applied last so it also
+    // covers a 4-stage step-up that still lands below it.
+    const floorKw = MIN_RECOMMENDED_KW[model.replace(/\s+/g, "").toUpperCase()];
+    if (floorKw !== undefined && recommendedKw < floorKw) {
+      raisedToMinFromKw = recommendedKw;
+      recommendedKw = kwOptions.find((k) => k >= floorKw) ?? floorKw;
+    }
     if (minKwTested !== null && recommendedKw > minKwTested) exceedsMinTested = true;
   }
 
@@ -565,6 +583,7 @@ export async function computeMotorRating(
     recommendedKw,
     stage,
     steppedUpFromKw,
+    raisedToMinFromKw,
     exceedsMinTested,
   };
 }

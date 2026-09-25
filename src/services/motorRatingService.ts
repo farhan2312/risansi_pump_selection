@@ -17,6 +17,8 @@ export interface MotorRating {
   stage: number | null;
   /** 4-stage pumps: the size the load alone called for, before the one-rating step-up. */
   steppedUpFromKw: number | null;
+  /** Set when the model's minimum rating (e.g. H40L6 = 1.5 kW) raised the recommendation. */
+  raisedToMinFromKw: number | null;
   exceedsMinTested: boolean;
 }
 

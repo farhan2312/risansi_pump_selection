@@ -237,6 +237,12 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
                   {rating.recommendedKw} kW.
                 </p>
               )}
+              {rating.raisedToMinFromKw != null && (
+                <p className="mt-2 text-[12px] text-accent">
+                  {rating.model} minimum motor rating is {rating.recommendedKw} kW: raised from{" "}
+                  {rating.raisedToMinFromKw} kW.
+                </p>
+              )}
               {rating.exceedsMinTested && (
                 <p className="mt-2 text-[12px] text-warn">
                   Recommended {rating.recommendedKw} kW exceeds this model&apos;s Min KW so
