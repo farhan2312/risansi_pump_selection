@@ -11,6 +11,7 @@ import {
   APPROVER_LINKS,
   PULLEY_OWNER_LINKS,
   MAIN_LINKS,
+  MY_BUG_LINKS,
   SYSTEM_ADMIN_LINKS,
   navIcons,
 } from "./navLinks";
@@ -56,6 +57,14 @@ const Sidebar = () => {
           <>
             <p className="sidebar-group-label">Masters</p>
             {PULLEY_OWNER_LINKS.map((l) => navLink(l.href, l.label, navIcons[l.icon]))}
+          </>
+        )}
+
+        {/* Their own bug reports, read-only — system admins use the Bug Tracker. */}
+        {user && user.role !== "system_admin" && (
+          <>
+            <p className="sidebar-group-label">Help</p>
+            {MY_BUG_LINKS.map((l) => navLink(l.href, l.label, navIcons[l.icon]))}
           </>
         )}
 

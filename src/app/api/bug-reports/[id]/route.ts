@@ -8,7 +8,8 @@ import { bugReportSelection } from "@/lib/db/schema";
 export const dynamic = "force-dynamic";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const STATUSES = new Set(["Open", "In progress", "Resolved", "Closed"]);
+// "Resolved" is the "Resolved / Closed" column (Closed was merged into it).
+const STATUSES = new Set(["Open", "Need Clarification", "In progress", "Resolved"]);
 
 // Triage — system_admin only, from the Bug Tracker page. The only editable
 // field is status; changing it flips reporterUnread so the filer's bell
@@ -36,7 +37,7 @@ export async function PATCH(
 
   const status = String(body.status ?? "");
   if (!STATUSES.has(status)) {
-    return error("'status' must be one of: Open, In progress, Resolved, Closed", 400);
+    return error("'status' must be one of: Open, Need Clarification, In progress, Resolved", 400);
   }
 
   const [existing] = await db

@@ -93,6 +93,7 @@
   background: var(--fg-4);
 }
 .notif-status-dot.status-open { background: var(--neg, #dc2626); }
+.notif-status-dot.status-need-clarification { background: var(--brand-cyan, #06b6d4); }
 .notif-status-dot.status-in-progress { background: var(--warn, #d97706); }
 .notif-status-dot.status-resolved,
 .notif-status-dot.status-closed { background: var(--pos, #059669); }

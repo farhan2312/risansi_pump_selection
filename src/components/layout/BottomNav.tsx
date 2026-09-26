@@ -6,7 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import "./BottomNav.css";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import SidebarUserMenu from "./SidebarUserMenu";
-import { MAIN_LINKS, adminLinksFor, navIcons } from "./navLinks";
+import { MAIN_LINKS, MY_BUG_LINKS, adminLinksFor, navIcons } from "./navLinks";
 
 const MoreIcon = () => (
   <svg
@@ -37,6 +37,8 @@ const BottomNav = () => {
   const [moreOpen, setMoreOpen] = useState(false);
 
   const adminLinks = adminLinksFor(user?.role);
+  // Their own bug reports (read-only) — system admins have the Bug Tracker.
+  const helpLinks = user && user.role !== "system_admin" ? MY_BUG_LINKS : [];
 
   // Close the sheet on navigation — otherwise it stays over the new page.
   useEffect(() => {
@@ -56,7 +58,7 @@ const BottomNav = () => {
   const isActive = (href: string) => pathname === href;
   // "More" counts as active when the current page lives inside it, so the bar
   // always highlights exactly one slot.
-  const moreActive = adminLinks.some((l) => pathname === l.href);
+  const moreActive = [...adminLinks, ...helpLinks].some((l) => pathname === l.href);
 
   const item = (href: string, label: string, ic: ReactNode) => (
     <Link
@@ -87,6 +89,24 @@ const BottomNav = () => {
                 <p className="bottom-sheet-label">Admin</p>
                 <div className="bottom-sheet-links">
                   {adminLinks.map((l) => (
+                    <Link
+                      key={l.href}
+                      href={l.href}
+                      className={`bottom-sheet-link${pathname === l.href ? " is-active" : ""}`}
+                    >
+                      {navIcons[l.icon]}
+                      <span>{l.label}</span>
+                    </Link>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {helpLinks.length > 0 && (
+              <>
+                <p className="bottom-sheet-label">Help</p>
+                <div className="bottom-sheet-links">
+                  {helpLinks.map((l) => (
                     <Link
                       key={l.href}
                       href={l.href}

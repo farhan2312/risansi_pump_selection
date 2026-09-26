@@ -812,7 +812,7 @@ export const bugReportSelection = pgTable("bug_report_selection", {
   description: text("description"),
   severity: varchar("severity", { length: 20 }).default("Medium"), // Low|Medium|High|Critical
   page: varchar("page", { length: 255 }), // URL path where it was filed
-  status: varchar("status", { length: 20 }).default("Open"), // Open|In progress|Resolved|Closed
+  status: varchar("status", { length: 20 }).default("Open"), // Open|Need Clarification|In progress|Resolved (legacy Closed = Resolved column)
   screenshotFileName: varchar("screenshot_file_name", { length: 255 }),
   screenshotMimeType: varchar("screenshot_mime_type", { length: 100 }),
   screenshotFileSize: integer("screenshot_file_size"),

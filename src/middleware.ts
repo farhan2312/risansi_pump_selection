@@ -28,6 +28,7 @@ const PROTECTED_PREFIXES = [
   "/selection-summary",
   "/head-calculator",
   "/commercial",
+  "/my-bug-reports",
   "/approvals",
   "/admin",
 ];

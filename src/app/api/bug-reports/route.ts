@@ -9,40 +9,47 @@ export const dynamic = "force-dynamic";
 
 const TYPES = new Set(["bug", "feature"]);
 const SEVERITIES = new Set(["Low", "Medium", "High", "Critical"]);
-const STATUSES = new Set(["Open", "In progress", "Resolved", "Closed"]);
+const STATUSES = new Set(["Open", "Need Clarification", "In progress", "Resolved"]);
 
 function textOrNull(v: unknown): string | null {
   if (v === null || v === undefined || String(v).trim() === "") return null;
   return String(v).trim();
 }
 
-// GET is system_admin only (the Bug Tracker page) — reporters don't get a
-// list view, only their own status-change notifications (see
-// /api/bug-reports/notifications). Never returns the binary screenshot_data
+// GET is system_admin only (the Bug Tracker page) — EXCEPT with mine=1, which
+// any signed-in user may call and which returns only the reports THEY filed
+// (the read-only "My Bug Reports" page). Never returns the binary screenshot_data
 // column; the tracker fetches that separately via [id]/screenshot when a row
 // has one, same pattern as the MOC PDF blob route.
 export async function GET(req: Request) {
+  const mine = new URL(req.url).searchParams.get("mine") === "1";
+  let callerId: string;
   try {
-    requireSystemAdmin(req);
+    callerId = (mine ? decodeToken(req) : requireSystemAdmin(req)).sub;
   } catch (e) {
     if (e instanceof AuthError) return error(e.message, e.statusCode);
     throw e;
   }
+  // "Mine": only the caller's own reports — list, counts and header figures.
+  const mineFilter = mine ? eq(bugReportSelection.reportedBy, callerId) : undefined;
 
   // Server-side paging / search / filters. Query params (all optional):
   //   q         words searched in title, description, reporter and page
   //             (every word must match somewhere)
   //   type      bug | feature
   //   severity  Low | Medium | High | Critical
-  //   status    Open | In progress | Resolved | Closed (a board column)
+  //   status    Open | Need Clarification | In progress | Resolved (a board
+  //             column; Resolved = "Resolved / Closed" and also returns the
+  //             legacy Closed rows)
   //   order     "board" = most severe first, then newest (board columns);
   //             anything else = newest first (list)
   //   offset    rows to skip (default 0)
   //   limit     rows to return, 0-100 (default 20; 0 = counts only)
+  //   mine      1 = only the caller's own reports (any signed-in user)
   // Returns { rows, total, summary } - total is the filtered count, summary
   // the unfiltered header figures (all / open / critical open).
   const params = new URL(req.url).searchParams;
-  const filters: SQL[] = [];
+  const filters: SQL[] = mineFilter ? [mineFilter] : [];
   const type = params.get("type");
   if (type && TYPES.has(type)) filters.push(eq(bugReportSelection.type, type));
   const severity = params.get("severity");
@@ -53,7 +60,9 @@ export async function GET(req: Request) {
     filters.push(
       status === "Open"
         ? or(eq(bugReportSelection.status, status), sql`${bugReportSelection.status} is null`)!
-        : eq(bugReportSelection.status, status),
+        : status === "Resolved"
+          ? sql`${bugReportSelection.status} in ('Resolved', 'Closed')`
+          : eq(bugReportSelection.status, status),
     );
   }
   const words = (params.get("q") ?? "").trim().split(/\s+/).filter(Boolean).slice(0, 8);
@@ -84,10 +93,11 @@ export async function GET(req: Request) {
     db
       .select({
         total: sql<number>`count(*)::int`,
-        open: sql<number>`count(*) filter (where ${bugReportSelection.status} in ('Open', 'In progress'))::int`,
-        criticalOpen: sql<number>`count(*) filter (where ${bugReportSelection.status} in ('Open', 'In progress') and ${bugReportSelection.severity} = 'Critical')::int`,
+        open: sql<number>`count(*) filter (where ${bugReportSelection.status} in ('Open', 'Need Clarification', 'In progress'))::int`,
+        criticalOpen: sql<number>`count(*) filter (where ${bugReportSelection.status} in ('Open', 'Need Clarification', 'In progress') and ${bugReportSelection.severity} = 'Critical')::int`,
       })
-      .from(bugReportSelection),
+      .from(bugReportSelection)
+      .where(mineFilter),
   ]);
   if (limit === 0) return json({ rows: [], total, summary });
 

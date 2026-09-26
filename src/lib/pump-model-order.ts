@@ -3,7 +3,7 @@
  * masters. Families come in this order:
  *   Barrel (BarrelH10, BarrelH20L) -> H (H15, H20 … H120) -> 2H -> 4H -> 8H …
  * Within a family, by the size number (H15 before H100, not after), then any
- * suffix ("H60" < "H60L4" < "H60L6").
+ * suffix ("H60" < "H60L3" < "H60L6").
  */
 const MODEL_RE = /^(barrel)?\s*(\d*)\s*h\s*(\d+)(.*)$/i;
 

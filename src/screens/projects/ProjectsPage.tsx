@@ -475,6 +475,10 @@ const ProjectsPage = () => {
   // Tailwind building blocks for the list (modals keep their own styles).
   const btn =
     "inline-flex items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-1.5 text-[12.5px] font-semibold whitespace-nowrap text-fg-2 transition-colors hover:border-[color-mix(in_srgb,var(--brand-blue)_35%,transparent)] hover:bg-paper hover:text-accent disabled:cursor-not-allowed disabled:opacity-45 [&_svg]:h-[14px] [&_svg]:w-[14px] [&_svg]:shrink-0";
+  // Commercial stands apart from the technical actions: filled amber-yellow
+  // with dark text (fixed colours, readable in light and dark themes).
+  const btnCommercial =
+    "inline-flex items-center gap-1.5 rounded-lg border border-[#f59e0b] bg-[#fbbf24] px-2.5 py-1.5 text-[12.5px] font-semibold whitespace-nowrap text-[#422006] shadow-[0_1px_2px_rgba(180,83,9,0.18)] transition-colors hover:border-[#d97706] hover:bg-[#f59e0b] disabled:cursor-not-allowed disabled:opacity-45 [&_svg]:h-[14px] [&_svg]:w-[14px] [&_svg]:shrink-0";
   const btnDanger =
     "inline-flex items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-1.5 text-[12.5px] font-semibold whitespace-nowrap text-neg transition-colors hover:border-[color-mix(in_srgb,var(--neg)_35%,transparent)] hover:bg-[var(--neg-soft)] hover:text-neg disabled:cursor-not-allowed disabled:opacity-45 [&_svg]:h-[14px] [&_svg]:w-[14px] [&_svg]:shrink-0";
   const btnPrimary =
@@ -726,7 +730,7 @@ const ProjectsPage = () => {
                       </button>
                       <button
                         type="button"
-                        className={btn}
+                        className={btnCommercial}
                         onClick={() => router.push(`/commercial?projectId=${project.id}`)}
                         title="Commercial Summary: P&A and BOI prices for every tag"
                         aria-label={`Commercial Summary for ${project.project_code}`}

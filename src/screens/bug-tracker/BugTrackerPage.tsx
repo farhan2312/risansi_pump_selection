@@ -15,7 +15,19 @@ import {
   type BugReportType,
 } from "../../services/bugReportService";
 
-const STATUSES: BugReportStatus[] = ["Open", "In progress", "Resolved", "Closed"];
+// Board columns, left to right. "Resolved" is shown as "Resolved / Closed":
+// the old separate Closed status is merged into it (legacy "Closed" rows
+// still show there - see columnOf).
+const STATUSES: BugReportStatus[] = ["Open", "Need Clarification", "In progress", "Resolved"];
+const STATUS_LABEL: Record<BugReportStatus, string> = {
+  Open: "Open",
+  "Need Clarification": "Need Clarification",
+  "In progress": "In progress",
+  Resolved: "Resolved / Closed",
+};
+/** The column a stored status belongs to: legacy Closed → Resolved, none/unknown → Open. */
+const columnOf = (s: string | null | undefined): BugReportStatus =>
+  s === "Closed" ? "Resolved" : (STATUSES as string[]).includes(s ?? "") ? (s as BugReportStatus) : "Open";
 const SEVERITIES: BugReportSeverity[] = ["Critical", "High", "Medium", "Low"];
 const SEVERITY_RANK: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 };
 /** Board: cards shown per column at first, and added each time its end scrolls into view. */
@@ -28,10 +40,13 @@ const SEARCH_DEBOUNCE_MS = 300;
 type Column = { rows: BugReportRow[]; total: number; loading: boolean };
 type Board = Record<BugReportStatus, Column>;
 const EMPTY_BOARD = Object.fromEntries(
-  (["Open", "In progress", "Resolved", "Closed"] as const).map((s) => [s, { rows: [], total: 0, loading: false }]),
+  STATUSES.map((s) => [s, { rows: [], total: 0, loading: false }]),
 ) as unknown as Board;
 
-const isOpenStatus = (s: string | null) => s === "Open" || s === "In progress";
+const isOpenStatus = (s: string | null) => {
+  const c = columnOf(s);
+  return c === "Open" || c === "Need Clarification" || c === "In progress";
+};
 
 /** Board column order - same as the API's order=board. */
 const boardOrder = (a: BugReportRow, b: BugReportRow) =>
@@ -99,6 +114,11 @@ const STATUS_STYLE: Record<BugReportStatus, { dot: string; chip: string; drop: s
     chip: "bg-accent-soft text-accent",
     drop: "ring-[var(--brand-blue)]",
   },
+  "Need Clarification": {
+    dot: "bg-[var(--brand-cyan)]",
+    chip: "bg-[color-mix(in_srgb,var(--brand-cyan)_16%,transparent)] text-fg",
+    drop: "ring-[var(--brand-cyan)]",
+  },
   "In progress": {
     dot: "bg-warn",
     chip: "bg-[var(--warn-soft)] text-warn",
@@ -108,11 +128,6 @@ const STATUS_STYLE: Record<BugReportStatus, { dot: string; chip: string; drop: s
     dot: "bg-pos",
     chip: "bg-[var(--pos-soft)] text-pos",
     drop: "ring-[var(--pos)]",
-  },
-  Closed: {
-    dot: "bg-fg-4",
-    chip: "bg-sunk text-fg-2",
-    drop: "ring-[var(--fg-4)]",
   },
 };
 
@@ -169,7 +184,12 @@ const SeverityBadge = ({ severity }: { severity: string }) => (
 // from the "Report a Bug" button across the portal; changing a report's status
 // here (drag to another column, or from the details popup) is what lights up
 // the reporter's bell (see NotificationBell.tsx).
-const BugTrackerPage = () => {
+/**
+ * `mine`: the read-only "My Bug Reports" page for every user — only the
+ * reports they filed (the API scopes it), same board/list, but no dragging
+ * and no status changes (triage stays with system admins).
+ */
+const BugTrackerPage = ({ mine = false }: { mine?: boolean }) => {
   const [summary, setSummary] = useState<BugReportSummary | null>(null);
   const [board, setBoard] = useState<Board>(EMPTY_BOARD);
   const [listRows, setListRows] = useState<BugReportRow[]>([]);
@@ -196,8 +216,9 @@ const BugTrackerPage = () => {
       q: debouncedSearch || undefined,
       type: typeFilter === "all" ? undefined : typeFilter,
       severity: severityFilter === "all" ? undefined : severityFilter,
+      mine: mine ? "1" : undefined,
     }),
-    [debouncedSearch, typeFilter, severityFilter],
+    [debouncedSearch, typeFilter, severityFilter, mine],
   );
   const filterKey = JSON.stringify(filterQuery);
 
@@ -314,12 +335,12 @@ const BugTrackerPage = () => {
   /** Optimistic: the card moves at once and snaps back if the save fails. */
   const moveTo = async (id: string, status: BugReportStatus) => {
     const current = loaded.find((r) => r.id === id);
-    if (!current || current.status === status) return;
+    if (!current || columnOf(current.status) === status) return;
     const before = { board, listRows, summary };
     setSaveError(null);
     setSavingId(id);
     const moved = { ...current, status };
-    const from = (current.status as BugReportStatus) in board ? (current.status as BugReportStatus) : "Open";
+    const from = columnOf(current.status);
     setBoard((b) => {
       if (!b[from].rows.some((r) => r.id === id)) return b;
       return {
@@ -369,9 +390,11 @@ const BugTrackerPage = () => {
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-[22px] font-bold text-fg">Bug Tracker</h1>
+          <h1 className="text-[22px] font-bold text-fg">{mine ? "My Bug Reports" : "Bug Tracker"}</h1>
           <p className="mt-0.5 text-[13px] text-fg-3">
-            Reports filed from the &quot;Report a Bug&quot; button across the portal · drag a card to change its status
+            {mine
+              ? "Reports you filed with the \"Report a Bug\" button, and where each one stands. The status is updated by the system admin — you are notified when it changes."
+              : "Reports filed from the \"Report a Bug\" button across the portal · drag a card to change its status"}
           </p>
         </div>
         {!isLoading && !error && (
@@ -503,7 +526,7 @@ const BugTrackerPage = () => {
                 <header className="flex items-center justify-between gap-2 px-3.5 pt-3 pb-2">
                   <div className="flex items-center gap-2">
                     <span className={`h-2.5 w-2.5 rounded-full ${style.dot}`} />
-                    <h2 className="text-[13px] font-semibold text-fg">{status}</h2>
+                    <h2 className="text-[13px] font-semibold text-fg">{STATUS_LABEL[status]}</h2>
                     <span className="rounded-full bg-paper px-2 py-0.5 font-mono text-[11px] font-semibold text-fg-3">
                       {col.total}
                     </span>
@@ -529,7 +552,7 @@ const BugTrackerPage = () => {
                   {cards.map((r) => (
                     <article
                       key={r.id}
-                      draggable={savingId !== r.id}
+                      draggable={!mine && savingId !== r.id}
                       onDragStart={(e) => {
                         e.dataTransfer.setData("text/plain", r.id);
                         e.dataTransfer.effectAllowed = "move";
@@ -548,11 +571,11 @@ const BugTrackerPage = () => {
                       }}
                       tabIndex={0}
                       role="button"
-                      aria-label={`${r.title} — ${r.severity}, ${r.status}`}
+                      aria-label={`${r.title} — ${r.severity}, ${STATUS_LABEL[columnOf(r.status)]}`}
                       className={`group cursor-grab rounded-lg border border-line bg-paper p-3 text-left shadow-[0_1px_2px_rgba(10,22,40,0.05)] transition hover:-translate-y-px hover:border-line-strong hover:shadow-[0_6px_16px_rgba(10,22,40,0.1)] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent active:cursor-grabbing ${
                         dragId === r.id ? "opacity-40" : ""
                       } ${savingId === r.id ? "animate-pulse" : ""} ${
-                        r.severity === "Critical" && (status === "Open" || status === "In progress")
+                        r.severity === "Critical" && isOpenStatus(status)
                           ? "border-l-[3px] border-l-[var(--neg)]"
                           : ""
                       }`}
@@ -647,18 +670,26 @@ const BugTrackerPage = () => {
                         {ago(r.createdAt)}
                       </td>
                       <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                        {mine ? (
+                          <span
+                            className={`inline-block rounded-full px-2.5 py-1 text-[12px] font-semibold ${STATUS_STYLE[columnOf(r.status)].chip}`}
+                          >
+                            {STATUS_LABEL[columnOf(r.status)]}
+                          </span>
+                        ) : (
                         <select
-                          value={r.status}
+                          value={columnOf(r.status)}
                           disabled={savingId === r.id}
                           onChange={(e) => void moveTo(r.id, e.target.value as BugReportStatus)}
-                          className={`rounded-full border-0 px-2.5 py-1 text-[12px] font-semibold outline-none ${STATUS_STYLE[r.status].chip}`}
+                          className={`rounded-full border-0 px-2.5 py-1 text-[12px] font-semibold outline-none ${STATUS_STYLE[columnOf(r.status)].chip}`}
                         >
                           {STATUSES.map((s) => (
                             <option key={s} value={s}>
-                              {s}
+                              {STATUS_LABEL[s]}
                             </option>
                           ))}
                         </select>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -718,27 +749,31 @@ const BugTrackerPage = () => {
               <div>
                 <div className="mb-1.5 text-[10.5px] font-semibold tracking-[0.08em] text-fg-3 uppercase">Status</div>
                 <div className="flex flex-wrap gap-1.5">
-                  {STATUSES.map((s) => {
-                    const active = openReport.status === s;
+                  {(mine ? [columnOf(openReport.status)] : STATUSES).map((s) => {
+                    const active = columnOf(openReport.status) === s;
                     return (
                       <button
                         key={s}
                         type="button"
-                        disabled={savingId === openReport.id}
-                        onClick={() => void moveTo(openReport.id, s)}
-                        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12.5px] font-semibold transition disabled:opacity-60 ${
+                        disabled={mine || savingId === openReport.id}
+                        onClick={() => !mine && void moveTo(openReport.id, s)}
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12.5px] font-semibold transition disabled:opacity-60 ${mine ? "cursor-default disabled:opacity-100 " : ""}${
                           active
                             ? `border-transparent ${STATUS_STYLE[s].chip}`
                             : "border-line text-fg-3 hover:border-line-strong hover:text-fg"
                         }`}
                       >
                         <span className={`h-2 w-2 rounded-full ${STATUS_STYLE[s].dot}`} />
-                        {s}
+                        {STATUS_LABEL[s]}
                       </button>
                     );
                   })}
                 </div>
-                <p className="mt-1.5 text-[11.5px] text-fg-3">The reporter is notified when the status changes.</p>
+                <p className="mt-1.5 text-[11.5px] text-fg-3">
+                  {mine
+                    ? "Updated by the system admin — you are notified when it changes."
+                    : "The reporter is notified when the status changes."}
+                </p>
               </div>
 
               <div>

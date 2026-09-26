@@ -2,7 +2,8 @@ import apiClient from "./apiClient";
 
 export type BugReportType = "bug" | "feature";
 export type BugReportSeverity = "Low" | "Medium" | "High" | "Critical";
-export type BugReportStatus = "Open" | "In progress" | "Resolved" | "Closed";
+// "Resolved" is the "Resolved / Closed" column; legacy "Closed" rows map to it.
+export type BugReportStatus = "Open" | "Need Clarification" | "In progress" | "Resolved";
 
 // Full row as returned by GET /api/bug-reports (system_admin / Bug Tracker) —
 // never includes the raw screenshot bytes; fetch those via
@@ -55,6 +56,8 @@ export interface BugReportQuery {
   offset?: number;
   /** 0–100; 0 returns only the counts. */
   limit?: number;
+  /** "1" = only the caller's own reports (any signed-in user; My Bug Reports). */
+  mine?: "1";
 }
 
 /** Unfiltered header figures. */
@@ -71,7 +74,8 @@ export interface BugReportPage {
   summary: BugReportSummary;
 }
 
-/** system_admin only — one page of the Bug Tracker's reports. */
+/** One page of reports: every report for system_admin (Bug Tracker), or the
+ *  caller's own with mine: "1" (My Bug Reports, any user). */
 export const listBugReports = async (query: BugReportQuery = {}): Promise<BugReportPage> => {
   const params = Object.fromEntries(Object.entries(query).filter(([, v]) => v !== undefined && v !== ""));
   const { data } = await apiClient.get<BugReportPage>("/bug-reports", { params });

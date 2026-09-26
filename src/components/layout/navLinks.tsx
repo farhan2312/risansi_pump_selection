@@ -105,6 +105,12 @@ export const SYSTEM_ADMIN_LINKS: NavLink[] = [
   { href: "/admin/bug-tracker", label: "Bug Tracker", icon: "database" },
 ];
 
+/** Everyone except system_admin (who has the full Bug Tracker): their own
+ *  reports, read-only. */
+export const MY_BUG_LINKS: NavLink[] = [
+  { href: "/my-bug-reports", label: "My Bug Reports", icon: "reports" },
+];
+
 /** pulley_owner: User access plus the Pulley Master only. */
 export const PULLEY_OWNER_LINKS: NavLink[] = ADMIN_LINKS.filter(
   (l) => l.href === "/admin/pulley-master",
