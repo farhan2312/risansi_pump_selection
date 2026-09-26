@@ -245,6 +245,11 @@ export const fluidPropertiesInput = pgTable("fluid_properties_input", {
   // size once a pump is picked (sizes are per-model), and the flat viscosity
   // band size before that. Deviating from it makes remarks mandatory.
   recommendedSize: varchar("recommended_size", { length: 20 }),
+  // One remark for both sizes, mandatory once either deviates.
+  sizeRemarks: text("size_remarks"),
+  // LEGACY: the old separate remarks (backfilled into size_remarks). Kept
+  // because main still reads them; not written by this branch. Drop both
+  // after the merge.
   suctionSizeRemarks: text("suction_size_remarks"),
   dischargeSizeRemarks: text("discharge_size_remarks"),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
@@ -570,6 +575,41 @@ export const driveGearedInput = pgTable("drive_geared_input", {
   gearboxConfirmed: boolean("gearbox_confirmed").default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
+});
+
+// Step 8 — Pump Model & Qty (after Drive). The ERP product code picked from
+// product_pump, its pump type (PCP) and the number of pumps for the tag.
+// Quantity lived on general_info_input until this step existed and was moved
+// here. Not an approvable step (approvals cover steps 1-7).
+export const pumpModelQtyInput = pgTable("pump_model_qty_input", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  projectId: uuid("project_id")
+    .notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  tagId: uuid("tag_id")
+    .notNull()
+    .unique()
+    .references(() => enquiryTags.id, { onDelete: "cascade" }),
+  productCode: varchar("product_code", { length: 100 }),
+  // "PCP" (from the picked product code). Named pump_family, not pump_type:
+  // wizard state is one flat object and pumpType is already the
+  // Specifications step's "Type of Pump" (operating_conditions_input).
+  pumpFamily: varchar("pump_family", { length: 20 }),
+  // Whole number, kept as the raw string like the other wizard fields.
+  quantity: varchar("quantity", { length: 10 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
+});
+
+// ERP pump product codes (e.g. RTOHV6OF8185AABN-MSA) — the list the Pump
+// Model & Qty step picks from. Loaded from "Pump Model Master_2509026.xlsx"
+// (PUMPS sheet), PCP rows only: 544 codes (one duplicate dropped; ROLB80BN
+// left out - it is an Online Blind code wrongly typed PCP in the sheet).
+export const productPump = pgTable("product_pump", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  productCode: varchar("product_code", { length: 100 }).notNull().unique(),
+  pumpType: varchar("pump_type", { length: 20 }).notNull().default("PCP"),
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
 
 // One row per (model, head) data point — originally an exact mirror of
@@ -1025,4 +1065,99 @@ export const stepApproval = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
   },
   (t) => [unique("step_approval_tag_step_key").on(t.tagId, t.step)],
+);
+
+// Commercial Summary (pricing v1, manual) — one row per tag. Every price is
+// typed in by the quotation team, per unit: Pump & Accessories plus the
+// bought-out (BOI) items. Quantity is NOT stored here; it comes from the
+// wizard's Pump Model & Qty step (pump_model_qty_input.quantity). Tag sub-total = (P&A + all BOI) ×
+// quantity; the enquiry's grand total = sum of its tags' sub-totals — both
+// computed (src/lib/commercial.ts), never stored.
+export type CommercialOtherItem = { name: string; price: number | null };
+export const commercialTagPrice = pgTable("commercial_tag_price", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  projectId: uuid("project_id")
+    .notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  tagId: uuid("tag_id")
+    .notNull()
+    .unique()
+    .references(() => enquiryTags.id, { onDelete: "cascade" }),
+  paPrice: numeric("pa_price", { precision: 14, scale: 2 }),
+  motorPrice: numeric("motor_price", { precision: 14, scale: 2 }),
+  gearboxPrice: numeric("gearbox_price", { precision: 14, scale: 2 }),
+  strainerPrice: numeric("strainer_price", { precision: 14, scale: 2 }),
+  prvPrice: numeric("prv_price", { precision: 14, scale: 2 }),
+  drpPrice: numeric("drp_price", { precision: 14, scale: 2 }),
+  /** Extra BOI lines, each named by the user. */
+  others: jsonb("others").$type<CommercialOtherItem[]>().notNull().default([]),
+  remarks: text("remarks"),
+  updatedBy: uuid("updated_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
+});
+
+// Quotation (v1) — one per enquiry, independent of the sales portal (Market
+// Intell is only READ, to prefill the client's TSM). Number:
+// RIL/QT/<region_code>/<fin_year>/<product_type>/<serial>. region_code is the
+// TSM's initials for now. `serial` is ON HOLD (who issues it is undecided;
+// agreed to start from 6000 when it is built) so it stays null.
+// Two version tracks, independent of each other:
+//   internal_version — V0 on create, +1 each time the TSM asks for changes
+//                      (changing WHO the TSM is does not make a version);
+//   client_version   — null until first sent, then V0, V1… per "Send to client".
+export const quotation = pgTable("quotation", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  projectId: uuid("project_id")
+    .notNull()
+    .unique()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  productType: varchar("product_type", { length: 10 }).notNull().default("PCP"),
+  quoteDate: date("quote_date", { mode: "string" }).notNull(),
+  /** Indian financial year of quote_date, e.g. "2627" for Apr 2026 – Mar 2027. */
+  finYear: varchar("fin_year", { length: 4 }).notNull(),
+  serial: integer("serial"),
+  regionCode: varchar("region_code", { length: 20 }),
+  /** Market Intell users.id of the TSM (a reference only — no FK across DBs). */
+  tsmRepId: integer("tsm_rep_id"),
+  tsmName: varchar("tsm_name", { length: 255 }),
+  tsmInitials: varchar("tsm_initials", { length: 20 }),
+  tsmZone: varchar("tsm_zone", { length: 50 }),
+  clientCode: varchar("client_code", { length: 100 }),
+  clientName: varchar("client_name", { length: 255 }),
+  internalVersion: integer("internal_version").notNull().default(0),
+  clientVersion: integer("client_version"),
+  createdBy: uuid("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
+});
+
+// One row per version of either track, with a frozen copy of the prices at
+// that moment (so what a client version showed never changes afterwards).
+export const quotationVersion = pgTable(
+  "quotation_version",
+  {
+    id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    quotationId: uuid("quotation_id")
+      .notNull()
+      .references(() => quotation.id, { onDelete: "cascade" }),
+    track: varchar("track", { length: 10 }).notNull(), // internal | client
+    version: integer("version").notNull(),
+    reason: text("reason"),
+    /** Internal versions: who asked for the changes — "TSM" (selection head later). */
+    requestedBy: varchar("requested_by", { length: 30 }),
+    /** Internal versions: what they asked to change. */
+    note: text("note"),
+    tsmName: varchar("tsm_name", { length: 255 }),
+    tsmInitials: varchar("tsm_initials", { length: 20 }),
+    snapshot: jsonb("snapshot").notNull(),
+    /** null = the LIVE internal version: it follows the saved prices (the
+     *  stored snapshot is refreshed when it freezes). It freezes when the next
+     *  internal version starts or when it is sent to the client. Client
+     *  versions are frozen from the start. At most one live row per quotation. */
+    frozenAt: timestamp("frozen_at", { withTimezone: true }),
+    createdBy: uuid("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+  },
+  (t) => [unique("quotation_version_quotation_id_track_version_key").on(t.quotationId, t.track, t.version)],
 );

@@ -12,6 +12,7 @@ const LABELS: Record<string, string> = {
   "/pump-details": "Pump Details",
   "/selection-summary": "Reports",
   "/head-calculator": "Head Calculator",
+  "/commercial": "Commercial Summary",
   "/admin/pump-model-master": "Pump Model Master",
   "/admin/pulley-master": "Pulley Master",
   "/admin/gearbox-master": "Gearbox Master",

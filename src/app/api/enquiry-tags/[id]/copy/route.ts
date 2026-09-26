@@ -7,7 +7,7 @@ import { enquiryTags } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
 
-// Duplicates a tag — the tag row plus every one of its 8 wizard-step rows —
+// Duplicates a tag — the tag row plus every one of its 9 wizard-step rows —
 // into the same enquiry or into a different one. Used by the copy buttons on
 // the Enquiries page: "copy this tag" (same enquiry) and "copy into another /
 // new enquiry".
@@ -26,6 +26,7 @@ const WIZARD_TABLES = [
   "drive_direct_input",
   "drive_vbelt_input",
   "drive_geared_input",
+  "pump_model_qty_input",
 ] as const;
 
 // Set per row, never copied.

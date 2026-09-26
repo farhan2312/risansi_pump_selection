@@ -110,11 +110,9 @@ export function approvalStepGroups(step: number, f: ApprovalForm): DetailGroup[]
         {
           title: "Line sizes",
           items: [
-            ["Suction Size", withRemarks(f.suctionSize ? `${f.suctionSize}"` : "", f.suctionSizeRemarks)],
-            [
-              "Discharge Size",
-              withRemarks(f.dischargeSize ? `${f.dischargeSize}"` : "", f.dischargeSizeRemarks),
-            ],
+            ["Suction Size", f.suctionSize ? `${f.suctionSize}"` : ""],
+            ["Discharge Size", f.dischargeSize ? `${f.dischargeSize}"` : ""],
+            ["Suction / Discharge Size Remarks", f.sizeRemarks],
             ["Recommended Size", f.recommendedSize ? `${f.recommendedSize}"` : ""],
           ],
         },

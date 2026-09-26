@@ -161,8 +161,12 @@ data: yes, inherit; viscosity-size L-variants: explicitly no, per user rule).
 
 ## The wizard (`src/screens/pump-selection/PumpSelectionPage.tsx`)
 
-8 steps, all sharing one `formData` object (typed as `PumpSelectionFormData`
-in `src/data/Recommendations.ts`):
+10 steps on branch `feature/commercial-pricing` (1-7 below, then 8 Pump
+Model & Qty, 9 Approval, 10 Recommendation; `main` has 9 - no Pump Model &
+Qty), all sharing one FLAT `formData` object (typed as `PumpSelectionFormData`
+in `src/data/Recommendations.ts`) — so a field name must be unique across ALL
+wizard tables (e.g. the new step's PCP field is `pumpFamily` because
+`pumpType` is already the Specifications step's Type of Pump):
 
 1. **General Information** — capacity, capacity unit, head, head unit, media
    (dropdown from `moc_recommendation`), SG, RPM range filter. Persists to
@@ -279,6 +283,23 @@ in `src/data/Recommendations.ts`):
      (if set) narrow the already-screened result further rather than gating
      the initial screen. Every match across all 3 tables is shown as a
      clickable card grouped by source table; manual pick only.
+8. **Pump Model & Qty** (branch only, `PumpModelQtyStep.tsx`) — Pump Model =
+   ERP product code picked from `product_pump` (544 PCP codes from "Pump
+   Model Master_2509026.xlsx"; `ProductCodeSelect` loads all via GET
+   /api/product-pumps and filters client-side, each typed word matched
+   anywhere; "+ Add" puts a new code into product_pump as PCP via POST /api/product-pumps, audited product_pump.add), Pump Type = `pumpFamily` "PCP" (read-only), Quantity (Nos,
+   whole number ≥ 1). All required. Table `pump_model_qty_input`
+   (product_code, pump_family, quantity). NOT approvable (approvals stay
+   steps 1-7). Feeds the Commercial Summary and the Recommendation summary.
+   **At merge to main run `node scripts/renumber-wizard-steps-pump-model-qty.cjs
+   --apply` once** — it moves stored wizard_step / wizard_max_step >= 8 up by
+   one (guarded against a second run).
+   Then 9 = Approval, 10 = Recommendation (numbered 8 / 9 below from before).
+   Also after the merge: drop fluid_properties_input.suction_size_remarks /
+   discharge_size_remarks — the branch uses ONE `size_remarks` ("Suction /
+   Discharge Size Remarks", required when either size deviates; backfilled
+   2026-09-26: same text kept once, different texts as "Suction: …;
+   Discharge: …"). main still reads the old two, so they stay until then.
 8. **Recommendation** (read-only summary) — re-fetches `findCandidates()` for
    the confirmed model, shows `PumpDetailsCard` (Model, Stage, Pump Type,
    AG/BK, RPM range, Head, VOLE, Mech Eff, per-model Suction/Discharge Size
@@ -506,6 +527,58 @@ never auto-filled from the AI result.
   read it directly rather than trusting this file if something seems off.
 - Inline comments throughout the codebase are unusually thorough and explain
   *why*, not just what — read them before assuming behavior.
+
+## Commercial Summary (pricing v1, manual) — branch `feature/commercial-pricing`
+- Page `/commercial?projectId=…` (`src/screens/commercial/CommercialSummaryPage.tsx`),
+  opened from the "Commercial" button on each Enquiries row. Every tag of the
+  enquiry on one page: Pump & Accessories (P&A) + BOI items (Motor, Gearbox,
+  Strainer, PRV, DRP, plus named "Others", max 10), all typed in per unit.
+- Totals (`src/lib/commercial.ts`, shared by page + API): unit = P&A + all
+  BOI; sub-total = unit × quantity; grand total = sum of sub-totals. A tag
+  with no quantity counts as 0 and is flagged.
+- Quantity and the product code come from the wizard's **Pump Model & Qty**
+  step (step 8, `pump_model_qty_input`) — see the wizard section. Quantity
+  briefly lived on general_info_input and was moved (column dropped).
+- Storage: `commercial_tag_price` (one row per tag, numeric price columns,
+  `others` jsonb, remarks, updated_by). `GET /api/commercial?projectId=` /
+  `PUT /api/commercial/[tagId]` (replace-all, audited as `commercial.update`
+  with old → new per changed price). Any signed-in user can edit for now.
+- The wizard's motor / gearbox pick (uplifted price) is shown next to those
+  rows with a "Use ₹x" button — a reference only, never auto-applied.
+- **Quotation (v1)** — `QuotationPanel` at the top of the Commercial Summary.
+  One per enquiry (`quotation`, unique project_id) + `quotation_version`
+  (track internal|client, version, reason, TSM, frozen price `snapshot` jsonb).
+  Number `RIL/QT/<region>/<FY Apr–Mar e.g. 2627>/PCP/<serial>`; region = the
+  TSM's initials (user decision, for now); **serial is ON HOLD** (who issues it
+  is undecided; agreed start 6000) so it is null and shows as "····".
+  Independent of the sales portal: Market Intell is only READ (miQuery).
+  **TSM is LOCKED to the client's rep** (user decision 2026-09-26): the sales
+  client's primary_rep_id, found by projects.client_code. Create ignores any
+  picked TSM when the client has a rep; PATCH only accepts that rep (used to
+  follow sales if it reassigns the client — UI shows "Update to <initials>").
+  Only when the client has no rep / no client code is the TSM hand-picked
+  (active rep/manager users). GET /api/quotations returns `clientTsm`. Two independent tracks: internal V0
+  on create, +1 each time **the TSM asks for changes** ("New internal
+  version", POST /api/quotations/[id]/internal-version with a required note
+  of what was asked; requested_by "TSM") — NOT when the TSM person changes
+  (user correction 2026-09-26): reassigning the TSM (PATCH
+  /api/quotations/[id]) makes no version, only the number's initials follow.
+  **The latest internal version is LIVE** (quotation_version.frozen_at null;
+  user decision 2026-09-26): loadQuotation shows it with the current saved
+  prices (buildSnapshot), and the page bumps `pricesVersion` after each price
+  save so the panel refreshes. It freezes (stored snapshot refreshed +
+  frozen_at) when the next internal version starts — clicked BEFORE making the
+  TSM's changes — or when sent (freezeLiveInternal). Send needs a live internal
+  version (409 otherwise); client versions are frozen from the start and name
+  the internal version sent.
+  Client version null until "Send to client" (POST
+  /api/quotations/[id]/send) → V0, V1… Nothing is e-mailed. Selection head is
+  ignored for now (TSM only). New version / send are blocked while the page
+  has unsaved prices. Audited quotation.create / tsm_change /
+  internal_version / send. Snapshots built by lib/quotation-server.ts via
+  lib/commercial-server.ts (same data as GET /api/commercial).
+- Not built yet: the quotation serial, L1–L4 price list and markup rules,
+  client price-sheet uploads, PDF output, scope of supply.
 
 ## Audit Log page (/admin/audit, system_admin)
 - Tabs: Overview (default) · Usage by User · Activity · Logins & Sessions ·

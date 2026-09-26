@@ -127,7 +127,8 @@ const MOTOR_RATING_FIELDS = new Set(["driveMotorKw", "driveMotorKwRemarks"]);
 
 /** Wizard steps whose approval a change to these fields of a wizard-input
  * table invalidates. An approval must match what the selection head saw, so
- * a real change sends the step back to Pending. */
+ * a real change sends the step back to Pending. Tables not listed (the Pump
+ * Model & Qty step's pump-model-qty) are not approvable, so reset nothing. */
 export function approvalStepsForChange(tableKey: string, changedKeys: string[]): number[] {
   const steps = new Set<number>();
   for (const key of changedKeys) {

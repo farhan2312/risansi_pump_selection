@@ -7,6 +7,7 @@ import GeneralInformationStep from "../../components/pump-selection/GeneralInfor
 import FluidPropertiesStep from "../../components/pump-selection/FluidPropertiesStep";
 import OperatingConditionsStep from "../../components/pump-selection/OperatingConditionsStep";
 import DriveDetailsStep from "../../components/pump-selection/DriveDetailsStep";
+import PumpModelQtyStep from "../../components/pump-selection/PumpModelQtyStep";
 import SealingDetailsStep from "../../components/pump-selection/SealingDetailsStep";
 import MocDetailsStep from "../../components/pump-selection/MocDetailsStep";
 import MotorRatingStep from "../../components/pump-selection/MotorRatingStep";
@@ -51,7 +52,7 @@ const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
   "fluid-properties": [
     "viscosity", "viscosityUnit", "viscosityRange", "viscosityCp",
     "suctionSize", "dischargeSize", "recommendedSize",
-    "suctionSizeRemarks", "dischargeSizeRemarks",
+    "sizeRemarks",
     "solidPercentage", "solidSize", "solidSizeMax", "solidSizeMode", "solidType",
     "endConnection", "suctionConnection", "suctionFlangeStd", "dischargeFlangeStd",
     "ph", "temperature", "temperatureRaw", "temperatureUnit",
@@ -106,6 +107,7 @@ const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
     "driveCoupling", "couplingType", "couplingMake", "asfRange", "gearboxSource", "gearboxModel",
     "gearboxOutputRpm", "gearboxServiceFactor", "gearboxRatePerNos", "gearboxConfirmed",
   ],
+  "pump-model-qty": ["productCode", "pumpFamily", "quantity"],
 };
 
 // Fields backed by a boolean column — a NULL restores as `false`, not the ""
@@ -121,7 +123,7 @@ const BOOLEAN_FIELDS = new Set([
 // the "" every other (string) field falls back to.
 const NUMBER_FIELDS = new Set(["wizardStep", "wizardMaxStep"]);
 
-const TOTAL_STEPS = 9;
+const TOTAL_STEPS = 10;
 
 // Keep a restored step inside the wizard's real range — a corrupt/stale value
 // shouldn't strand the user on a step that doesn't exist.
@@ -135,9 +137,9 @@ const clampStep = (n: unknown): number => {
 // (or stepper jump, or Previous) saves ONLY the step being left, not every
 // table. Steps 4+5 both write moc-sealing (MOC and Sealing share one table);
 // step 7's drive-system-specific table is appended conditionally at save time
-// (see stepTablesToSave). Step 8 (Approval) keeps its state in step_approval
-// via its own route, and step 9 (read-only Recommendation) writes nothing, so
-// neither has a wizard-input table.
+// (see stepTablesToSave). Step 8 (Pump Model & Qty) has its own table. Step 9
+// (Approval) keeps its state in step_approval via its own route, and step 10
+// (read-only Recommendation) writes nothing, so neither has a wizard-input table.
 const STEP_TABLES: Record<number, WizardInputTable[]> = {
   1: ["general-info"],
   2: ["fluid-properties"],
@@ -146,8 +148,9 @@ const STEP_TABLES: Record<number, WizardInputTable[]> = {
   5: ["moc-sealing"],
   6: ["motor-drive"],
   7: ["motor-drive"],
-  8: [],
+  8: ["pump-model-qty"],
   9: [],
+  10: [],
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -227,6 +230,10 @@ const PumpSelectionPage = () => {
     temperatureRaw: "", // as-entered value in the currently-selected unit
     temperatureUnit: "C", // display-only unit for the input: C / F / K
     sg: "", // Specific Gravity
+    // Pump Model & Qty step (8)
+    productCode: "", // ERP pump product code, picked from product_pump
+    pumpFamily: "PCP", // not pumpType - that is the Specifications step's Type of Pump
+    quantity: "1", // number of pumps (Nos) - pulled into the Commercial Summary
     ph: "",
     rpmRange: "", // manual RPM band filter (low/medium/high/vhigh)
     selectedModel: "", // pump picked in the live panel; persists across steps
@@ -245,8 +252,7 @@ const PumpSelectionPage = () => {
     suctionSize: "", // inches - defaulted from the recommendation, editable
     dischargeSize: "",
     recommendedSize: "", // baseline the two above are compared against
-    suctionSizeRemarks: "", // mandatory once the value deviates
-    dischargeSizeRemarks: "",
+    sizeRemarks: "", // suction / discharge size remarks — mandatory once either deviates
     viscosityCp: "", // canonical cP value (cP = cSt × SG when entered in cSt)
     solidPercentage: "",
     solidSize: "",
@@ -589,18 +595,29 @@ const PumpSelectionPage = () => {
 
       case 8:
         return (
-          <ApprovalStep
+          <PumpModelQtyStep
             onPrevious={() => goToStep(7)}
             onNext={() => goToStep(9)}
-            onStepClick={jumpToStep}
             formData={formData}
+            setFormData={setFormData}
+            onStepClick={jumpToStep}
           />
         );
 
       case 9:
         return (
-          <RecommendationStep
+          <ApprovalStep
             onPrevious={() => goToStep(8)}
+            onNext={() => goToStep(10)}
+            onStepClick={jumpToStep}
+            formData={formData}
+          />
+        );
+
+      case 10:
+        return (
+          <RecommendationStep
+            onPrevious={() => goToStep(9)}
             formData={formData}
             selectedPump={selectedPump}
             setSelectedPump={setSelectedPump}

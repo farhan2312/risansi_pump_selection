@@ -10,6 +10,7 @@ import {
   btnPrimarySm,
   control,
   fieldWrap,
+  fullWidth,
   grid,
   hint,
   hintError,
@@ -389,14 +390,12 @@ const FluidPropertiesStep = ({
   const suctionDeviates = sizeDeviates(formData.suctionSize, recommendedSize);
   const dischargeDeviates = sizeDeviates(formData.dischargeSize, recommendedSize);
   const [showErrors, setShowErrors] = useState(false);
+  // One remark covers both sizes; required once either differs.
+  const eitherSizeDeviates = suctionDeviates || dischargeDeviates;
   const errors: Record<string, string> = {
-    suctionSizeRemarks:
-      suctionDeviates && !(formData.suctionSizeRemarks ?? "").trim()
-        ? "Explain why the suction size differs from the recommendation."
-        : "",
-    dischargeSizeRemarks:
-      dischargeDeviates && !(formData.dischargeSizeRemarks ?? "").trim()
-        ? "Explain why the discharge size differs from the recommendation."
+    sizeRemarks:
+      eitherSizeDeviates && !(formData.sizeRemarks ?? "").trim()
+        ? "Explain why the size differs from the recommendation."
         : "",
   };
   const errorCount = Object.values(errors).filter(Boolean).length;
@@ -737,35 +736,22 @@ const FluidPropertiesStep = ({
             />
           </div>
 
-          {suctionDeviates && (
-            <div className={fieldWrap}>
-              <label className={label}>Suction Size Remarks<Req /></label>
+          {eitherSizeDeviates && (
+            <div className={`${fieldWrap} ${fullWidth}`}>
+              <label className={label}>Suction / Discharge Size Remarks<Req /></label>
               <textarea
                 className={control}
                 rows={2}
-                placeholder={`Why ${formData.suctionSize}" instead of the recommended ${recommendedSize}"?`}
-                value={formData.suctionSizeRemarks ?? ""}
-                onChange={(e) =>
-                  setFormData({ ...formData, suctionSizeRemarks: e.target.value })
-                }
+                placeholder={`Why ${[
+                  suctionDeviates ? `suction ${formData.suctionSize}"` : "",
+                  dischargeDeviates ? `discharge ${formData.dischargeSize}"` : "",
+                ]
+                  .filter(Boolean)
+                  .join(" and ")} instead of the recommended ${recommendedSize}"?`}
+                value={formData.sizeRemarks ?? ""}
+                onChange={(e) => setFormData({ ...formData, sizeRemarks: e.target.value })}
               />
-              <Err show={showErrors} msg={errors.suctionSizeRemarks} />
-            </div>
-          )}
-
-          {dischargeDeviates && (
-            <div className={fieldWrap}>
-              <label className={label}>Discharge Size Remarks<Req /></label>
-              <textarea
-                className={control}
-                rows={2}
-                placeholder={`Why ${formData.dischargeSize}" instead of the recommended ${recommendedSize}"?`}
-                value={formData.dischargeSizeRemarks ?? ""}
-                onChange={(e) =>
-                  setFormData({ ...formData, dischargeSizeRemarks: e.target.value })
-                }
-              />
-              <Err show={showErrors} msg={errors.dischargeSizeRemarks} />
+              <Err show={showErrors} msg={errors.sizeRemarks} />
             </div>
           )}
         </div>

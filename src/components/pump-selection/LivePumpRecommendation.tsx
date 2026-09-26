@@ -161,7 +161,7 @@ const LivePumpRecommendation = ({
       selectedHead: already ? "" : String(headMwc),
       ...(sizeDefaultsFor(formData.recommendedSize, recommended) ?? {}),
       ...sizesOnPick(!already, recommended, formData.recommendedSize, formData),
-      ...(already ? {} : { suctionSizeRemarks: "", dischargeSizeRemarks: "" }),
+      ...(already ? {} : { sizeRemarks: "" }),
     });
   };
 

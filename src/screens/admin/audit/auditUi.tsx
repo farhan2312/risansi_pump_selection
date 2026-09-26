@@ -19,6 +19,12 @@ export const prettyRole = (role: string | null | undefined): string =>
 const MASTER_ACTIONS: Record<string, string> = {
   "end_connection.add": "End connection added",
   "flange_standard.add": "Flange standard added",
+  "commercial.update": "Commercial prices updated",
+  "product_pump.add": "Pump product code added",
+  "quotation.create": "Quotation created",
+  "quotation.tsm_change": "Quotation TSM changed",
+  "quotation.internal_version": "Quotation internal version",
+  "quotation.send": "Quotation sent to client",
   "master.create": "Master added",
   "master.update": "Master edited",
   "master.delete": "Master deleted",
