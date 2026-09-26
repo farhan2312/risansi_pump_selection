@@ -27,6 +27,7 @@ const PROTECTED_PREFIXES = [
   "/pump-details",
   "/selection-summary",
   "/head-calculator",
+  "/commercial",
   "/approvals",
   "/admin",
 ];

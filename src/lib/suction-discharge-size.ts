@@ -40,15 +40,13 @@ export function sizeDefaultsFor(
   recommended: number | null,
 ): {
   recommendedSize: string;
-  suctionSizeRemarks: string;
-  dischargeSizeRemarks: string;
+  sizeRemarks: string;
 } | null {
   const value = recommended === null ? "" : String(recommended);
   if (value === (previousRecommended ?? "")) return null;
   return {
     recommendedSize: value,
-    suctionSizeRemarks: "",
-    dischargeSizeRemarks: "",
+    sizeRemarks: "",
   };
 }
 

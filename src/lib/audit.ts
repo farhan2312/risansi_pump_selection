@@ -83,6 +83,7 @@ export const WIZARD_STEP_LABELS: Record<string, string> = {
   "drive-direct": "Drive Details (Direct)",
   "drive-vbelt": "Drive Details (V-Belt)",
   "drive-geared": "Drive Details (Geared)",
+  "pump-model-qty": "Pump Model & Qty",
 };
 
 export const wizardStepLabel = (tableKey: string): string =>

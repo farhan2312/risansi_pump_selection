@@ -55,6 +55,8 @@ const LABELS: Record<string, string> = {
   rpmRange: "RPM range",
   selectedModel: "Pump model",
   selectedHead: "Selected head",
+  // Pump Model & Qty
+  productCode: "Pump model (product code)",
   modelConfirmed: "Model confirmed",
   // Fluid Properties
   ph: "pH",
@@ -65,6 +67,7 @@ const LABELS: Record<string, string> = {
   temperatureMaxRaw: "Temperature max",
   temperatureMode: "Temperature single/range",
   solidPercentage: "Solids %",
+  sizeRemarks: "Suction / discharge size remarks",
   solidSizeMode: "Solid size single/range",
   // Specifications
   agBk: "AG / BK",

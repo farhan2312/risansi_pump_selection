@@ -12,7 +12,8 @@ export type WizardInputTable =
   | "motor-drive"
   | "drive-direct"
   | "drive-vbelt"
-  | "drive-geared";
+  | "drive-geared"
+  | "pump-model-qty";
 
 // Each helper takes an optional tagId. Wizard rows are keyed by tag - one
 // project can carry N tags, each with its own wizard - but the server also

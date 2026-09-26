@@ -65,6 +65,10 @@ export interface PumpSelectionFormData {
   temperatureRaw?: string;
   temperatureUnit?: string; // "C" | "F" | "K"
   sg: string;
+  // Pump Model & Qty step (pump_model_qty_input)
+  productCode?: string; // ERP pump product code, from product_pump
+  pumpFamily?: string; // "PCP" (pumpType is the Specifications step's Type of Pump)
+  quantity?: string; // number of pumps for this tag (Commercial Summary)
   ph: string;
   viscosity: string;
   viscosityUnit: string;
@@ -99,8 +103,7 @@ export interface PumpSelectionFormData {
   suctionSize?: string; // inches — defaults to the recommended size
   dischargeSize?: string; // inches — defaults to the recommended size
   recommendedSize?: string; // baseline the two above are compared against
-  suctionSizeRemarks?: string; // mandatory once suctionSize deviates
-  dischargeSizeRemarks?: string; // mandatory once dischargeSize deviates
+  sizeRemarks?: string; // suction / discharge size remarks — mandatory once either deviates
   agBk?: string; // AG / BK feed option — only set when viscosity > 10000 cP
   agBkRemarks?: string; // required justification when agBk is "Not Required"
   negativeSuctionSize?: string; // vertical pumps only - depth below the flange

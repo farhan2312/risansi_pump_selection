@@ -20,11 +20,12 @@ import {
   driveDirectInput,
   driveVbeltInput,
   driveGearedInput,
+  pumpModelQtyInput,
 } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
 
-// One generic route family for all 8 wizard autosave tables, keyed by the
+// One generic route family for all 9 wizard autosave tables, keyed by the
 // [table] URL segment - same pattern as /api/gearbox-master/[table]. Each
 // table now has a unique tagId (one row per tag; one project can hold N
 // tags), so GET/PUT/DELETE key by tagId. `projectId` is still accepted as a
@@ -39,6 +40,7 @@ const TABLES = {
   "drive-direct": driveDirectInput,
   "drive-vbelt": driveVbeltInput,
   "drive-geared": driveGearedInput,
+  "pump-model-qty": pumpModelQtyInput,
 } as const;
 
 type TableKey = keyof typeof TABLES;
@@ -59,7 +61,7 @@ const FIELDS: Record<TableKey, readonly string[]> = {
     "viscosity", "viscosityUnit", "viscosityRange", "viscosityCp",
     // Line sizes (inches), defaulted from the viscosity band but user-editable.
     "suctionSize", "dischargeSize", "recommendedSize",
-    "suctionSizeRemarks", "dischargeSizeRemarks",
+    "sizeRemarks",
     "solidPercentage", "solidSize", "solidSizeMax", "solidSizeMode", "solidType",
     "endConnection", "suctionConnection", "suctionFlangeStd", "dischargeFlangeStd",
     // Temperature + pH are entered on the Fluid step, so they persist here.
@@ -127,6 +129,7 @@ const FIELDS: Record<TableKey, readonly string[]> = {
     "driveCoupling", "couplingType", "couplingMake", "asfRange", "gearboxSource", "gearboxModel",
     "gearboxOutputRpm", "gearboxServiceFactor", "gearboxRatePerNos", "gearboxConfirmed",
   ],
+  "pump-model-qty": ["productCode", "pumpFamily", "quantity"],
 };
 
 // Columns backed by a Drizzle `timestamp` — Drizzle calls .toISOString() on the

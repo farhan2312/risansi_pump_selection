@@ -258,23 +258,15 @@ const RecommendationStep = ({
 
   const pumpDetailsItems: FieldItem[] = confirmedPump
     ? [
+        // Pump Model & Qty step.
+        ["Pump Model (Product Code)", formData.productCode],
+        ["Quantity (Nos)", formData.quantity],
         // Entered on the Fluid step (pre-filled from the recommendation, then
-        // editable), so the user's own value wins over the derived one. Any
-        // remark explains an override and travels with the size.
-        [
-          "Suction Size",
-          withRemarks(
-            sizeText(formData.suctionSize, cardSize),
-            formData.suctionSizeRemarks,
-          ),
-        ],
-        [
-          "Discharge Size",
-          withRemarks(
-            sizeText(formData.dischargeSize, cardSize),
-            formData.dischargeSizeRemarks,
-          ),
-        ],
+        // editable), so the user's own value wins over the derived one. One
+        // remark explains an override of either size.
+        ["Suction Size", sizeText(formData.suctionSize, cardSize)],
+        ["Discharge Size", sizeText(formData.dischargeSize, cardSize)],
+        ["Suction / Discharge Size Remarks", formData.sizeRemarks],
         ["Pump Speed (RPM)", confirmedPump.rpmRange],
         ["Pump Stage", confirmedPump.stage != null ? String(confirmedPump.stage) : ""],
         [
@@ -632,7 +624,7 @@ const RecommendationStep = ({
   return (
     <div className="step-container">
       <Stepper
-        currentStep={9}
+        currentStep={10}
         maxStep={formData.wizardMaxStep}
         onStepClick={onStepClick}
         finalCompleted={confirmed}
