@@ -70,6 +70,11 @@ export async function GET(req: Request) {
   const createdTo = instant(params.get("to"));
   if (createdFrom) conditions.push(sql`${projects.createdAt} >= ${createdFrom}`);
   if (createdTo) conditions.push(sql`${projects.createdAt} <= ${createdTo}`);
+  // "Created by me" toggle: only enquiries the signed-in user created.
+  if (params.get("mine") === "1") {
+    const me = tryDecodeToken(req)?.sub ?? null;
+    conditions.push(me ? eq(projects.createdBy, me) : sql`false`);
+  }
   const where = conditions.length ? and(...conditions) : undefined;
 
   const pageRaw = params.get("page");

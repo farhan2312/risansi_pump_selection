@@ -13,6 +13,7 @@ import Pagination from "../../components/ui/Pagination";
 import PageHeader from "../../components/ui/PageHeader";
 import StatusPill, { lifecycleStyle } from "../../components/ui/StatusPill";
 import DateRangeFilter, { useDateRange } from "../../components/ui/DateRangeFilter";
+import { Segmented } from "../admin/audit/auditUi";
 import {
   createProject,
   deleteProject,
@@ -103,6 +104,8 @@ const ProjectsPage = () => {
   const dates = useDateRange("all");
   const dateWindow = dates.window;
   const [pageInfo, setPageInfo] = useState({ total: 0, totalPages: 1 });
+  // "All enquiries" / "Created by me" — filtered on the server.
+  const [scope, setScope] = useState<"all" | "mine">("all");
   // Typing is debounced so a filter keystroke doesn't fire a request each.
   const [debouncedFilters, setDebouncedFilters] = useState({ clientName: "", enquiryCode: "" });
 
@@ -136,6 +139,7 @@ const ProjectsPage = () => {
       enquiryCode: debouncedFilters.enquiryCode,
       from: dateWindow.from,
       to: dateWindow.to,
+      mine: scope === "mine",
     })
       .then((res) => {
         setProjects(res.items);
@@ -148,7 +152,7 @@ const ProjectsPage = () => {
       })
       .catch(() => setError("Couldn't load enquiries."))
       .finally(() => setIsLoading(false));
-  }, [page, debouncedFilters, dateWindow]);
+  }, [page, debouncedFilters, dateWindow, scope]);
 
   useEffect(() => {
     loadProjects();
@@ -499,6 +503,18 @@ const ProjectsPage = () => {
         }
       >
         <div className="flex flex-wrap items-center gap-2.5">
+          <Segmented
+            value={scope}
+            onChange={(v) => {
+              setScope(v);
+              setPage(1);
+            }}
+            loading={isLoading}
+            options={[
+              { key: "all", label: "All enquiries" },
+              { key: "mine", label: "Created by me" },
+            ]}
+          />
           <label className="relative w-full sm:w-[240px] xl:w-[220px]">
             <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-fg-3">
               <SearchGlyph />
@@ -579,8 +595,12 @@ const ProjectsPage = () => {
         <div className="mt-6">
           <EmptyState
             icon="folder"
-            title="No enquiries yet"
-            description="Create your first enquiry to start scoping a PCP pump selection — capacity, head, media, and drive details all get saved per enquiry."
+            title={scope === "mine" ? "You haven't created any enquiries yet" : "No enquiries yet"}
+            description={
+              scope === "mine"
+                ? "Enquiries you create show here. Switch to All enquiries to see everyone's."
+                : "Create your first enquiry to start scoping a PCP pump selection — capacity, head, media, and drive details all get saved per enquiry."
+            }
             action={
               <button type="button" className={btnPrimary} onClick={() => setIsModalOpen(true)}>
                 <PlusIcon /> Create your first enquiry

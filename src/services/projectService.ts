@@ -46,6 +46,8 @@ export const listProjectsPage = async (query: {
   /** Created-date window, ISO instants. */
   from?: string;
   to?: string;
+  /** Only enquiries the signed-in user created. */
+  mine?: boolean;
 }): Promise<ProjectPage> => {
   const { data } = await apiClient.get<ProjectPage>("/projects", {
     params: {
@@ -55,6 +57,7 @@ export const listProjectsPage = async (query: {
       enquiryCode: query.enquiryCode?.trim() || undefined,
       from: query.from || undefined,
       to: query.to || undefined,
+      mine: query.mine ? "1" : undefined,
     },
   });
   return data;
