@@ -1,11 +1,13 @@
 import apiClient from "./apiClient";
 import type { QuotationInfo, TsmOption } from "../lib/commercial";
 
-/** The enquiry's quotation (null if not created yet) and the client's rep in sales (the locked TSM; null if none). */
+/** One drive group's quotation for the enquiry (null if not created yet) and
+ *  the client's rep in sales (the locked TSM; null if none). */
 export const getQuotation = async (
   projectId: string,
+  group: string,
 ): Promise<{ quotation: QuotationInfo | null; clientTsm: TsmOption | null }> => {
-  const { data } = await apiClient.get("/quotations", { params: { projectId } });
+  const { data } = await apiClient.get("/quotations", { params: { projectId, group } });
   return data;
 };
 
@@ -15,8 +17,8 @@ export const listTsmOptions = async (): Promise<TsmOption[]> => {
   return data;
 };
 
-export const createQuotation = async (projectId: string, tsmRepId?: number): Promise<QuotationInfo> => {
-  const { data } = await apiClient.post<QuotationInfo>("/quotations", { projectId, tsmRepId });
+export const createQuotation = async (projectId: string, group: string, tsmRepId?: number): Promise<QuotationInfo> => {
+  const { data } = await apiClient.post<QuotationInfo>("/quotations", { projectId, group, tsmRepId });
   return data;
 };
 

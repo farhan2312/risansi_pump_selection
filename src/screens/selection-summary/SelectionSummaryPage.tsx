@@ -404,14 +404,9 @@ const SelectionSummaryPage = () => {
       {viewingEnquiry && (
         <EnquiryDocumentModal
           source={{
+            projectId: viewingEnquiry.project_id,
             projectCode: viewingEnquiry.project_code,
             projectName: viewingEnquiry.project_name,
-            clientCode: viewingEnquiry.client_code,
-            generatedBy: viewingEnquiry.created_by_name,
-            tags: viewingEnquiry.tags.map((t) => ({
-              tagId: t.tag_id,
-              tagName: t.tag_name,
-            })),
           }}
           onClose={() => setViewingEnquiry(null)}
         />

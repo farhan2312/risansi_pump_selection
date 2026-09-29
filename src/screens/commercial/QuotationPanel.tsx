@@ -8,7 +8,6 @@ import {
   type QuotationVersionInfo,
   type TsmOption,
   formatInr,
-  quotationNumber,
   versionLabel,
 } from "../../lib/commercial";
 import {
@@ -43,10 +42,16 @@ const tsmLabel = (t: TsmOption) => `${t.name} (${t.initials}${t.zone ? ` · ${t.
 
 export default function QuotationPanel({
   projectId,
+  group,
+  groupLabel,
   hasUnsavedPrices,
   pricesVersion,
 }: {
   projectId: string;
+  /** Drive group this panel quotes (GM / GB / VB / DD) — one quotation each. */
+  group: string;
+  /** Shown in the title when the enquiry has more than one group. */
+  groupLabel?: string;
   /** Prices on the page not saved yet — sending would freeze the old ones. */
   hasUnsavedPrices: boolean;
   /** Bumped by the page after each price save, so the live version's totals refresh. */
@@ -71,7 +76,7 @@ export default function QuotationPanel({
 
   useEffect(() => {
     let cancelled = false;
-    getQuotation(projectId)
+    getQuotation(projectId, group)
       .then(async (q) => {
         if (cancelled) return;
         setQuotation(q.quotation);
@@ -90,19 +95,19 @@ export default function QuotationPanel({
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [projectId, group]);
 
   // After a price save, re-read so the live internal version shows the new totals.
   useEffect(() => {
     if (pricesVersion === 0) return;
     let cancelled = false;
-    getQuotation(projectId)
+    getQuotation(projectId, group)
       .then((q) => !cancelled && setQuotation(q.quotation))
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [projectId, pricesVersion]);
+  }, [projectId, group, pricesVersion]);
 
   // Keep the current TSM selectable even if it's no longer an active rep.
   const tsmOptions =
@@ -174,11 +179,11 @@ export default function QuotationPanel({
     return (
       <section className="rounded-xl border border-line bg-paper">
         <header className="border-b border-line px-4 py-3">
-          <h2 className="text-[14px] font-semibold text-fg">Quotation</h2>
+          <h2 className="text-[14px] font-semibold text-fg">Quotation{groupLabel ? ` — ${groupLabel}` : ""}</h2>
         </header>
         <div className="flex flex-col gap-3 p-4">
           <p className="text-[13px] text-fg-2">
-            No quotation for this enquiry yet. Creating one fills in the number, date and client, and starts
+            No quotation for {groupLabel ? `the ${groupLabel} tags` : "this enquiry"} yet. Creating one fills in the number, date and client, and starts
             internal V0.{" "}
             {clientTsm
               ? "The TSM is the client's rep in the sales portal."
@@ -191,7 +196,7 @@ export default function QuotationPanel({
               className={btnPrimarySm}
               disabled={busy || !picked}
               onClick={() =>
-                picked && run(() => createQuotation(projectId, clientTsm ? undefined : picked.id), "Couldn't create the quotation.")
+                picked && run(() => createQuotation(projectId, group, clientTsm ? undefined : picked.id), "Couldn't create the quotation.")
               }
             >
               {busy ? "Creating…" : "Create Quotation"}
@@ -218,8 +223,8 @@ export default function QuotationPanel({
     <section className="rounded-xl border border-line bg-paper">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
         <div className="min-w-0">
-          <h2 className="text-[14px] font-semibold text-fg">Quotation</h2>
-          <p className="mt-0.5 font-mono text-[15px] font-semibold break-all text-fg">{quotationNumber(quotation)}</p>
+          <h2 className="text-[14px] font-semibold text-fg">Quotation{groupLabel ? ` — ${groupLabel}` : ""}</h2>
+          <p className="mt-0.5 font-mono text-[15px] font-semibold break-all text-fg">{quotation.number}</p>
           {quotation.serial === null && (
             <p className="text-[11.5px] text-fg-3">Serial number on hold — added once it is decided who issues it.</p>
           )}

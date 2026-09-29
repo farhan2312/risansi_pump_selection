@@ -18,7 +18,10 @@ import {
   type CommercialReference,
   type CommercialSummary,
   type CommercialTag,
+  type DriveGroup,
+  driveGroupOf,
   emptyPrices,
+  groupsIn,
   parseQuantity,
 } from "@/lib/commercial";
 import { gearboxUpliftedRate } from "@/lib/motor-price";
@@ -110,6 +113,7 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
       modelConfirmed: !!r.modelConfirmed,
       media: r.media || null,
       driveSystem: r.driveSystem || null,
+      driveGroup: driveGroupOf(r.driveSystem, r.gearedConfig),
       quantity: parseQuantity(r.quantity),
       productCode: r.productCode || null,
       motorRef,
@@ -132,4 +136,21 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
   });
 
   return { project, tags };
+}
+
+/** Each tag's drive group (null = no drive system yet), keyed by tag id. */
+export async function tagDriveGroups(projectId: string): Promise<Map<string, DriveGroup | null>> {
+  const rows = await db
+    .select({ tagId: enquiryTags.id, driveSystem: motorDriveInput.driveSystem, gearedConfig: driveGearedInput.gearedConfigType })
+    .from(enquiryTags)
+    .leftJoin(motorDriveInput, eq(motorDriveInput.tagId, enquiryTags.id))
+    .leftJoin(driveGearedInput, eq(driveGearedInput.tagId, enquiryTags.id))
+    .where(eq(enquiryTags.projectId, projectId));
+  return new Map(rows.map((r) => [r.tagId, driveGroupOf(r.driveSystem, r.gearedConfig)]));
+}
+
+/** The drive groups the enquiry's tags use; more than one = "mixed", which
+ *  puts the group code after the quotation serial. */
+export async function projectDriveGroups(projectId: string): Promise<DriveGroup[]> {
+  return groupsIn([...(await tagDriveGroups(projectId)).values()]);
 }

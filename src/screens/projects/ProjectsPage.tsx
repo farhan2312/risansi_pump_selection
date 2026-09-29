@@ -87,7 +87,6 @@ const ProjectsPage = () => {
   // Technical Quotation for a whole enquiry - the same document the Reports
   // page shows, reachable from here too.
   const [viewingDocFor, setViewingDocFor] = useState<ProjectRecord | null>(null);
-  const [docLoadingFor, setDocLoadingFor] = useState<string | null>(null);
 
   // Filters — client name matches project.name (the "Client Name" column;
   // that's what the Create/Edit forms actually call this field), enquiry
@@ -362,25 +361,8 @@ const ProjectsPage = () => {
     }
   };
 
-  /** Open the enquiry Technical Quotation. Tags are fetched first when they
-   *  are not cached yet - the modal keys off them, and opening with an empty
-   *  list would flash "no document available" before the fetch landed. */
-  const openDocument = async (project: ProjectRecord) => {
-    if (!tagsByProject[project.id]) {
-      setDocLoadingFor(project.id);
-      try {
-        const rows = await listTags(project.id);
-        setTagsByProject((m) => ({ ...m, [project.id]: rows }));
-      } catch {
-        setTagsErrorFor((e) => ({ ...e, [project.id]: "Couldn't load tags." }));
-        setDocLoadingFor(null);
-        return;
-      } finally {
-        setDocLoadingFor(null);
-      }
-    }
-    setViewingDocFor(project);
-  };
+  /** Open the enquiry's Technical Data Sheet (the modal loads its own data). */
+  const openDocument = (project: ProjectRecord) => setViewingDocFor(project);
 
   /** Copy straight into the same enquiry — the per-tag copy button. */
   const handleCopyTagHere = async (tag: TagRecord) => {
@@ -742,11 +724,10 @@ const ProjectsPage = () => {
                         type="button"
                         className={btn}
                         onClick={() => openDocument(project)}
-                        disabled={docLoadingFor === project.id}
                         title="View this enquiry's Technical Quotation"
                       >
                         <DocumentIcon />
-                        <span className="hidden 2xl:inline">{docLoadingFor === project.id ? "Loading…" : "Document"}</span>
+                        <span className="hidden 2xl:inline">Document</span>
                       </button>
                       <button
                         type="button"
@@ -975,14 +956,9 @@ const ProjectsPage = () => {
       {viewingDocFor && (
         <EnquiryDocumentModal
           source={{
+            projectId: viewingDocFor.id,
             projectCode: viewingDocFor.project_code,
             projectName: viewingDocFor.name,
-            clientCode: viewingDocFor.client_code,
-            generatedBy: viewingDocFor.created_by_name,
-            tags: (tagsByProject[viewingDocFor.id] ?? []).map((t) => ({
-              tagId: t.id,
-              tagName: t.name,
-            })),
           }}
           onClose={() => setViewingDocFor(null)}
         />

@@ -1,19 +1,10 @@
 /**
- * Excel (.xlsx) exports, mirroring the PDF ones so a report reads the same
- * either way:
- *   - downloadSelectionSummaryExcel  : one tag's Selection Summary
- *   - downloadEnquiryDocumentExcel   : the enquiry's Technical Quotation,
- *                                      one column per tag
- *
- * Both reuse the same inputs and the same matrix builder as the PDF side, so
- * the two formats can't drift apart in content — only in presentation.
+ * Excel (.xlsx) export of one tag's Selection Summary, mirroring the PDF so a
+ * report reads the same either way. (The enquiry's Technical Data Sheet has
+ * its own export: lib/tech-doc-excel.ts.)
  */
 import { downloadXlsx, type XlsxCell, type XlsxSheet } from "./xlsx";
-import {
-  buildEnquiryMatrix,
-  type EnquiryDocumentPdfInput,
-  type SelectionSummaryPdfInput,
-} from "./selection-summary-pdf";
+import { type SelectionSummaryPdfInput } from "./selection-summary-pdf";
 
 /** Dark section band, matching the PDF's full-width band. */
 const BAND: Partial<XlsxCell> = {
@@ -98,41 +89,6 @@ export function downloadSelectionSummaryExcel(input: SelectionSummaryPdfInput): 
     { name: "Selection Summary", columnWidths: [34, 52], rows },
   ];
   const filename = `Selection-Summary-${safeSlug(input.projectCode) || "project"}-${dateSlug()}.xlsx`;
-  downloadXlsx(filename, sheets);
-  return filename;
-}
-
-/** The enquiry's Technical Quotation: parameters down the side, one column per
- * tag — the same matrix the PDF and the on-screen document render. */
-export function downloadEnquiryDocumentExcel(input: EnquiryDocumentPdfInput): string {
-  const matrix = buildEnquiryMatrix(input.tags);
-  const width = matrix.tags.length + 1;
-
-  const rows: XlsxCell[][] = headerRows(
-    "Enquiry Technical Quotation",
-    projectLineOf(input),
-    input.generatedBy,
-    width,
-  );
-
-  for (const section of matrix.sections) {
-    rows.push([{ value: section.title.toUpperCase(), colSpan: width, ...BAND }]);
-    for (const row of section.rows) {
-      rows.push([
-        { value: row.label, ...LABEL },
-        ...row.values.map((v) => ({ value: v || "-", ...VALUE }) as XlsxCell),
-      ]);
-    }
-  }
-
-  const sheets: XlsxSheet[] = [
-    {
-      name: "Technical Quotation",
-      columnWidths: [30, ...matrix.tags.map(() => 26)],
-      rows,
-    },
-  ];
-  const filename = `Enquiry-Quotation-${safeSlug(input.projectCode) || "enquiry"}-${dateSlug()}.xlsx`;
   downloadXlsx(filename, sheets);
   return filename;
 }

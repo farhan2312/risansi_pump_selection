@@ -9,7 +9,7 @@ import { and, asc, eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { isMarketIntellConfigured, miQuery } from "@/lib/db/market-intell";
 import { quotation, quotationVersion, users } from "@/lib/db/schema";
-import { loadCommercialSummary } from "@/lib/commercial-server";
+import { loadCommercialSummary, projectDriveGroups } from "@/lib/commercial-server";
 import {
   type QuotationInfo,
   type QuotationSnapshot,
@@ -74,10 +74,11 @@ export async function suggestedTsm(clientCode: string | null): Promise<TsmOption
   return row ? toOption(row) : null;
 }
 
-/** Frozen copy of the enquiry's prices, stored with every version. */
-export async function buildSnapshot(projectId: string): Promise<QuotationSnapshot> {
+/** Frozen copy of one drive group's prices (only that group's tags), stored
+ *  with every version of that group's quotation. */
+export async function buildSnapshot(projectId: string, driveGroup: string): Promise<QuotationSnapshot> {
   const summary = await loadCommercialSummary(projectId);
-  const tags = (summary?.tags ?? []).map((t) => ({
+  const tags = (summary?.tags ?? []).filter((t) => t.driveGroup === driveGroup).map((t) => ({
     tagName: t.tagName,
     productCode: t.productCode,
     model: t.model,
@@ -89,10 +90,16 @@ export async function buildSnapshot(projectId: string): Promise<QuotationSnapsho
   return { tags, grandTotal: tags.reduce((s, t) => s + t.sub, 0) };
 }
 
-/** The enquiry's quotation with its version history (newest first), or null. */
-export async function loadQuotation(projectId: string): Promise<QuotationInfo | null> {
-  const [q] = await db.select().from(quotation).where(eq(quotation.projectId, projectId)).limit(1);
+/** One drive group's quotation for the enquiry, with its version history
+ *  (newest first), or null. */
+export async function loadQuotation(projectId: string, driveGroup: string): Promise<QuotationInfo | null> {
+  const [q] = await db
+    .select()
+    .from(quotation)
+    .where(and(eq(quotation.projectId, projectId), eq(quotation.driveGroup, driveGroup)))
+    .limit(1);
   if (!q) return null;
+  const mixed = (await projectDriveGroups(projectId)).length > 1;
   const versions = await db
     .select({ v: quotationVersion, createdByName: users.name })
     .from(quotationVersion)
@@ -100,10 +107,11 @@ export async function loadQuotation(projectId: string): Promise<QuotationInfo | 
     .where(eq(quotationVersion.quotationId, q.id))
     .orderBy(asc(quotationVersion.createdAt));
   // The live internal version shows the current saved prices, not its stored copy.
-  const liveSnapshot = versions.some(({ v }) => v.frozenAt === null) ? await buildSnapshot(projectId) : null;
+  const liveSnapshot = versions.some(({ v }) => v.frozenAt === null) ? await buildSnapshot(projectId, driveGroup) : null;
   return {
     id: q.id,
-    number: quotationNumber(q),
+    driveGroup: q.driveGroup,
+    number: quotationNumber(q, mixed),
     productType: q.productType,
     quoteDate: q.quoteDate,
     finYear: q.finYear,

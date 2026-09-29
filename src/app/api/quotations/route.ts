@@ -5,7 +5,8 @@ import { logAudit } from "@/lib/audit";
 import { tryDecodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { projects, quotation, quotationVersion } from "@/lib/db/schema";
-import { finYearOf, quotationNumber } from "@/lib/commercial";
+import { finYearOf, isDriveGroup, quotationNumber } from "@/lib/commercial";
+import { projectDriveGroups } from "@/lib/commercial-server";
 import { buildSnapshot, loadQuotation, suggestedTsm, tsmById } from "@/lib/quotation-server";
 
 export const dynamic = "force-dynamic";
@@ -15,12 +16,16 @@ const UUID = /^[0-9a-f-]{36}$/i;
 /** Today in India (the quotation date), yyyy-mm-dd. */
 const todayIst = () => new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
 
-// GET /api/quotations?projectId=… — the enquiry's quotation (or null), plus
-// the client's rep in sales (`clientTsm`). The TSM is LOCKED to that rep; only
-// when the client has none (or no client code) is it picked by hand.
+// GET /api/quotations?projectId=…&group=GM — one drive group's quotation (or
+// null), plus the client's rep in sales (`clientTsm`). One quotation per
+// enquiry AND drive group. The TSM is LOCKED to the client's rep; only when
+// the client has none (or no client code) is it picked by hand.
 export async function GET(req: Request) {
-  const projectId = new URL(req.url).searchParams.get("projectId") ?? "";
+  const params = new URL(req.url).searchParams;
+  const projectId = params.get("projectId") ?? "";
+  const group = params.get("group") ?? "";
   if (!UUID.test(projectId)) return error("'projectId' query param is required", 400);
+  if (!isDriveGroup(group)) return error("'group' must be GM, GB, VB or DD", 400);
   const [p] = await db
     .select({ clientCode: projects.clientCode })
     .from(projects)
@@ -28,14 +33,14 @@ export async function GET(req: Request) {
     .limit(1);
   if (!p) return error("Enquiry not found", 404);
   const [q, clientTsm] = await Promise.all([
-    loadQuotation(projectId),
+    loadQuotation(projectId, group),
     suggestedTsm(p.clientCode).catch(() => null),
   ]);
   return json({ quotation: q, clientTsm });
 }
 
-// POST /api/quotations {projectId, tsmRepId?} — creates the enquiry's
-// quotation: date = today, FY from it, region = the TSM's initials, internal
+// POST /api/quotations {projectId, group, tsmRepId?} — creates one drive
+// group's quotation for the enquiry: date = today, FY from it, region = the TSM's initials, internal
 // V0 (with a snapshot of the prices), client version not sent yet. Serial left
 // empty (on hold). TSM = the client's rep in sales (tsmRepId is ignored then);
 // tsmRepId is only used when the client has no rep.
@@ -47,7 +52,9 @@ export async function POST(req: Request) {
     return error("Request body must be JSON", 400);
   }
   const projectId = String(body.projectId ?? "");
+  const group = String(body.group ?? "");
   if (!UUID.test(projectId)) return error("'projectId' is required", 400);
+  if (!isDriveGroup(group)) return error("'group' must be GM, GB, VB or DD", 400);
 
   const [p] = await db
     .select({ code: projects.projectCode, name: projects.name, clientCode: projects.clientCode })
@@ -55,6 +62,8 @@ export async function POST(req: Request) {
     .where(eq(projects.id, projectId))
     .limit(1);
   if (!p) return error("Enquiry not found", 404);
+  const groups = await projectDriveGroups(projectId);
+  if (!groups.includes(group)) return error("This enquiry has no tag on that drive system.", 400);
 
   let tsm;
   try {
@@ -72,7 +81,7 @@ export async function POST(req: Request) {
   const claims = tryDecodeToken(req);
   const createdBy = claims?.sub && UUID.test(claims.sub) ? claims.sub : null;
   const quoteDate = todayIst();
-  const snapshot = await buildSnapshot(projectId);
+  const snapshot = await buildSnapshot(projectId, group);
 
   try {
     const created = await db.transaction(async (tx) => {
@@ -80,6 +89,7 @@ export async function POST(req: Request) {
         .insert(quotation)
         .values({
           projectId,
+          driveGroup: group,
           productType: "PCP",
           quoteDate,
           finYear: finYearOf(quoteDate),
@@ -110,11 +120,11 @@ export async function POST(req: Request) {
       action: "quotation.create",
       entity: "quotation",
       entityId: created.id,
-      detail: `Created quotation ${quotationNumber(created)} for ${p.code} (TSM ${tsm.name}) — internal V0`,
+      detail: `Created quotation ${quotationNumber(created, groups.length > 1)} for ${p.code} (TSM ${tsm.name}) — internal V0`,
     });
   } catch (err) {
-    if (isUniqueViolation(err)) return error("This enquiry already has a quotation.", 409);
+    if (isUniqueViolation(err)) return error("This drive group already has a quotation.", 409);
     throw err;
   }
-  return json(await loadQuotation(projectId), 201);
+  return json(await loadQuotation(projectId, group), 201);
 }

@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 
 import PageHeader from "../../components/ui/PageHeader";
 import QuotationPanel from "./QuotationPanel";
+import ClientPriceRefModal from "./ClientPriceRefModal";
 import {
   BOI_ITEMS,
   type BoiKey,
@@ -19,6 +20,9 @@ import {
   parsePrice,
   subTotal,
   unitTotal,
+  DRIVE_GROUP_LABEL,
+  groupsIn,
+  type DriveGroup,
 } from "../../lib/commercial";
 import { getCommercialSummary, saveCommercialPrices } from "../../services/commercialService";
 
@@ -103,6 +107,8 @@ export default function CommercialSummaryPage() {
   const [justSaved, setJustSaved] = useState<Record<string, boolean>>({});
   // Bumped after each price save so the quotation's live version refreshes.
   const [pricesVersion, setPricesVersion] = useState(0);
+  // "Client Price Ref" viewer (the client's old price sheets on SharePoint).
+  const [showPriceRef, setShowPriceRef] = useState(false);
 
   const load = useCallback(async () => {
     if (!projectId) {
@@ -188,8 +194,19 @@ export default function CommercialSummaryPage() {
       }),
     [data, drafts],
   );
-  const grand = rows.reduce((s, r) => s + r.sub, 0);
-  const missingQty = rows.filter((r) => r.tag.quantity === null).length;
+  // Quoted per drive system: one tab (quotation, summary, grand total) per
+  // group, plus one for tags whose drive isn't chosen yet.
+  const groups = groupsIn(rows.map((r) => r.tag.driveGroup));
+  const hasNoDrive = rows.some((r) => r.tag.driveGroup === null);
+  const tabs: (DriveGroup | "NONE")[] = [...groups, ...(hasNoDrive ? (["NONE"] as const) : [])];
+  const mixed = groups.length > 1;
+  const [activeTab, setActiveTab] = useState<DriveGroup | "NONE" | null>(null);
+  const tab = activeTab && tabs.includes(activeTab) ? activeTab : (tabs[0] ?? null);
+  const groupRows = rows.filter((r) => (r.tag.driveGroup ?? "NONE") === tab);
+  const groupDirty = groupRows.some((r) => dirtyIds.includes(r.tag.tagId));
+  const tabLabel = (t: DriveGroup | "NONE") => (t === "NONE" ? "No drive yet" : DRIVE_GROUP_LABEL[t]);
+  const grand = groupRows.reduce((s, r) => s + r.sub, 0);
+  const missingQty = groupRows.filter((r) => r.tag.quantity === null).length;
 
   const project = data?.project;
 
@@ -217,6 +234,15 @@ export default function CommercialSummaryPage() {
               disabled={dirtyIds.length === 0 || dirtyIds.some((id) => saving[id])}
             >
               Save all
+            </button>
+            <button
+              type="button"
+              className={btnSm}
+              onClick={() => setShowPriceRef(true)}
+              disabled={!data}
+              title="View this client's past price reference sheets (SharePoint)"
+            >
+              Client Price Ref
             </button>
             <Link href="/projects" className={btnSm}>
               Back to Enquiries
@@ -250,12 +276,54 @@ export default function CommercialSummaryPage() {
 
       {data && data.tags.length > 0 && (
         <>
-          <QuotationPanel projectId={projectId} hasUnsavedPrices={dirtyIds.length > 0} pricesVersion={pricesVersion} />
+          {tabs.length > 1 && (
+            <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Drive system">
+              {tabs.map((t) => {
+                const n = rows.filter((r) => (r.tag.driveGroup ?? "NONE") === t).length;
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    role="tab"
+                    aria-selected={t === tab}
+                    onClick={() => setActiveTab(t)}
+                    className={`rounded-lg border px-3.5 py-2 text-[13px] font-semibold transition-colors ${
+                      t === tab ? "border-accent bg-accent-soft text-accent" : "border-line bg-paper text-fg-2 hover:border-accent"
+                    }`}
+                  >
+                    {tabLabel(t)}
+                    {t !== "NONE" && mixed && <span className="ml-1.5 font-mono text-[11.5px] opacity-75">/{t}</span>}
+                    <span className="ml-1.5 text-[12px] font-normal opacity-75">· {n} tag{n === 1 ? "" : "s"}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {tab === "NONE" ? (
+            <div className="rounded-xl border border-line bg-paper p-4 text-[13px] text-fg-2">
+              These tags have no drive system yet, so they can&apos;t be quoted. Choose the drive on the tag&apos;s Drive step —
+              the tag then moves to its drive group&apos;s quotation.
+            </div>
+          ) : (
+            tab && (
+              <QuotationPanel
+                key={tab}
+                projectId={projectId}
+                group={tab}
+                groupLabel={mixed ? tabLabel(tab) : undefined}
+                hasUnsavedPrices={groupDirty}
+                pricesVersion={pricesVersion}
+              />
+            )
+          )}
 
           {/* Summary across all tags */}
           <section className="rounded-xl border border-line bg-paper">
             <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
-              <h2 className="text-[14px] font-semibold text-fg">Summary</h2>
+              <h2 className="text-[14px] font-semibold text-fg">
+                Summary{mixed && tab && tab !== "NONE" ? ` — ${tabLabel(tab)}` : ""}
+              </h2>
               <span className="text-[12px] text-fg-3">All prices in INR, per unit unless marked</span>
             </header>
             <div className="overflow-x-auto">
@@ -272,7 +340,7 @@ export default function CommercialSummaryPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map(({ tag, prices, unit, sub }) => (
+                  {groupRows.map(({ tag, prices, unit, sub }) => (
                     <tr key={tag.tagId} className="border-b border-line last:border-b-0">
                       <td className="px-4 py-2.5">
                         <a href={`#tag-${tag.tagId}`} className="font-semibold text-accent hover:underline">
@@ -317,7 +385,7 @@ export default function CommercialSummaryPage() {
             )}
           </section>
 
-          {rows.map(({ tag, prices, unit, sub }) => (
+          {groupRows.map(({ tag, prices, unit, sub }) => (
             <TagCard
               key={tag.tagId}
               tag={tag}
@@ -339,6 +407,13 @@ export default function CommercialSummaryPage() {
             />
           ))}
         </>
+      )}
+      {showPriceRef && data && (
+        <ClientPriceRefModal
+          clientCode={data.project.clientCode}
+          clientName={data.project.name}
+          onClose={() => setShowPriceRef(false)}
+        />
       )}
     </div>
   );

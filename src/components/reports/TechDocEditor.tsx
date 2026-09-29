@@ -1,0 +1,213 @@
+"use client";
+
+import { useState } from "react";
+import {
+  buildTechDoc,
+  customKey,
+  type TechDocConfig,
+  type TechDocRow,
+  type TechDocSection,
+  type TechDocTag,
+} from "../../lib/tech-doc";
+
+// Edit mode of the Technical Data Sheet: every row of the sheet, per section,
+// as editable cells. For this enquiry's document only — the wizard data is
+// never changed. Catalogue rows: rename the parameter, edit a tag's value
+// (reset brings back the wizard value), remove / restore. Manual rows: name
+// and values typed in, deleted outright.
+
+const cellCls =
+  "w-full rounded-md border bg-paper px-2 py-1 text-[12.5px] text-fg outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-50";
+const linkBtn = "text-[11.5px] font-semibold whitespace-nowrap hover:underline disabled:cursor-not-allowed disabled:opacity-50";
+
+const newId = () => Math.random().toString(36).slice(2, 10);
+
+export default function TechDocEditor({
+  tags,
+  config,
+  onChange,
+}: {
+  tags: TechDocTag[];
+  config: TechDocConfig;
+  onChange: (next: TechDocConfig) => void;
+}) {
+  const blocks = buildTechDoc(tags, config, { includeHidden: true });
+
+  // --- config updates ---------------------------------------------------------
+  const setLabel = (row: TechDocRow, label: string) => {
+    if (row.kind === "custom") {
+      onChange({ ...config, custom: config.custom.map((c) => (customKey(c.id) === row.key ? { ...c, label } : c)) });
+      return;
+    }
+    const labels = { ...config.labels };
+    if (!label.trim() || label === row.autoLabel) delete labels[row.key];
+    else labels[row.key] = label;
+    onChange({ ...config, labels });
+  };
+
+  const setValue = (row: TechDocRow, tagIndex: number, value: string) => {
+    const tagId = tags[tagIndex].tagId;
+    if (row.kind === "custom") {
+      onChange({
+        ...config,
+        custom: config.custom.map((c) =>
+          customKey(c.id) === row.key ? { ...c, values: { ...c.values, [tagId]: value } } : c,
+        ),
+      });
+      return;
+    }
+    const perTag = { ...(config.values[row.key] ?? {}) };
+    // Typing the wizard value back is the same as no edit.
+    if (value === row.autoValues[tagIndex]) delete perTag[tagId];
+    else perTag[tagId] = value;
+    const values = { ...config.values };
+    if (Object.keys(perTag).length) values[row.key] = perTag;
+    else delete values[row.key];
+    onChange({ ...config, values });
+  };
+
+  const setHidden = (row: TechDocRow, hide: boolean) =>
+    onChange({
+      ...config,
+      hidden: hide ? [...config.hidden, row.key] : config.hidden.filter((k) => k !== row.key),
+    });
+
+  const deleteCustom = (row: TechDocRow) => {
+    const values = { ...config.values };
+    delete values[row.key];
+    onChange({ ...config, values, custom: config.custom.filter((c) => customKey(c.id) !== row.key) });
+  };
+
+  const addCustom = (section: TechDocSection, label: string) =>
+    onChange({ ...config, custom: [...config.custom, { id: newId(), section, label, values: {} }] });
+
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-[12px] text-fg-3">
+        Changes here apply to this enquiry&apos;s document only — the pump selection itself is not changed.{" "}
+        <span className="rounded bg-[var(--warn-soft)] px-1 text-warn">Highlighted</span> cells were edited by hand.
+      </p>
+      {blocks.map((block) => (
+        <section key={block.title} className="overflow-hidden rounded-lg border border-line">
+          <h4 className="bg-[#2b2b2b] px-3 py-1.5 text-center text-[12.5px] font-semibold text-white">{block.title}</h4>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] border-collapse text-[12.5px]">
+              <thead>
+                <tr className="border-b border-line bg-sunk text-left text-[11px] font-semibold tracking-[0.06em] text-fg-3 uppercase">
+                  <th className="w-[26%] px-2 py-1.5">Parameter</th>
+                  {tags.map((t) => (
+                    <th key={t.tagId} className="px-2 py-1.5">
+                      {t.tagName}
+                    </th>
+                  ))}
+                  <th className="w-[96px] px-2 py-1.5" />
+                </tr>
+              </thead>
+              <tbody>
+                {block.rows.map((row) => (
+                  <tr key={row.key} className={`border-b border-line last:border-b-0 ${row.hidden ? "bg-sunk/60" : ""}`}>
+                    <td className="px-2 py-1 align-top">
+                      <input
+                        className={`${cellCls} font-semibold ${row.hidden ? "line-through" : ""} ${
+                          row.kind !== "custom" && row.label !== row.autoLabel ? "border-warn bg-[var(--warn-soft)]" : "border-line"
+                        }`}
+                        value={row.label}
+                        disabled={row.hidden}
+                        onChange={(e) => setLabel(row, e.target.value)}
+                        aria-label="Parameter name"
+                      />
+                      {row.kind !== "custom" && row.label !== row.autoLabel && !row.hidden && (
+                        <button type="button" className={`${linkBtn} mt-0.5 text-accent`} onClick={() => setLabel(row, row.autoLabel)}>
+                          Reset name ({row.autoLabel})
+                        </button>
+                      )}
+                      {row.kind === "custom" && <span className="mt-0.5 block text-[10.5px] text-fg-3">Added by hand</span>}
+                    </td>
+                    {row.values.map((v, i) => (
+                      <td key={tags[i].tagId} className="px-2 py-1 align-top">
+                        <input
+                          className={`${cellCls} ${row.edited[i] && row.kind !== "custom" ? "border-warn bg-[var(--warn-soft)]" : "border-line"}`}
+                          value={v}
+                          placeholder="-"
+                          disabled={row.hidden}
+                          onChange={(e) => setValue(row, i, e.target.value)}
+                          aria-label={`${row.label} — ${tags[i].tagName}`}
+                        />
+                        {row.edited[i] && row.kind !== "custom" && !row.hidden && (
+                          <button
+                            type="button"
+                            className={`${linkBtn} mt-0.5 text-accent`}
+                            onClick={() => setValue(row, i, row.autoValues[i])}
+                            title={`Wizard value: ${row.autoValues[i] || "-"}`}
+                          >
+                            Reset
+                          </button>
+                        )}
+                      </td>
+                    ))}
+                    <td className="px-2 py-1 text-right align-top">
+                      {row.kind === "custom" ? (
+                        <button type="button" className={`${linkBtn} text-neg`} onClick={() => deleteCustom(row)}>
+                          Delete
+                        </button>
+                      ) : row.hidden ? (
+                        <button type="button" className={`${linkBtn} text-accent`} onClick={() => setHidden(row, false)}>
+                          Restore
+                        </button>
+                      ) : (
+                        <button type="button" className={`${linkBtn} text-neg`} onClick={() => setHidden(row, true)}>
+                          Remove
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                <AddRow onAdd={(label) => addCustom(block.title, label)} colSpan={tags.length + 2} />
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function AddRow({ onAdd, colSpan }: { onAdd: (label: string) => void; colSpan: number }) {
+  const [label, setLabel] = useState("");
+  const add = () => {
+    if (!label.trim()) return;
+    onAdd(label.trim());
+    setLabel("");
+  };
+  return (
+    <tr className="bg-sunk/40">
+      <td colSpan={colSpan} className="px-2 py-1.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            className={`${cellCls} max-w-[280px] border-line`}
+            value={label}
+            maxLength={300}
+            placeholder="New parameter name, e.g. Test Pressure"
+            onChange={(e) => setLabel(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                add();
+              }
+            }}
+            aria-label="New parameter name"
+          />
+          <button
+            type="button"
+            onClick={add}
+            disabled={!label.trim()}
+            className="rounded-md border border-line bg-paper px-2.5 py-1 text-[12px] font-semibold text-accent hover:border-accent disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            + Add row
+          </button>
+          <span className="text-[11px] text-fg-3">then type its value for each tag above</span>
+        </div>
+      </td>
+    </tr>
+  );
+}

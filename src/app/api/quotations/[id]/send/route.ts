@@ -23,7 +23,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const [current] = await db.select().from(quotation).where(eq(quotation.id, id)).limit(1);
   if (!current) return error("Quotation not found", 404);
 
-  const snapshot = await buildSnapshot(current.projectId);
+  const snapshot = await buildSnapshot(current.projectId, current.driveGroup);
   if (snapshot.tags.length === 0) return error("This enquiry has no tags to quote.", 400);
 
   const claims = tryDecodeToken(req);
@@ -56,9 +56,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     action: "quotation.send",
     entity: "quotation",
     entityId: id,
-    detail: `Quotation ${quotationNumber(current)} sent to client — client V${result.v} (internal V${result.internal}), grand total ${formatInr(
+    detail: `Quotation ${quotationNumber(current, true)} sent to client — client V${result.v} (internal V${result.internal}), grand total ${formatInr(
       snapshot.grandTotal,
     )}`,
   });
-  return json(await loadQuotation(current.projectId));
+  return json(await loadQuotation(current.projectId, current.driveGroup));
 }

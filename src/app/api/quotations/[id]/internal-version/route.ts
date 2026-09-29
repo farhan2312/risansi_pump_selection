@@ -41,7 +41,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const claims = tryDecodeToken(req);
   const createdBy = claims?.sub && UUID.test(claims.sub) ? claims.sub : null;
-  const snapshot = await buildSnapshot(current.projectId);
+  const snapshot = await buildSnapshot(current.projectId, current.driveGroup);
 
   const next = await db.transaction(async (tx) => {
     // Lock the row so two requests at once can't take the same version number.
@@ -68,10 +68,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     action: "quotation.internal_version",
     entity: "quotation",
     entityId: id,
-    detail: `Quotation ${quotationNumber(current)} — internal V${next}, changes requested by ${requestedBy}: ${note.slice(
+    detail: `Quotation ${quotationNumber(current, true)} — internal V${next}, changes requested by ${requestedBy}: ${note.slice(
       0,
       300,
     )} (V${next - 1} frozen at ${formatInr(snapshot.grandTotal)})`,
   });
-  return json(await loadQuotation(current.projectId));
+  return json(await loadQuotation(current.projectId, current.driveGroup));
 }

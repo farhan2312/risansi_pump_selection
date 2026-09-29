@@ -47,6 +47,8 @@ export type CommercialTag = {
   modelConfirmed: boolean;
   media: string | null;
   driveSystem: string | null;
+  /** GM / GB / VB / DD, or null until the Drive step has a drive system. */
+  driveGroup: DriveGroup | null;
   /** Parsed from pump_model_qty_input.quantity; null when missing/invalid. */
   quantity: number | null;
   /** ERP pump product code picked on the Pump Model & Qty step. */
@@ -170,6 +172,9 @@ export type QuotationVersionInfo = {
 
 export type QuotationInfo = {
   id: string;
+  /** The drive group it covers (GM / GB / VB / DD). */
+  driveGroup: string;
+  /** Includes the "/GM" suffix when the enquiry mixes drives. */
   number: string;
   productType: string;
   quoteDate: string;
@@ -195,15 +200,55 @@ export function finYearOf(isoDate: string): string {
   return `${String(start).slice(-2)}${String(start + 1).slice(-2)}`;
 }
 
-/** "RIL/QT/SV/2627/PCP/····" — the serial is shown as a gap until it exists. */
-export function quotationNumber(q: {
-  regionCode: string | null;
-  finYear: string;
-  productType: string;
-  serial: number | null;
-}): string {
-  return ["RIL", "QT", q.regionCode || "—", q.finYear, q.productType, q.serial ?? "····"].join("/");
+/** "RIL/QT/SV/26-27/PCP/····" — the serial is shown as a gap until it exists.
+ *  fin_year is stored as "2627" and printed as "26-27". With `mixed` (the
+ *  enquiry has tags on more than one drive system) the quotation's drive group
+ *  goes after the serial: ".../PCP/····/GM". */
+export function quotationNumber(
+  q: {
+    regionCode: string | null;
+    finYear: string;
+    productType: string;
+    serial: number | null;
+    driveGroup?: string | null;
+  },
+  mixed = false,
+): string {
+  const fy = /^\d{4}$/.test(q.finYear) ? `${q.finYear.slice(0, 2)}-${q.finYear.slice(2)}` : q.finYear;
+  const parts: (string | number)[] = ["RIL", "QT", q.regionCode || "—", fy, q.productType, q.serial ?? "····"];
+  if (mixed && q.driveGroup) parts.push(q.driveGroup);
+  return parts.join("/");
 }
 
 /** "V0" / "V3"; "Not sent" for a client track that has no version yet. */
 export const versionLabel = (v: number | null): string => (v === null ? "Not sent" : `V${v}`);
+
+// --- Drive groups --------------------------------------------------------------
+// An enquiry's tags are quoted per drive system: one quotation (own versions),
+// one price summary and one data sheet per group. The code goes after the
+// serial in the quotation number only when the enquiry mixes drives.
+
+export const DRIVE_GROUPS = ["GM", "GB", "VB", "DD"] as const;
+export type DriveGroup = (typeof DRIVE_GROUPS)[number];
+
+export const DRIVE_GROUP_LABEL: Record<DriveGroup, string> = {
+  GM: "Geared Motor",
+  GB: "Gear Box + Motor",
+  VB: "V-Belt",
+  DD: "Direct",
+};
+
+export const isDriveGroup = (v: unknown): v is DriveGroup => (DRIVE_GROUPS as readonly string[]).includes(String(v));
+
+/** A tag's group from its Drive step: null until a drive system is chosen. */
+export function driveGroupOf(driveSystem: unknown, gearedConfigType: unknown): DriveGroup | null {
+  const d = String(driveSystem ?? "");
+  if (d === "V-Belt Drive") return "VB";
+  if (d === "Direct Drive") return "DD";
+  if (d.startsWith("Geared")) return String(gearedConfigType ?? "") === "Gear Box + Motor" ? "GB" : "GM";
+  return null;
+}
+
+/** The groups present, in DRIVE_GROUPS order. */
+export const groupsIn = (groups: (DriveGroup | null)[]): DriveGroup[] =>
+  DRIVE_GROUPS.filter((g) => groups.includes(g));

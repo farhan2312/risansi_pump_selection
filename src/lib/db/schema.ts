@@ -94,6 +94,11 @@ export const projects = pgTable("projects", {
   // lets the Reports list show a summary on click without re-parsing the
   // PDF or re-deriving live (possibly since-edited) wizard state.
   reportSummary: jsonb("report_summary"),
+  // This enquiry's Technical Data Sheet customisation (lib/tech-doc.ts
+  // TechDocConfig): optional rows added, rows removed, renamed labels, edited
+  // cell values and manually added rows. Always read through
+  // normalizeTechDocConfig.
+  techDocConfig: jsonb("tech_doc_config").$type<Record<string, unknown>>().notNull().default({}),
 });
 
 
@@ -1097,7 +1102,7 @@ export const commercialTagPrice = pgTable("commercial_tag_price", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
 
-// Quotation (v1) — one per enquiry, independent of the sales portal (Market
+// Quotation (v1) — one per enquiry and drive group, independent of the sales portal (Market
 // Intell is only READ, to prefill the client's TSM). Number:
 // RIL/QT/<region_code>/<fin_year>/<product_type>/<serial>. region_code is the
 // TSM's initials for now. `serial` is ON HOLD (who issues it is undecided;
@@ -1106,12 +1111,17 @@ export const commercialTagPrice = pgTable("commercial_tag_price", {
 //   internal_version — V0 on create, +1 each time the TSM asks for changes
 //                      (changing WHO the TSM is does not make a version);
 //   client_version   — null until first sent, then V0, V1… per "Send to client".
-export const quotation = pgTable("quotation", {
+export const quotation = pgTable(
+  "quotation",
+  {
   id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   projectId: uuid("project_id")
     .notNull()
-    .unique()
     .references(() => projects.id, { onDelete: "cascade" }),
+  /** Drive group this quotation covers (lib/commercial DRIVE_GROUPS: GM, GB,
+   *  VB, DD) — one quotation, with its own versions, per enquiry AND group.
+   *  Added after the serial ("/GM") only when the enquiry mixes drives. */
+  driveGroup: varchar("drive_group", { length: 4 }).notNull().default(""),
   productType: varchar("product_type", { length: 10 }).notNull().default("PCP"),
   quoteDate: date("quote_date", { mode: "string" }).notNull(),
   /** Indian financial year of quote_date, e.g. "2627" for Apr 2026 – Mar 2027. */
@@ -1130,7 +1140,9 @@ export const quotation = pgTable("quotation", {
   createdBy: uuid("created_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
-});
+  },
+  (t) => [unique("quotation_project_id_drive_group_key").on(t.projectId, t.driveGroup)],
+);
 
 // One row per version of either track, with a frozen copy of the prices at
 // that moment (so what a client version showed never changes afterwards).
@@ -1161,3 +1173,19 @@ export const quotationVersion = pgTable(
   },
   (t) => [unique("quotation_version_quotation_id_track_version_key").on(t.quotationId, t.track, t.version)],
 );
+
+// Client pump price reference files (Excel, kept on SharePoint under "Client
+// Pump Price Ref/client pricing"). One row per file: its name, its SharePoint
+// link and the sales (Market Intell) client it belongs to — blank when the file
+// wasn't confidently matched to a client. Read-only reference for the
+// Commercial Summary's "Client Price Ref" viewer; the files themselves are
+// never touched, only linked to. file_date comes from the name's ddmmyyyy.
+export const clientPriceRef = pgTable("client_price_ref", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  clientCode: varchar("client_code", { length: 100 }),
+  clientName: varchar("client_name", { length: 255 }),
+  fileName: varchar("file_name", { length: 300 }).notNull().unique(),
+  url: text("url").notNull(),
+  fileDate: date("file_date", { mode: "string" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+});

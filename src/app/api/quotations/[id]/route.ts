@@ -49,7 +49,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
   const tsm = clientTsm ?? (await tsmById(tsmRepId));
   if (!tsm) return error("That TSM was not found in the sales user list.", 400);
-  if (current.tsmRepId === tsm.id) return json(await loadQuotation(current.projectId));
+  if (current.tsmRepId === tsm.id) return json(await loadQuotation(current.projectId, current.driveGroup));
 
   await db
     .update(quotation)
@@ -67,10 +67,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     action: "quotation.tsm_change",
     entity: "quotation",
     entityId: id,
-    detail: `Quotation ${quotationNumber(current)}: TSM ${current.tsmName ?? "—"} → ${tsm.name} (now ${quotationNumber({
-      ...current,
-      regionCode: tsm.initials,
-    })})`,
+    detail: `Quotation ${quotationNumber(current, true)}: TSM ${current.tsmName ?? "—"} → ${tsm.name} (now ${quotationNumber(
+      { ...current, regionCode: tsm.initials },
+      true,
+    )})`,
   });
-  return json(await loadQuotation(current.projectId));
+  return json(await loadQuotation(current.projectId, current.driveGroup));
 }

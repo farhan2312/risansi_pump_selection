@@ -580,6 +580,71 @@ never auto-filled from the AI result.
 - Not built yet: the quotation serial, L1–L4 price list and markup rules,
   client price-sheet uploads, PDF output, scope of supply.
 
+## Client Price Reference files (Commercial Summary → "Client Price Ref")
+- Table `client_price_ref` (2026-09-30): 1,549 client pump price reference
+  Excel files on SharePoint ("Client Pump Price Ref/client pricing"): file
+  name, SharePoint URL, file_date (from the name's ddmmyyyy; 34 odd names
+  null), client_code/client_name of the matched sales client (only the 1,099
+  "Matched (code + name)" files; the rest blank). Source: client ref.xlsx +
+  docs/Client Pricing Files - Sales Match.xlsx.
+- READ-ONLY reference: the app only links to the files (opens SharePoint in a
+  new tab). Never download, move or change the SharePoint files (user rule).
+- GET /api/client-price-refs?clientCode=…|q=… (≤100, newest first);
+  ClientPriceRefModal lists the enquiry client's files (projects.client_code)
+  and searches all file names.
+
+## Drive groups (quoting per drive system) — user decision 2026-09-28
+- A tag's group comes from its Drive step (lib/commercial `driveGroupOf`):
+  GM = Geared + "Geared Motor", GB = Geared + "Gear Box + Motor", VB = V-Belt,
+  DD = Direct; null = no drive yet.
+- ONE quotation per enquiry AND group (`quotation.drive_group`, unique
+  (project_id, drive_group)), each with its OWN internal/client versions and
+  price snapshots (only that group's tags). Number gets "/GM" etc. after the
+  serial ONLY when the enquiry's tags (all of them) span more than one group
+  (`quotationNumber(q, mixed)`; `projectDriveGroups`). APIs take `group`.
+- Commercial Summary: a tab per group (+ "No drive yet"), each with its
+  QuotationPanel(group), summary and grand total.
+- Technical Data Sheet: one sheet per group (tabs), each with its own
+  quotation line and its own edits: tech_doc_config = {groups: {GM: …, VB: …}}
+  (normalizeTechDocConfigs; a legacy flat config applies to every sheet);
+  PUT /api/enquiry-document takes `group`.
+
+## Enquiry Technical Data Sheet (the "Document" button, Enquiries + Reports)
+- Exact Risansi quotation format (user photo, 2026-09-28): letterhead (GST /
+  CIN / e-mail / phone / address in `LETTERHEAD`), "Risansi Industries Limited
+  - Technical Data Sheet", Client Name (projects.name only), Enquiry No. & Date
+  (full number + enquiry_date), Quotation No. & Date (quotationNumber with the
+  serial gap, FY printed "26-27"), then Liquid Parameters / Material of
+  Construction / Sealing Type / Pump Details / Drive Systems, one column per
+  CONFIRMED tag (enquiry_tags.report_generated_at set).
+- `src/lib/tech-doc.ts` (client-safe) holds the field catalogue
+  (`TECH_DOC_FIELDS`), `buildTechDoc` and `buildTechDocHtml` — the modal shows
+  that HTML in an iframe and prints the same HTML (lib/enquiry-print
+  `printHtml`); Excel is `lib/tech-doc-excel.ts`. Values come from the tags'
+  CURRENT wizard data via GET /api/enquiry-document (all 9 wizard tables merged,
+  bytea skipped) — not the confirmation snapshot.
+- User rules: stored names as-is (Type of Pump, MOC); head as entered (value +
+  unit, one row); Sealing Type one row (gland packing + type, or mech seal +
+  type, MOC, face); makes = the picked one (no "ABB/CGL" alternatives); Motor
+  Type = efficiency/protection (no Class F/TEFC for now); Gear Box Mounting =
+  mounting words + HISO/SISO words; gearbox rows only when a tag is geared
+  (field `drives: DriveKind[]`, blank cell for the other tags).
+- V-Belt format (user photo, 2026-09-30): Drive Systems "V-Belts", Drive Motor
+  Rating, Drive Motor Speed, **Drive Motor Make** (key motorMakeVb; geared /
+  direct keep "Motor Make"), Motor Mounting title case ("Foot Mounted"), Motor
+  Type "IE2 / IP55", Starter Type, Power supply "415V / 3Ph. / 50 Hz" (geared
+  keeps "415V/3PH/50HZ"). No pulley rows by default — pump/motor pulley, groove,
+  V-belt no., centre distance are optional extras (x_*), and the picker only
+  offers extras that fit the sheet's drives (`techDocExtrasFor`).
+- Per-enquiry customisation in projects.tech_doc_config (TechDocConfig, always
+  through normalizeTechDocConfig; PUT /api/enquiry-document replace-all):
+  `extras` (optional catalogue rows, "Add parameters"), `hidden` (rows removed,
+  restorable), `labels` (renamed rows), `values` (row key → tagId → edited
+  cell; typing the wizard value back removes the edit), `custom` (manual rows:
+  section, name, per-tag values; key "c_<id>"). Edit mode = TechDocEditor.
+  Document only — the wizard data is never changed. (tech_doc_extras was
+  replaced by this column the same day.)
+
 ## Audit Log page (/admin/audit, system_admin)
 - Tabs: Overview (default) · Usage by User · Activity · Logins & Sessions ·
   Access Changes. All Tailwind (`src/screens/admin/AuditLogPage.tsx` +
