@@ -13,6 +13,7 @@
 export const BOI_ITEMS = [
   { key: "motorPrice", label: "Motor" },
   { key: "gearboxPrice", label: "Gearbox" },
+  { key: "vfdPrice", label: "VFD" },
   { key: "strainerPrice", label: "Strainer" },
   { key: "prvPrice", label: "PRV" },
   { key: "drpPrice", label: "DRP" },
@@ -25,6 +26,12 @@ export type CommercialOther = { name: string; price: number | null };
 /** The editable prices of one tag (numbers, or null when not entered). */
 export type CommercialPrices = {
   paPrice: number | null;
+  /** The BOI Master VFD picked for vfdPrice (drive description), if any.
+   *  Missing on quotation snapshots made before VFD was added. */
+  vfdModel: string | null;
+  /** The BOI Master DRP kit used for drpPrice ("RTD probe 50 mm + RTD panel"),
+   *  if any. Missing on older quotation snapshots. */
+  drpModel: string | null;
   others: CommercialOther[];
   remarks: string;
 } & Record<BoiKey, number | null>;
@@ -55,6 +62,16 @@ export type CommercialTag = {
   productCode: string | null;
   motorRef: CommercialReference | null;
   gearboxRef: CommercialReference | null;
+  /** Drive step answer "VFD Required" = Yes. */
+  vfdRequired: boolean;
+  /** Drive motor kW the VFD is matched against (null when not entered). */
+  motorKw: number | null;
+  /** BOI Master drives covering motorKw — only when vfdRequired. */
+  vfdOptions: VfdOption[];
+  /** BOI Master DRP kit for the tag's model (every tag), or null with the
+   *  reason in drpNote. */
+  drpOption: DrpOption | null;
+  drpNote: string | null;
   prices: CommercialPrices;
   updatedAt: string | null;
   updatedByName: string | null;
@@ -77,12 +94,139 @@ export const emptyPrices = (): CommercialPrices => ({
   paPrice: null,
   motorPrice: null,
   gearboxPrice: null,
+  vfdPrice: null,
+  vfdModel: null,
+  drpModel: null,
   strainerPrice: null,
   prvPrice: null,
   drpPrice: null,
   others: [],
   remarks: "",
 });
+
+// --- VFD (BOI Master, VFD tab) ---------------------------------------------
+
+export type VfdDuty = "Nominal" | "Light Duty" | "Heavy Duty";
+
+/** One boi_vfd row as the matcher needs it (numbers already parsed). */
+export type VfdMasterRow = {
+  driveDescription: string;
+  make: string;
+  series: string | null;
+  frame: string | null;
+  pnKw: number | null;
+  pldKw: number | null;
+  phdKw: number | null;
+  listPrice: number | null;
+  discountPct: number | null;
+  bopExtra: number | null;
+};
+
+/** A drive offered for a tag: the smallest one covering the motor kW for at
+ *  least one duty (a drive can be the pick for several duties). */
+export type VfdOption = {
+  driveDescription: string;
+  make: string;
+  series: string | null;
+  frame: string | null;
+  duties: { duty: VfdDuty; kw: number }[];
+  listPrice: number | null;
+  discountPct: number | null;
+  bopExtra: number | null;
+  /** list × (1 − discount%) + BOP extra, rounded to the paisa. */
+  netPrice: number | null;
+};
+
+const VFD_DUTY_KW: { duty: VfdDuty; kw: (r: VfdMasterRow) => number | null }[] = [
+  { duty: "Nominal", kw: (r) => r.pnKw },
+  { duty: "Light Duty", kw: (r) => r.pldKw },
+  { duty: "Heavy Duty", kw: (r) => r.phdKw },
+];
+
+/** VFD cost: list less the discount, plus the flat BOP extra per VFD. */
+export const vfdNetPrice = (
+  listPrice: number | null,
+  discountPct: number | null,
+  bopExtra: number | null,
+): number | null =>
+  listPrice === null
+    ? null
+    : Math.round((listPrice * (1 - (discountPct ?? 0) / 100) + (bopExtra ?? 0)) * 100) / 100;
+
+/** Per duty, the smallest drive whose rating for that duty is ≥ the motor kW
+ *  (the cheaper one on a tie); drives picked by more than one duty merge into
+ *  one option. Ordered Nominal → Heavy Duty (smallest drive first). */
+export function vfdOptionsFor(rows: VfdMasterRow[], motorKw: number | null): VfdOption[] {
+  if (motorKw === null || !(motorKw > 0)) return [];
+  const byDrive = new Map<string, VfdOption>();
+  for (const { duty, kw } of VFD_DUTY_KW) {
+    const best = rows
+      .filter((r) => (kw(r) ?? -1) >= motorKw)
+      .sort((a, b) => kw(a)! - kw(b)! || (a.listPrice ?? Infinity) - (b.listPrice ?? Infinity))[0];
+    if (!best) continue;
+    const opt = byDrive.get(best.driveDescription) ?? {
+      driveDescription: best.driveDescription,
+      make: best.make,
+      series: best.series,
+      frame: best.frame,
+      duties: [],
+      listPrice: best.listPrice,
+      discountPct: best.discountPct,
+      bopExtra: best.bopExtra,
+      netPrice: vfdNetPrice(best.listPrice, best.discountPct, best.bopExtra),
+    };
+    opt.duties.push({ duty, kw: kw(best)! });
+    byDrive.set(best.driveDescription, opt);
+  }
+  return [...byDrive.values()];
+}
+
+// --- DRP (BOI Master, DRP tab) ----------------------------------------------
+// Dry Run Protection per pump = RTD probe + RTD panel. The probe is the
+// smallest size ≥ the model's shaft dia (pump_shaft_dia, one row per model).
+
+export type DrpShaftRow = { model: string; shaftDia: number | null };
+export type DrpProbeRow = { description: string; sizeMm: number; ratePerNos: number | null };
+export type DrpPanelRow = { description: string; ratePerNos: number | null };
+
+export type DrpOption = {
+  shaftDia: number;
+  probeSizeMm: number;
+  probeRate: number | null;
+  panelRate: number | null;
+  /** probe + panel. */
+  total: number;
+  /** Saved as commercial_tag_price.drp_model when used. */
+  label: string;
+};
+
+
+/** The DRP kit for a model, or the reason there isn't one. */
+export function drpOptionFor(
+  model: string | null,
+  shafts: DrpShaftRow[],
+  probes: DrpProbeRow[],
+  panel: DrpPanelRow | null,
+): { option: DrpOption | null; note: string | null } {
+  if (!model) return { option: null, note: "No pump model selected yet" };
+  const key = model.trim().toUpperCase();
+  const shaftDia = shafts.find((s) => s.model.trim().toUpperCase() === key)?.shaftDia ?? null;
+  if (shaftDia === null) return { option: null, note: `No shaft dia for ${model} in the BOI Master Shaft Dia tab` };
+  const probe = probes.filter((p) => p.sizeMm >= shaftDia).sort((a, b) => a.sizeMm - b.sizeMm)[0];
+  if (!probe) return { option: null, note: `No RTD probe of ${shaftDia} mm or more in the BOI Master` };
+  const panelRate = panel?.ratePerNos ?? null;
+  return {
+    option: {
+      shaftDia,
+      probeSizeMm: probe.sizeMm,
+      probeRate: probe.ratePerNos,
+      panelRate,
+      total: Math.round(((probe.ratePerNos ?? 0) + (panelRate ?? 0)) * 100) / 100,
+      label: `RTD probe ${probe.sizeMm} mm${panel ? " + RTD panel" : ""}`,
+    },
+    note: null,
+  };
+}
 
 /** Sum of the BOI items only (fixed rows + Others), per unit. */
 export function boiTotal(p: CommercialPrices): number {

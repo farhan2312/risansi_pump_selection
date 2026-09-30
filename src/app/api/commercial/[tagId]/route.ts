@@ -65,6 +65,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ tagId: s
     others.push({ name, price });
   }
   next.others = others;
+  // The BOI Master VFD picked for the VFD price (a label only; the price is
+  // whatever was entered). Dropped when there is no VFD price.
+  const vfdModel = typeof body.vfdModel === "string" ? body.vfdModel.trim().slice(0, 100) : "";
+  next.vfdModel = next.vfdPrice !== null && vfdModel ? vfdModel : null;
+  const drpModel = typeof body.drpModel === "string" ? body.drpModel.trim().slice(0, 200) : "";
+  next.drpModel = next.drpPrice !== null && drpModel ? drpModel : null;
   next.remarks = typeof body.remarks === "string" ? body.remarks.trim().slice(0, 2000) : "";
 
   // --- diff against what's stored, for the audit trail ----------------------
@@ -84,6 +90,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ tagId: s
   if (JSON.stringify(prevOthers) !== JSON.stringify(others)) {
     changes.push(`Others ${othersText(prevOthers)} → ${othersText(others)}`);
   }
+  if ((prev?.vfdModel ?? null) !== next.vfdModel) {
+    changes.push(`VFD model ${prev?.vfdModel ?? "—"} → ${next.vfdModel ?? "—"}`);
+  }
+  if ((prev?.drpModel ?? null) !== next.drpModel) {
+    changes.push(`DRP ${prev?.drpModel ?? "—"} → ${next.drpModel ?? "—"}`);
+  }
   if ((prev?.remarks ?? "") !== next.remarks) changes.push("Remarks updated");
 
   const claims = tryDecodeToken(req);
@@ -92,6 +104,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ tagId: s
     paPrice: next.paPrice?.toString() ?? null,
     motorPrice: next.motorPrice?.toString() ?? null,
     gearboxPrice: next.gearboxPrice?.toString() ?? null,
+    vfdPrice: next.vfdPrice?.toString() ?? null,
+    vfdModel: next.vfdModel,
+    drpModel: next.drpModel,
     strainerPrice: next.strainerPrice?.toString() ?? null,
     prvPrice: next.prvPrice?.toString() ?? null,
     drpPrice: next.drpPrice?.toString() ?? null,

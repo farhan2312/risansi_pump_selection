@@ -18,6 +18,7 @@ const LABELS: Record<string, string> = {
   "/admin/pulley-master": "Pulley Master",
   "/admin/gearbox-master": "Gearbox Master",
   "/admin/motor-master": "Motor Master",
+  "/admin/boi-master": "BOI Master",
   "/admin/users": "Users & Access",
   "/admin/audit": "Audit Log",
   "/admin/bug-tracker": "Bug Tracker",

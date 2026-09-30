@@ -23,7 +23,9 @@ type RecheckForm = Pick<
   PumpSelectionFormData,
   | "driveSystem"
   | "driveVbeltRpm"
+  | "vbeltRpmManual"
   | "gearboxOutputRpm"
+  | "gearboxRpmManual"
   | "motorRPM"
   | "head"
   | "headUnit"
@@ -51,10 +53,16 @@ export const DEFAULT_VFD_MAX_HZ = "60";
  *  direct drive. `raw` is "" until that choice has been made. */
 export function finalPumpRpm(form: RecheckForm): { raw: string; source: string } {
   if (form.driveSystem === VBELT_DRIVE) {
-    return { raw: form.driveVbeltRpm || "", source: "V-Belt achieved pump RPM" };
+    return {
+      raw: form.driveVbeltRpm || "",
+      source: form.vbeltRpmManual ? "Pump RPM entered manually (no V-belt found)" : "V-Belt achieved pump RPM",
+    };
   }
   if (form.driveSystem === GEARED_DRIVE) {
-    return { raw: form.gearboxOutputRpm || "", source: "Gearbox output RPM" };
+    return {
+      raw: form.gearboxOutputRpm || "",
+      source: form.gearboxRpmManual ? "Pump RPM entered manually (no gearbox found)" : "Gearbox output RPM",
+    };
   }
   return { raw: form.motorRPM || "", source: "Motor RPM (direct drive)" };
 }

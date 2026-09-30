@@ -5,7 +5,11 @@ import { asc, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import {
+  boiDrpPanel,
+  boiDrpProbe,
+  boiVfd,
   commercialTagPrice,
+  pumpShaftDia,
   driveGearedInput,
   enquiryTags,
   generalInfoInput,
@@ -19,11 +23,15 @@ import {
   type CommercialSummary,
   type CommercialTag,
   type DriveGroup,
+  type VfdMasterRow,
+  drpOptionFor,
   driveGroupOf,
   emptyPrices,
   groupsIn,
   parseQuantity,
+  vfdOptionsFor,
 } from "@/lib/commercial";
+import { VFD_YES } from "@/lib/recheck-calc";
 import { gearboxUpliftedRate } from "@/lib/motor-price";
 
 const num = (v: string | null | undefined): number | null => {
@@ -64,6 +72,7 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
       motorFinal: motorDriveInput.driveMotorFinalPrice,
       motorUplifted: motorDriveInput.driveMotorPriceUplifted,
       motorConfirmed: motorDriveInput.driveMotorConfirmed,
+      vfdRequired: motorDriveInput.vfdRequired,
       gearedConfig: driveGearedInput.gearedConfigType,
       gbSource: driveGearedInput.gearboxSource,
       gbModel: driveGearedInput.gearboxModel,
@@ -84,7 +93,34 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
     .where(eq(enquiryTags.projectId, projectId))
     .orderBy(asc(enquiryTags.createdAt));
 
+  // BOI Master VFDs — small table, read once and matched per tag.
+  const vfdRows: VfdMasterRow[] = (await db.select().from(boiVfd)).map((v) => ({
+    driveDescription: v.driveDescription,
+    make: v.make,
+    series: v.series,
+    frame: v.frame,
+    pnKw: num(v.pnKw),
+    pldKw: num(v.pldKw),
+    phdKw: num(v.phdKw),
+    listPrice: num(v.listPrice),
+    discountPct: num(v.discountPct),
+    bopExtra: num(v.bopExtra),
+  }));
+
+  // BOI Master DRP: shaft dia per model, probe sizes, the (single) panel.
+  const [drpShafts, drpProbes, drpPanels] = await Promise.all([
+    db.select().from(pumpShaftDia),
+    db.select().from(boiDrpProbe),
+    db.select().from(boiDrpPanel).orderBy(asc(boiDrpPanel.srNo)),
+  ]);
+  const shafts = drpShafts.map((s) => ({ model: s.model, shaftDia: num(s.shaftDia) }));
+  const probes = drpProbes.map((p) => ({ description: p.description, sizeMm: Number(p.sizeMm), ratePerNos: num(p.ratePerNos) }));
+  const panel = drpPanels[0] ? { description: drpPanels[0].description, ratePerNos: num(drpPanels[0].ratePerNos) } : null;
+
   const tags: CommercialTag[] = rows.map((r) => {
+    const drp = drpOptionFor(r.model || null, shafts, probes, panel);
+    const vfdRequired = r.vfdRequired === VFD_YES;
+    const motorKw = num(r.motorKw);
     // A "Geared Motor" is one integrated unit: the wizard doesn't pick a
     // separate motor for it, so there is no motor reference to show.
     const motorRef: CommercialReference | null =
@@ -118,11 +154,19 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
       productCode: r.productCode || null,
       motorRef,
       gearboxRef,
+      vfdRequired,
+      motorKw,
+      vfdOptions: vfdRequired ? vfdOptionsFor(vfdRows, motorKw) : [],
+      drpOption: drp.option,
+      drpNote: drp.note,
       prices: p
         ? {
             paPrice: num(p.paPrice),
             motorPrice: num(p.motorPrice),
             gearboxPrice: num(p.gearboxPrice),
+            vfdPrice: num(p.vfdPrice),
+            vfdModel: p.vfdModel || null,
+            drpModel: p.drpModel || null,
             strainerPrice: num(p.strainerPrice),
             prvPrice: num(p.prvPrice),
             drpPrice: num(p.drpPrice),

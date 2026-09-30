@@ -96,6 +96,7 @@ export const ADMIN_LINKS: NavLink[] = [
   { href: "/admin/pulley-master", label: "Pulley Master", icon: "database" },
   { href: "/admin/gearbox-master", label: "Gearbox Master", icon: "database" },
   { href: "/admin/motor-master", label: "Motor Master", icon: "database" },
+  { href: "/admin/boi-master", label: "BOI Master", icon: "database" },
 ];
 
 /** system_admin only — plain "admin" explicitly does not get these. */

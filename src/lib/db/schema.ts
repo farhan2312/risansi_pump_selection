@@ -539,6 +539,9 @@ export const driveVbeltInput = pgTable("drive_vbelt_input", {
   // two-stage pattern as the pump model's modelConfirmed gate). Clicking the
   // selected card again clears both.
   vbeltConfirmed: boolean("vbelt_confirmed").default(false),
+  /** No V-belt option was found, so drive_vbelt_rpm was typed in by hand
+   *  (the selected pump RPM) — no pulley/belt details. */
+  vbeltRpmManual: boolean("vbelt_rpm_manual").default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
@@ -578,6 +581,9 @@ export const driveGearedInput = pgTable("drive_geared_input", {
   gearboxRatePerNos: varchar("gearbox_rate_per_nos", { length: 20 }),
   // Select-then-confirm, same as vbeltConfirmed above.
   gearboxConfirmed: boolean("gearbox_confirmed").default(false),
+  /** No gearbox option was found, so gearbox_output_rpm was typed in by hand
+   *  (the selected pump RPM) — no gearbox model/source. */
+  gearboxRpmManual: boolean("gearbox_rpm_manual").default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
@@ -1094,6 +1100,13 @@ export const commercialTagPrice = pgTable("commercial_tag_price", {
   strainerPrice: numeric("strainer_price", { precision: 14, scale: 2 }),
   prvPrice: numeric("prv_price", { precision: 14, scale: 2 }),
   drpPrice: numeric("drp_price", { precision: 14, scale: 2 }),
+  vfdPrice: numeric("vfd_price", { precision: 14, scale: 2 }),
+  /** The BOI Master VFD picked for vfd_price (its drive description), or null
+   *  when the price was typed without picking one. */
+  vfdModel: varchar("vfd_model", { length: 100 }),
+  /** The DRP kit suggested from the BOI Master and used for drp_price
+   *  (e.g. "RTD probe 50 mm + RTD panel"), or null when typed by hand. */
+  drpModel: varchar("drp_model", { length: 200 }),
   /** Extra BOI lines, each named by the user. */
   others: jsonb("others").$type<CommercialOtherItem[]>().notNull().default([]),
   remarks: text("remarks"),
@@ -1188,4 +1201,77 @@ export const clientPriceRef = pgTable("client_price_ref", {
   url: text("url").notNull(),
   fileDate: date("file_date", { mode: "string" }),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+});
+
+// BOI Master — bought-out items priced from a supplier list. One table per
+// item type, each a tab on /admin/boi-master (VFD only for now).
+//
+// boi_vfd mirrors "VFD PRICE LIST 01-05-26 Dis 66.5 %" (docs/BOI): ABB ACS560,
+// 3 Phase, U_N 400 V (380–480 V) — one row per drive with its frame, the three
+// ratings (Nominal / Light Duty / Heavy Duty: kW + A) and the list price.
+// The discount and the list date come from the file name. Net price =
+// list_price × (1 − discount_pct / 100) + bop_extra (₹2,150 BOP with each
+// ABB VFD, per the user). The Commercial Summary offers, for a
+// tag with VFD Required = Yes, the smallest drive per duty covering the motor kW.
+export const boiVfd = pgTable("boi_vfd", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  make: varchar("make", { length: 100 }).notNull(),
+  series: varchar("series", { length: 100 }),
+  supply: varchar("supply", { length: 100 }),
+  driveDescription: varchar("drive_description", { length: 100 }).notNull().unique(),
+  frame: varchar("frame", { length: 20 }),
+  pnKw: numeric("pn_kw", { precision: 10, scale: 2 }),
+  inA: numeric("in_a", { precision: 10, scale: 2 }),
+  pldKw: numeric("pld_kw", { precision: 10, scale: 2 }),
+  ildA: numeric("ild_a", { precision: 10, scale: 2 }),
+  phdKw: numeric("phd_kw", { precision: 10, scale: 2 }),
+  ihdA: numeric("ihd_a", { precision: 10, scale: 2 }),
+  listPrice: numeric("list_price", { precision: 14, scale: 2 }),
+  discountPct: numeric("discount_pct", { precision: 6, scale: 2 }),
+  /** Flat BOP amount added to every VFD after the discount (₹2,150 for ABB). */
+  bopExtra: numeric("bop_extra", { precision: 14, scale: 2 }),
+  priceListDate: date("price_list_date", { mode: "string" }),
+  /** Footnote markers etc. from the list (e.g. "I_HD 246*"). */
+  remarks: text("remarks"),
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
+});
+
+// BOI Master, DRP tab — Dry Run Protection = RTD probe + RTD panel per pump.
+// boi_drp_probe / boi_drp_panel mirror the two tables of "Drp Probe Price List
+// 12-07-25.xlsx" (docs/BOI, W.E.F 12-07-2025). A tag's DRP = the smallest
+// probe whose size >= its model's shaft dia (pump_shaft_dia) + the panel (one
+// panel price "FOR ALL RTD").
+export const boiDrpProbe = pgTable("boi_drp_probe", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  srNo: integer("sr_no"),
+  description: varchar("description", { length: 200 }).notNull(),
+  sizeMm: numeric("size_mm", { precision: 8, scale: 2 }).notNull().unique(),
+  ratePerNos: numeric("rate_per_nos", { precision: 14, scale: 2 }),
+  wefDate: date("wef_date", { mode: "string" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
+});
+
+export const boiDrpPanel = pgTable("boi_drp_panel", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  srNo: integer("sr_no"),
+  description: varchar("description", { length: 200 }).notNull(),
+  appliesTo: varchar("applies_to", { length: 200 }),
+  ratePerNos: numeric("rate_per_nos", { precision: 14, scale: 2 }),
+  wefDate: date("wef_date", { mode: "string" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
+});
+
+// Shaft dia per pump model — one row per model (every pump_model_master model
+// plus H120L6), from the user's SHAFT DIA / MODEL image (families expanded:
+// "H-48/50/52" -> H48, H50, H50L6, 2H48 …). Blank = not given yet (8H20,
+// barrel models). BOI Master "Shaft Dia" tab; DRP picks its probe from it.
+export const pumpShaftDia = pgTable("pump_shaft_dia", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  model: varchar("model", { length: 100 }).notNull().unique(),
+  shaftDia: numeric("shaft_dia", { precision: 8, scale: 3 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });

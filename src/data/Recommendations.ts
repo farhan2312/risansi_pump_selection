@@ -152,6 +152,8 @@ export interface PumpSelectionFormData {
   gearboxRatePerNos?: string;
   /** Gearbox card picked, then explicitly confirmed. */
   gearboxConfirmed?: boolean;
+  /** No gearbox option found — gearboxOutputRpm was typed in by hand. */
+  gearboxRpmManual?: boolean;
   // Per-component MOC (manual selection, optionally seeded from the AI
   // recommendation panel) — non-wettable components
   mocAiBearingHousing?: string;
@@ -213,6 +215,8 @@ export interface PumpSelectionFormData {
   driveVbeltNo?: string;
   /** Belt card picked, then explicitly confirmed (select-then-confirm gate). */
   vbeltConfirmed?: boolean;
+  /** No V-belt option found — driveVbeltRpm was typed in by hand. */
+  vbeltRpmManual?: boolean;
   // Drive System inputs (shown for every drive system)
   driveMotorSpeed?: string; // motor nameplate speed (RPM) — manual, defaults from motorRPM
   driveMotorMake?: string; // BBL / Havells / CGL / ABB / Siemens / Other

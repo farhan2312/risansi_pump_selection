@@ -96,10 +96,12 @@ const LABELS: Record<string, string> = {
   driveVbeltRpm: "V-belt RPM",
   driveVbeltNo: "No. of V-belts",
   vbeltConfirmed: "V-belt confirmed",
+  vbeltRpmManual: "V-belt RPM entered manually",
   // Geared
   gbConstructionType: "Gearbox construction",
   asfRange: "ASF range",
   gearboxConfirmed: "Gearbox confirmed",
+  gearboxRpmManual: "Gearbox RPM entered manually",
 };
 
 /** Tokens that should keep their capitalisation once camelCase is split. */

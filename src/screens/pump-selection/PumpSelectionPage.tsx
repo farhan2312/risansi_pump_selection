@@ -100,12 +100,13 @@ const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
   "drive-direct": [],
   "drive-vbelt": [
     "driveVbeltGroove", "drivePumpPulley", "driveMotorPulley", "driveVbeltRpm",
-    "driveCenterDistance", "driveVbeltNo", "vbeltConfirmed",
+    "driveCenterDistance", "driveVbeltNo", "vbeltConfirmed", "vbeltRpmManual",
   ],
   "drive-geared": [
     "gearBoxType", "gearedConfigType", "gbConstructionType", "gearBoxMounting",
     "driveCoupling", "couplingType", "couplingMake", "asfRange", "gearboxSource", "gearboxModel",
     "gearboxOutputRpm", "gearboxServiceFactor", "gearboxRatePerNos", "gearboxConfirmed",
+    "gearboxRpmManual",
   ],
   "pump-model-qty": ["productCode", "pumpFamily", "quantity"],
 };
@@ -117,6 +118,8 @@ const BOOLEAN_FIELDS = new Set([
   "vbeltConfirmed",
   "gearboxConfirmed",
   "driveMotorConfirmed",
+  "vbeltRpmManual",
+  "gearboxRpmManual",
 ]);
 
 // Fields backed by an integer column — a NULL restores as 1 (step one), not
@@ -292,6 +295,7 @@ const PumpSelectionPage = () => {
     gearboxServiceFactor: "",
     gearboxRatePerNos: "",
     gearboxConfirmed: false, // gearbox card picked, then explicitly confirmed
+    gearboxRpmManual: false, // no gearbox found — output RPM typed in by hand
 
     // Step 4
     sealingType: "",
@@ -363,6 +367,7 @@ const PumpSelectionPage = () => {
     driveCenterDistance: "",
     driveVbeltNo: "",
     vbeltConfirmed: false, // belt card picked, then explicitly confirmed
+    vbeltRpmManual: false, // no belt found — pump RPM typed in by hand
 
     // Step 7 — Drive System inputs (shown for every drive system)
     driveMotorSpeed: "",

@@ -119,6 +119,83 @@ const ConfirmBar = ({
     </div>
   );
 
+/** Fallback when the V-belt / gearbox screen finds nothing: the engineer
+ *  types the selected pump RPM so Recheck can run and the wizard can move on.
+ *  Confirmed the same way as a card. */
+const ManualRpmPanel = ({
+  what,
+  value,
+  confirmed,
+  rpmLo,
+  rpmHi,
+  onChange,
+  onConfirm,
+}: {
+  /** "V-belt" | "gearbox" */
+  what: string;
+  value: string;
+  confirmed: boolean;
+  /** The pump's required speed window, when known — out-of-window values warn. */
+  rpmLo?: number;
+  rpmHi?: number;
+  onChange: (value: string) => void;
+  onConfirm: () => void;
+}) => {
+  const n = Number(value);
+  const valid = value.trim() !== "" && Number.isFinite(n) && n > 0;
+  const hasWindow = Number.isFinite(rpmLo) && Number.isFinite(rpmHi);
+  const outside = valid && hasWindow && (n < (rpmLo as number) || n > (rpmHi as number));
+  return (
+    <div className="mt-3 rounded-lg border border-line bg-paper p-3">
+      <label className="flex flex-col gap-1 sm:max-w-[280px]">
+        <span className="text-[12px] font-semibold text-fg-2">Selected pump RPM (manual)</span>
+        <input
+          type="number"
+          min={1}
+          step="any"
+          inputMode="decimal"
+          className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-right font-mono text-[13px] text-fg outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="e.g. 250"
+        />
+      </label>
+      <p className="mt-1 text-[12px] text-fg-3">
+        No {what} option was found, so enter the pump RPM you have selected — Recheck then works out capacity and
+        BKW at this speed.
+        {hasWindow && (
+          <>
+            {" "}Required window:{" "}
+            <b className="mono text-fg-2">
+              {(rpmLo as number).toFixed(0)}–{(rpmHi as number).toFixed(0)} rpm
+            </b>
+            .
+          </>
+        )}
+      </p>
+      {value.trim() !== "" && !valid && <p className="mt-1 text-[12px] text-neg">Enter an RPM above 0.</p>}
+      {outside && (
+        <p className="mt-1 text-[12px] text-warn">
+          {n} rpm is outside the pump&apos;s required window — check the Recheck result before proceeding.
+        </p>
+      )}
+      {valid &&
+        (confirmed ? (
+          <div className="mt-2 flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2">
+            <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+              ✓ Confirmed
+            </span>
+            <span className="text-[13px] text-emerald-900">
+              <b>{n} rpm</b> (manual) is locked in. Change the RPM to edit it.
+            </span>
+          </div>
+        ) : (
+          <ConfirmBar label={`${n} rpm (manual)`} confirmed={false} onConfirm={onConfirm} />
+        ))}
+    </div>
+  );
+};
+
 /** Indian-format money for the motor cards (prices are plain rupee amounts). */
 const money = (v: string | number | null): string => {
   const n = typeof v === "number" ? v : parseFloat(String(v ?? ""));
@@ -249,13 +326,14 @@ const MOTOR_DRIVE_FIELDS = [
 
 const DRIVE_VBELT_FIELDS = [
   "driveVbeltGroove", "drivePumpPulley", "driveMotorPulley", "driveVbeltRpm",
-  "driveCenterDistance", "driveVbeltNo", "vbeltConfirmed",
+  "driveCenterDistance", "driveVbeltNo", "vbeltConfirmed", "vbeltRpmManual",
 ] as const;
 
 const DRIVE_GEARED_FIELDS = [
   "gearBoxType", "gearedConfigType", "gbConstructionType", "gearBoxMounting",
   "driveCoupling", "couplingType", "couplingMake", "asfRange", "gearboxSource", "gearboxModel",
   "gearboxOutputRpm", "gearboxServiceFactor", "gearboxRatePerNos", "gearboxConfirmed",
+  "gearboxRpmManual",
 ] as const;
 
 // A field whose unit never changes (Hz, V): the unit sits in the box, so the
@@ -630,6 +708,8 @@ const DriveDetailsStep = ({
     wipe.driveMotorConfirmed = false;
     wipe.vbeltConfirmed = false;
     wipe.gearboxConfirmed = false;
+    wipe.vbeltRpmManual = false;
+    wipe.gearboxRpmManual = false;
     setFormData({ ...formData, ...wipe });
     // Server wipe: delete the row in each of the three drive tables. Best-
     // effort - if one fails we still report the failure so the user can
@@ -737,9 +817,9 @@ const DriveDetailsStep = ({
     if (!finalPumpRpmRaw) {
       setRecheckError(
         isVBelt
-          ? "Pick a V-Belt option first — final pump RPM comes from the belt selection."
+          ? "Pick a V-Belt option first — final pump RPM comes from the belt selection (or enter it manually when no belt is found)."
           : isGeared
-            ? "Pick a gearbox first — final pump RPM comes from the gearbox output."
+            ? "Pick a gearbox first — final pump RPM comes from the gearbox output (or enter it manually when no gearbox is found)."
             : "Motor RPM is required.",
       );
       setShowRecheck(true);
@@ -828,6 +908,7 @@ const DriveDetailsStep = ({
         driveCenterDistance: "",
         driveVbeltNo: "",
         vbeltConfirmed: false,
+        vbeltRpmManual: false,
       });
       return;
     }
@@ -840,8 +921,24 @@ const DriveDetailsStep = ({
       driveCenterDistance: opt.centerDistance != null ? String(opt.centerDistance) : "",
       driveVbeltNo: opt.vBelt != null ? String(opt.vBelt) : "",
       vbeltConfirmed: false,
+      vbeltRpmManual: false,
     });
   };
+
+  // Manual pump RPM (no belt option found): the RPM stands in for the belt's
+  // achieved RPM; the pulley/belt details don't apply, so they're cleared.
+  const setManualVbeltRpm = (value: string) =>
+    setFormData({
+      ...formData,
+      driveVbeltGroove: "",
+      drivePumpPulley: "",
+      driveMotorPulley: "",
+      driveCenterDistance: "",
+      driveVbeltNo: "",
+      driveVbeltRpm: value,
+      vbeltRpmManual: value.trim() !== "",
+      vbeltConfirmed: false,
+    });
 
   // "Drive Motor Speed" is the motor's nameplate RPM — default it from the
   // selected Motor RPM (960/1440), but leave it editable afterwards. Applies
@@ -1061,6 +1158,21 @@ const DriveDetailsStep = ({
       gearboxServiceFactor: "",
       gearboxRatePerNos: "",
       gearboxConfirmed: false,
+      gearboxRpmManual: false,
+    });
+
+  // Manual pump RPM (no gearbox option found): stands in for the gearbox
+  // output RPM; there is no gearbox model/source/rate to record.
+  const setManualGearboxRpm = (value: string) =>
+    setFormData({
+      ...formData,
+      gearboxSource: "",
+      gearboxModel: "",
+      gearboxServiceFactor: "",
+      gearboxRatePerNos: "",
+      gearboxOutputRpm: value,
+      gearboxRpmManual: value.trim() !== "",
+      gearboxConfirmed: false,
     });
 
   // Same select/unselect + confirm cycle as the belt cards above.
@@ -1081,6 +1193,7 @@ const DriveDetailsStep = ({
       gearboxServiceFactor: opt.serviceFactor != null ? String(opt.serviceFactor) : "",
       gearboxRatePerNos: opt.ratePerNos != null ? String(opt.ratePerNos) : "",
       gearboxConfirmed: false,
+      gearboxRpmManual: false,
     });
   };
 
@@ -1459,10 +1572,23 @@ const DriveDetailsStep = ({
                     <p className="mt-2 text-[13px] text-warn">
                       No gearbox options match this window/KW
                       {formData.asfRange || formData.gbConstructionType
-                        ? " with the current ASF Range/GB Type narrowing — try clearing one."
-                        : "."}
+                        ? " with the current ASF Range/GB Type narrowing — try clearing one, or enter the selected pump RPM below."
+                        : " — enter the selected pump RPM below."}
                     </p>
                   )}
+
+                {((gearboxRec.pbl.length === 0 && gearboxRec.ptl.length === 0 && gearboxRec.topGear.length === 0) ||
+                  formData.gearboxRpmManual) && (
+                  <ManualRpmPanel
+                    what="gearbox"
+                    value={formData.gearboxRpmManual ? String(formData.gearboxOutputRpm ?? "") : ""}
+                    confirmed={Boolean(formData.gearboxConfirmed)}
+                    rpmLo={gearboxRec.rpmLo}
+                    rpmHi={gearboxRec.rpmHi}
+                    onChange={setManualGearboxRpm}
+                    onConfirm={() => setFormData({ ...formData, gearboxConfirmed: true })}
+                  />
+                )}
 
                 {(
                   [
@@ -1655,8 +1781,20 @@ const DriveDetailsStep = ({
             {vbeltStatus === "ready" && vbelt && vbelt.candidates.length === 0 && (
               <p className="mt-2 text-[13px] text-warn">
                 No V-belt/pulley data for {vbelt.model} at {vbelt.motorRpm} rpm /{" "}
-                {vbelt.motorKw} kW — select the belt drive manually with engineering input.
+                {vbelt.motorKw} kW — enter the selected pump RPM below.
               </p>
+            )}
+
+            {vbeltStatus === "ready" && vbelt && (vbelt.candidates.length === 0 || formData.vbeltRpmManual) && (
+              <ManualRpmPanel
+                what="V-belt"
+                value={formData.vbeltRpmManual ? String(formData.driveVbeltRpm ?? "") : ""}
+                confirmed={Boolean(formData.vbeltConfirmed)}
+                rpmLo={vbelt.rpmLo}
+                rpmHi={vbelt.rpmHi}
+                onChange={setManualVbeltRpm}
+                onConfirm={() => setFormData({ ...formData, vbeltConfirmed: true })}
+              />
             )}
 
             {vbeltStatus === "ready" && vbelt && vbelt.candidates.length > 0 && (
@@ -1760,7 +1898,7 @@ const DriveDetailsStep = ({
   })}
 </div>
 
-                {formData.driveVbeltRpm && (
+                {formData.driveVbeltRpm && !formData.vbeltRpmManual && (
                   <ConfirmBar
                     label={`${formData.driveVbeltRpm} RPM belt${
                       formData.driveVbeltNo ? ` (V-Belt ${formData.driveVbeltNo})` : ""

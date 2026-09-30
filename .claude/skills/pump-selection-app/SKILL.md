@@ -216,6 +216,17 @@ wizard tables (e.g. the new step's PCP field is `pumpFamily` because
    **"Geared Motor Drive/Gear Box + Motor"** (renamed from "Geared Motor
    Drive"). Motor RPM field only appears after a drive type is chosen; fixed
    at 1440 (read-only) for the Geared option, selectable 960/1440 otherwise.
+   - **Manual pump RPM fallback** (2026-09-30): when the V-belt screen returns
+     no candidates, or the gearbox screen returns none (PBL/PTL/Top Gear all
+     empty), `ManualRpmPanel` lets the engineer type the selected pump RPM. It
+     is stored in the existing RPM field (driveVbeltRpm / gearboxOutputRpm), so
+     `finalPumpRpm` → Recheck and proceeding work unchanged. Flags
+     `vbeltRpmManual` (drive_vbelt_input.vbelt_rpm_manual) and
+     `gearboxRpmManual` (drive_geared_input.gearbox_rpm_manual) mark it; the
+     pulley/belt or gearbox model/source/rate fields are cleared. Confirmed via
+     the usual vbeltConfirmed / gearboxConfirmed. Picking a card clears the
+     flag. Out-of-window values warn but don't block. Recheck's source line and
+     the approval details say "entered manually".
    - **V-Belt**: once Motor RPM + Motor KW (step 6) are known,
      `computeVBeltDrive()` returns **every** belt option whose achieved pump
      speed falls inside the model's required RPM window (VE-band derived) as
@@ -532,7 +543,7 @@ never auto-filled from the AI result.
 - Page `/commercial?projectId=…` (`src/screens/commercial/CommercialSummaryPage.tsx`),
   opened from the "Commercial" button on each Enquiries row. Every tag of the
   enquiry on one page: Pump & Accessories (P&A) + BOI items (Motor, Gearbox,
-  Strainer, PRV, DRP, plus named "Others", max 10), all typed in per unit.
+  VFD, Strainer, PRV, DRP, plus named "Others", max 10), all per unit.
 - Totals (`src/lib/commercial.ts`, shared by page + API): unit = P&A + all
   BOI; sub-total = unit × quantity; grand total = sum of sub-totals. A tag
   with no quantity counts as 0 and is flagged.
@@ -545,6 +556,46 @@ never auto-filled from the AI result.
   with old → new per changed price). Any signed-in user can edit for now.
 - The wizard's motor / gearbox pick (uplifted price) is shown next to those
   rows with a "Use ₹x" button — a reference only, never auto-applied.
+- **VFD** BOI row (2026-09-30), order Motor, Gearbox, VFD, Strainer, PRV, DRP.
+  Columns `vfd_price` + `vfd_model` (the picked BOI Master drive; the API
+  drops it when there is no VFD price). Only when the Drive step's VFD
+  Required = Yes, the row lists the BOI Master drives covering the motor kW
+  (motor_drive_input.drive_motor_kw): per duty (Nominal P_N / Light Duty P_LD /
+  Heavy Duty P_HD) the smallest drive with rating ≥ kW (cheaper on a tie),
+  merged when one drive wins several duties (`vfdOptionsFor` in
+  lib/commercial.ts). **User picks** (user decision: show all matches, pick in
+  commercial) — "Use ₹net" fills the price + model. Otherwise the price can be
+  typed by hand.
+- **BOI Master** `/admin/boi-master` (admin; Tailwind; one tab per BOI item —
+  only VFD for now, more to come). `boi_vfd` mirrors docs/BOI "VFD PRICE LIST
+  01-05-26 Dis 66.5 %" (ABB ACS560, 3 Phase 400 V, 24 rows): drive
+  description (unique), frame, P_N/I_N, P_LD/I_LD, P_HD/I_HD, list price, plus
+  make/series/supply, discount_pct 66.5 and price_list_date 2026-05-01 from
+  the file name; remarks note the list's I_HD footnote marks (293A "246*",
+  430A "363**"). `bop_extra` = ₹2,150 flat BOP added to EACH ABB VFD (user, 2026-09-30). Net = list × (1 − discount%) + bop_extra (e.g. 12A6: 74,000 × 0.335 + 2,150 = 26,940). API /api/boi-master/vfd (+/[id])
+  GET/POST/PATCH/DELETE, audited as "BOI Master"; validation in lib/boi-vfd.ts
+  (field lists + parser shared via lib/boi-master.ts; page UI bits in
+  screens/boi-master/boiUi.tsx).
+- **DRP** (Dry Run Protection, 2026-09-30, user-confirmed rules): DRP per pump
+  = RTD probe + RTD panel. BOI Master **DRP tab**: `boi_drp_probe` (RTD Probe
+  With thread + 5 MTR. Wire: 25/50/75/100 mm = ₹1,080/1,100/1,260/1,290) and
+  `boi_drp_panel` (RTD Pannel, FOR ALL RTD, ₹4,100) mirror docs/BOI "Drp Probe
+  Price List 12-07-25.xlsx" (W.E.F 2025-07-12). **Probe = smallest size ≥ the
+  model's shaft dia.** Shown for EVERY tag (no wizard question); "Use ₹total"
+  fills drp_price + `drp_model` ("RTD probe 50 mm + RTD panel").
+- **Shaft Dia tab** (user correction 2026-09-30: one row per model, own tab,
+  not in DRP): `pump_shaft_dia` (model unique, shaft_dia nullable) — every
+  pump_model_master model + H120L6 (58 rows), expanded from the user's SHAFT
+  DIA / MODEL family image (19.05 H-15/20 … 78.58 H-105/110/120, 90 H120L6;
+  L3/L6 + 2H/4H take their family). 8H20, BarrelH10, BarrelH20L are blank for
+  the user to fill. H120L6 is in this table only, NOT in pump_model_master.
+  DRP looks up the tag's model exactly (case-insensitive); blank/missing = no
+  suggestion. The old family-row `boi_drp_shaft` table was dropped.
+- DRP probe/panel + Shaft Dia share one generic setup: registry
+  lib/boi-tables.ts (keys drp-probe | drp-panel | shaft-dia, with tab +
+  fields), lib/boi-tables-server.ts (Drizzle table + order), API
+  /api/boi-master/table/[table](+/[id]) audited "BOI Master · <title>", UI
+  screens/boi-master/BoiTableTab.tsx (search box on tables > 12 rows).
 - **Quotation (v1)** — `QuotationPanel` at the top of the Commercial Summary.
   One per enquiry (`quotation`, unique project_id) + `quotation_version`
   (track internal|client, version, reason, TSM, frozen price `snapshot` jsonb).

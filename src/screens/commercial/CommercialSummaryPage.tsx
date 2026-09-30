@@ -23,6 +23,8 @@ import {
   DRIVE_GROUP_LABEL,
   groupsIn,
   type DriveGroup,
+  type VfdOption,
+  type DrpOption,
 } from "../../lib/commercial";
 import { getCommercialSummary, saveCommercialPrices } from "../../services/commercialService";
 
@@ -30,13 +32,20 @@ import { getCommercialSummary, saveCommercialPrices } from "../../services/comme
 // page: Pump & Accessories + BOI items typed in per unit, quantity pulled from
 // the wizard's Pump Model & Qty step, sub-total = unit price × qty, grand total
 // = sum of sub-totals. The wizard's motor / gearbox pick is shown beside those
-// rows as a reference the user can copy in — never applied on its own.
+// rows as a reference the user can copy in — never applied on its own. With
+// VFD Required = Yes, the VFD row lists the BOI Master drives covering the
+// motor kW (one per duty) to pick from; the DRP row offers the BOI Master
+// probe + panel for the tag's model (every tag).
 
 type PriceKey = "paPrice" | BoiKey;
 
 /** Form state keeps the raw text the user typed; parsed only for totals/save. */
 type Draft = {
   paPrice: string;
+  /** Picked BOI Master VFD ("" = none). */
+  vfdModel: string;
+  /** Used BOI Master DRP kit ("" = none). */
+  drpModel: string;
   others: { name: string; price: string }[];
   remarks: string;
 } & Record<BoiKey, string>;
@@ -47,6 +56,9 @@ const toDraft = (p: CommercialPrices): Draft => ({
   paPrice: priceText(p.paPrice),
   motorPrice: priceText(p.motorPrice),
   gearboxPrice: priceText(p.gearboxPrice),
+  vfdPrice: priceText(p.vfdPrice),
+  vfdModel: p.vfdModel ?? "",
+  drpModel: p.drpModel ?? "",
   strainerPrice: priceText(p.strainerPrice),
   prvPrice: priceText(p.prvPrice),
   drpPrice: priceText(p.drpPrice),
@@ -58,13 +70,20 @@ const toDraft = (p: CommercialPrices): Draft => ({
  *  is flagged on its field instead. */
 const parseDraft = (d: Draft): CommercialPrices => {
   const val = (s: string) => parsePrice(s) ?? null;
+  const vfdPrice = val(d.vfdPrice);
+  const drpPrice = val(d.drpPrice);
   return {
     paPrice: val(d.paPrice),
     motorPrice: val(d.motorPrice),
     gearboxPrice: val(d.gearboxPrice),
+    vfdPrice,
+    // A picked model only means something alongside a VFD price (the API
+    // applies the same rule).
+    vfdModel: vfdPrice !== null && d.vfdModel ? d.vfdModel : null,
+    drpModel: drpPrice !== null && d.drpModel ? d.drpModel : null,
     strainerPrice: val(d.strainerPrice),
     prvPrice: val(d.prvPrice),
-    drpPrice: val(d.drpPrice),
+    drpPrice,
     others: d.others.map((o) => ({ name: o.name.trim(), price: val(o.price) })),
     remarks: d.remarks.trim(),
   };
@@ -519,7 +538,21 @@ function TagCard({
                   >
                     <span className="pt-2 text-[13px] font-semibold text-fg">{item.label}</span>
                     <div className="min-w-0 pt-1 text-[12px] text-fg-3">
-                      {ref ? (
+                      {item.key === "vfdPrice" ? (
+                        <VfdPicker
+                          tag={tag}
+                          picked={draft.vfdModel}
+                          onPick={(o) => onChange({ vfdModel: o.driveDescription, vfdPrice: String(o.netPrice ?? "") })}
+                          onClear={() => onChange({ vfdModel: "" })}
+                        />
+                      ) : item.key === "drpPrice" ? (
+                        <DrpPicker
+                          tag={tag}
+                          used={draft.drpModel}
+                          onUse={(o) => onChange({ drpModel: o.label, drpPrice: String(o.total) })}
+                          onClear={() => onChange({ drpModel: "" })}
+                        />
+                      ) : ref ? (
                         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                           <span className="text-fg-2">{ref.label}</span>
                           {!ref.confirmed && <span className="text-warn">(not confirmed)</span>}
@@ -628,6 +661,133 @@ function TagCard({
         </aside>
       </div>
     </section>
+  );
+}
+
+/** The DRP row's reference: the BOI Master RTD probe (smallest size ≥ the
+ *  model's shaft dia) + RTD panel. Shown for every tag. */
+function DrpPicker({
+  tag,
+  used,
+  onUse,
+  onClear,
+}: {
+  tag: CommercialTag;
+  used: string;
+  onUse: (o: DrpOption) => void;
+  onClear: () => void;
+}) {
+  const o = tag.drpOption;
+  const usedLine = used && (
+    <span className="flex flex-wrap items-center gap-x-2">
+      <span className="text-fg-2">Used: {used}</span>
+      <button type="button" className="text-[11.5px] font-semibold text-fg-3 hover:text-neg" onClick={onClear}>
+        Clear
+      </button>
+    </span>
+  );
+  if (!o) {
+    return (
+      <span className="flex flex-col gap-1 pt-1">
+        {usedLine}
+        <span className="text-warn">{tag.drpNote}</span>
+      </span>
+    );
+  }
+  const active = used === o.label;
+  return (
+    <div className="flex flex-col gap-1">
+      <div
+        className={`flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border px-2 py-1 ${
+          active ? "border-accent bg-accent-soft" : "border-line"
+        }`}
+      >
+        <span className="text-fg-2">
+          {tag.model} · shaft {o.shaftDia} mm → probe {o.probeSizeMm} mm {formatInr(o.probeRate)}
+          {o.panelRate !== null && <> + panel {formatInr(o.panelRate)}</>}
+        </span>
+        {!tag.modelConfirmed && <span className="text-warn">(model not confirmed)</span>}
+        <button
+          type="button"
+          className="ml-auto rounded-md border border-line bg-paper px-1.5 py-0.5 font-mono text-[11.5px] text-accent hover:border-accent"
+          onClick={() => onUse(o)}
+          title="Copy the BOI Master DRP price (probe + panel) into this field"
+        >
+          {active ? "Used" : "Use"} {formatInr(o.total)}
+        </button>
+      </div>
+      {used && !active && usedLine}
+    </div>
+  );
+}
+
+const DUTY_SHORT = { Nominal: "N", "Light Duty": "LD", "Heavy Duty": "HD" } as const;
+
+/** The VFD row's reference: the BOI Master drives covering the motor kW (one
+ *  per duty — Nominal / Light Duty / Heavy Duty) when VFD Required = Yes.
+ *  Picking one copies its net price in and records the model. */
+function VfdPicker({
+  tag,
+  picked,
+  onPick,
+  onClear,
+}: {
+  tag: CommercialTag;
+  picked: string;
+  onPick: (o: VfdOption) => void;
+  onClear: () => void;
+}) {
+  const pickedLine = picked && (
+    <span className="flex flex-wrap items-center gap-x-2">
+      <span className="text-fg-2">
+        Picked: <span className="font-mono">{picked}</span>
+      </span>
+      <button type="button" className="text-[11.5px] font-semibold text-fg-3 hover:text-neg" onClick={onClear}>
+        Clear
+      </button>
+    </span>
+  );
+  const note = (text: string, warn = false) => (
+    <span className="flex flex-col gap-1 pt-1">
+      {pickedLine}
+      <span className={warn ? "text-warn" : undefined}>{text}</span>
+    </span>
+  );
+  if (!tag.vfdRequired) return note("VFD not required on the Drive step");
+  if (tag.motorKw === null) return note("VFD required, but no motor kW on the Motor Rating step", true);
+  if (tag.vfdOptions.length === 0) return note(`No drive in the BOI Master covers ${tag.motorKw} kW`, true);
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span>Motor {tag.motorKw} kW · pick a drive (BOI Master: list less discount, plus BOP extra):</span>
+      {tag.vfdOptions.map((o) => {
+        const active = o.driveDescription === picked;
+        return (
+          <div
+            key={o.driveDescription}
+            className={`flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border px-2 py-1 ${
+              active ? "border-accent bg-accent-soft" : "border-line"
+            }`}
+          >
+            <span className="font-mono text-fg-2">{o.driveDescription}</span>
+            <span>{[o.make, o.frame && `Frame ${o.frame}`].filter(Boolean).join(" · ")}</span>
+            <span>{o.duties.map((d) => `${DUTY_SHORT[d.duty]} ${d.kw} kW`).join(" / ")}</span>
+            {o.netPrice !== null && (
+              <button
+                type="button"
+                className="ml-auto rounded-md border border-line bg-paper px-1.5 py-0.5 font-mono text-[11.5px] text-accent hover:border-accent"
+                onClick={() => onPick(o)}
+                title={`List ${formatInr(o.listPrice)} less ${o.discountPct ?? 0}% + BOP ${formatInr(o.bopExtra ?? 0)}`}
+              >
+                {active ? "Picked" : "Use"} {formatInr(o.netPrice)}
+              </button>
+            )}
+          </div>
+        );
+      })}
+      {picked && !tag.vfdOptions.some((o) => o.driveDescription === picked) && pickedLine}
+      <span className="text-[11px] text-fg-4">N = Nominal use · LD = Light duty · HD = Heavy duty</span>
+    </div>
   );
 }
 

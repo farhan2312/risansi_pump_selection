@@ -122,12 +122,13 @@ const FIELDS: Record<TableKey, readonly string[]> = {
   "drive-direct": [],
   "drive-vbelt": [
     "driveVbeltGroove", "drivePumpPulley", "driveMotorPulley", "driveVbeltRpm",
-    "driveCenterDistance", "driveVbeltNo", "vbeltConfirmed",
+    "driveCenterDistance", "driveVbeltNo", "vbeltConfirmed", "vbeltRpmManual",
   ],
   "drive-geared": [
     "gearBoxType", "gearedConfigType", "gbConstructionType", "gearBoxMounting",
     "driveCoupling", "couplingType", "couplingMake", "asfRange", "gearboxSource", "gearboxModel",
     "gearboxOutputRpm", "gearboxServiceFactor", "gearboxRatePerNos", "gearboxConfirmed",
+    "gearboxRpmManual",
   ],
   "pump-model-qty": ["productCode", "pumpFamily", "quantity"],
 };

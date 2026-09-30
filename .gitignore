@@ -3,6 +3,8 @@
 .vscode
 # next.js
 /.next/
+# isolated test builds (NEXT_DIST_DIR)
+/.next-*/
 /out/
 
 # production
