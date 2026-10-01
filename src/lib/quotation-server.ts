@@ -8,7 +8,8 @@ import { and, asc, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { isMarketIntellConfigured, miQuery } from "@/lib/db/market-intell";
-import { quotation, quotationVersion, users } from "@/lib/db/schema";
+import { projects, quotation, quotationVersion, users } from "@/lib/db/schema";
+import { normalizeOfferConfigs } from "@/lib/commercial-offer";
 import { loadCommercialSummary, projectDriveGroups } from "@/lib/commercial-server";
 import {
   type QuotationInfo,
@@ -79,6 +80,7 @@ export async function suggestedTsm(clientCode: string | null): Promise<TsmOption
 export async function buildSnapshot(projectId: string, driveGroup: string): Promise<QuotationSnapshot> {
   const summary = await loadCommercialSummary(projectId);
   const tags = (summary?.tags ?? []).filter((t) => t.driveGroup === driveGroup).map((t) => ({
+    tagId: t.tagId,
     tagName: t.tagName,
     productCode: t.productCode,
     model: t.model,
@@ -87,7 +89,15 @@ export async function buildSnapshot(projectId: string, driveGroup: string): Prom
     unit: unitTotal(t.prices),
     sub: subTotal(t.prices, t.quantity),
   }));
-  return { tags, grandTotal: tags.reduce((s, t) => s + t.sub, 0) };
+  // The Commercial Offer sheet edits travel with the version, so a frozen
+  // version keeps the sheet exactly as it was.
+  const [p] = await db
+    .select({ offer: projects.commercialOfferConfig })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+  const offer = normalizeOfferConfigs(p?.offer, [driveGroup])[driveGroup];
+  return { tags, grandTotal: tags.reduce((s, t) => s + t.sub, 0), offer };
 }
 
 /** One drive group's quotation for the enquiry, with its version history

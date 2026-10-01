@@ -9,6 +9,8 @@
  *   grand total = sum of every tag's sub-total
  */
 
+import type { OfferConfig } from "./commercial-offer";
+
 /** The fixed BOI rows, in display order. `key` is the API/DB field. */
 export const BOI_ITEMS = [
   { key: "motorPrice", label: "Motor" },
@@ -269,7 +271,7 @@ export const formatInr = (n: number | null | undefined): string =>
 // --- Quotation (v1) ----------------------------------------------------------
 // One quotation per enquiry, independent of the sales portal. Number:
 // RIL/QT/<region>/<FY>/<PCP|SPR>/<serial>; region = the TSM's initials for
-// now; the serial is ON HOLD (who issues it is undecided) and shows as a gap.
+// now; the serial is from 6000 upwards, one per enquiry (a gap only if missing).
 
 export type QuotationTrack = "internal" | "client";
 
@@ -285,6 +287,8 @@ export type TsmOption = {
 /** Frozen copy of the prices when a version was made. */
 export type QuotationSnapshot = {
   tags: {
+    /** Missing on snapshots made before the Commercial Offer (2026-10-01). */
+    tagId?: string;
     tagName: string;
     productCode: string | null;
     model: string | null;
@@ -294,6 +298,9 @@ export type QuotationSnapshot = {
     sub: number;
   }[];
   grandTotal: number;
+  /** The Commercial Offer sheet edits for this drive group when the version
+   *  was made (lib/commercial-offer). Missing on older snapshots = defaults. */
+  offer?: OfferConfig;
 };
 
 export type QuotationVersionInfo = {
@@ -344,10 +351,10 @@ export function finYearOf(isoDate: string): string {
   return `${String(start).slice(-2)}${String(start + 1).slice(-2)}`;
 }
 
-/** "RIL/QT/SV/26-27/PCP/····" — the serial is shown as a gap until it exists.
+/** "RIL/QT/SV/26-27/PCP/6000" — a missing serial shows as a gap.
  *  fin_year is stored as "2627" and printed as "26-27". With `mixed` (the
  *  enquiry has tags on more than one drive system) the quotation's drive group
- *  goes after the serial: ".../PCP/····/GM". */
+ *  goes after the serial: ".../PCP/6000/GM". */
 export function quotationNumber(
   q: {
     regionCode: string | null;

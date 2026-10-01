@@ -1,0 +1,292 @@
+/**
+ * The Commercial Offer sheet — the Risansi quotation format's commercial part,
+ * one column per tag of a drive group, priced from the Commercial Summary:
+ *
+ *   letterhead · "Risansi Industries Limited - Commercial Offer"
+ *   Client Name · Enquiry No. & Date | Quotation No. & Date
+ *   Commercial Offer band:
+ *     Drive Motor · Gear Box (geared groups) · [VFD · Strainer · PRV] · DRP with
+ *     Panel · [Other items] · Pump with Accessories · P&A + Motor (+ Gear Box)
+ *     Unit Price · … Qty. Price
+ *   Scope of supply :- …   (red)
+ *   Out Of Scope :- …
+ *
+ * VFD / Strainer / PRV / Other rows show only when some tag has that price.
+ * Optional rows (Quantity, BOI total, total of all tags) are ticked per sheet.
+ * Edits (projects.commercial_offer_config, per drive group) change the
+ * document only — never the saved prices. Each quotation version freezes its
+ * sheet edits along with its prices (QuotationSnapshot.offer).
+ *
+ * Client-safe (no DB / DOM): the modal, print and Excel all build from here.
+ */
+import { boiTotal, type CommercialPrices, type DriveGroup } from "./commercial";
+import { esc, sheetHtml, type TechDocHeader, type TechDocRow } from "./tech-doc";
+
+export const OFFER_TITLE = "Commercial Offer";
+
+export const DEFAULT_SCOPE =
+  "Pump With Base-Plate, Driven Coupling, Foundation & Grouting Bolts, Coupling & Motor Guard, Matching Flange, (For Suc. & Delivery) Gasket & Fasteners, Gear Box, Motor & DRP";
+export const DEFAULT_OUT_OF_SCOPE = "Starter + VFD + VFD Panel + 3PTC Thermistor + VPI Treatment";
+
+/** One tag column: its saved prices and totals. */
+export interface OfferTag {
+  tagId: string;
+  tagName: string;
+  prices: CommercialPrices;
+  quantity: number | null;
+  /** Unit price (P&A + all BOI). */
+  unit: number;
+  /** unit × quantity. */
+  sub: number;
+}
+
+/** One printable Commercial Offer: one drive group's tags. */
+export interface OfferSheet {
+  projectCode: string;
+  header: TechDocHeader;
+  tags: OfferTag[];
+  config: OfferConfig;
+  /** Gear Box rows/labels apply (GM / GB). */
+  geared: boolean;
+  /** Drive group code for the file name when the enquiry mixes drives. */
+  group?: string;
+  /** e.g. "Internal V2" — for the file name of a version's sheet. */
+  versionLabel?: string;
+}
+
+export const isGearedGroup = (g: DriveGroup | string | null | undefined) => g === "GM" || g === "GB";
+
+/** GET /api/commercial-offer: the sheet header lines and each drive group's saved edits.
+ *  The tag columns (prices) come from the Commercial Summary / a version. */
+export interface CommercialOfferData {
+  projectCode: string;
+  clientName: string;
+  /** "RIL/EN/26-27/1780, Dt. 24.09.2026" */
+  enquiry: string;
+  mixed: boolean;
+  /** Drive group → "RIL/QT/…/PCP/6000[/GM], Dt. …" (groups with a quotation). */
+  quotations: Record<string, string>;
+  configs: Record<string, OfferConfig>;
+}
+
+// --- Rows -------------------------------------------------------------------
+
+const INR = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
+const money = (n: number | null | undefined): string => (n === null || n === undefined ? "" : INR.format(n));
+
+interface OfferField {
+  key: string;
+  label: (geared: boolean) => string;
+  /** Optional row — only when ticked. */
+  extra?: boolean;
+  /** Only on a geared sheet (Gear Box). */
+  gearedOnly?: boolean;
+  /** Only when some tag has a value (VFD, Strainer, PRV, Other items). */
+  whenPriced?: boolean;
+  /** One value for the whole sheet, across the tag columns. */
+  span?: boolean;
+  value: (t: OfferTag) => string;
+  /** span rows: the sheet value from all tags. */
+  sheetValue?: (tags: OfferTag[]) => string;
+}
+
+const otherSum = (p: CommercialPrices): number | null =>
+  (p.others ?? []).some((o) => o.price !== null) ? (p.others ?? []).reduce((s, o) => s + (o.price ?? 0), 0) : null;
+
+const withGb = (geared: boolean) => (geared ? "Pump With Accessories + Motor + Gear Box" : "Pump With Accessories + Motor");
+
+/** In sheet order (the format's rows, with the optional ones in place). */
+export const OFFER_FIELDS: OfferField[] = [
+  { key: "motor", label: () => "Drive Motor Price In Unit (INR)", value: (t) => money(t.prices.motorPrice) },
+  { key: "gearbox", label: () => "Gear Box Price In Unit (INR)", gearedOnly: true, value: (t) => money(t.prices.gearboxPrice) },
+  { key: "vfd", label: () => "VFD Price In Unit (INR)", whenPriced: true, value: (t) => money(t.prices.vfdPrice) },
+  { key: "strainer", label: () => "Strainer Price In Unit (INR)", whenPriced: true, value: (t) => money(t.prices.strainerPrice) },
+  { key: "prv", label: () => "PRV Price In Unit (INR)", whenPriced: true, value: (t) => money(t.prices.prvPrice) },
+  { key: "drp", label: () => "DRP with Panel (Probe type) IN unit Price", value: (t) => money(t.prices.drpPrice) },
+  { key: "others", label: () => "Other Items Price In Unit (INR)", whenPriced: true, value: (t) => money(otherSum(t.prices)) },
+  {
+    key: "x_boi",
+    label: () => "BOI Items Total In Unit (INR)",
+    extra: true,
+    value: (t) => money(boiTotal({ ...t.prices, others: t.prices.others ?? [] })),
+  },
+  { key: "pa", label: () => "Pump with Accessories Unit Price (INR)", value: (t) => money(t.prices.paPrice) },
+  { key: "unit", label: (g) => `${withGb(g)} Unit Price (INR)`, value: (t) => money(t.unit) },
+  { key: "x_qty", label: () => "Quantity (Nos.)", extra: true, value: (t) => (t.quantity === null ? "" : String(t.quantity)) },
+  { key: "qtyPrice", label: (g) => `${withGb(g)} Qty. Price (INR)`, value: (t) => money(t.sub) },
+  {
+    key: "x_total",
+    label: () => "Total Price (INR)",
+    extra: true,
+    span: true,
+    value: () => "",
+    sheetValue: (tags) => money(tags.reduce((s, t) => s + t.sub, 0)),
+  },
+];
+
+export const OFFER_EXTRAS = OFFER_FIELDS.filter((f) => f.extra);
+const OFFER_EXTRA_KEYS = new Set(OFFER_EXTRAS.map((f) => f.key));
+
+// --- Per-sheet customisation -------------------------------------------------
+
+export interface OfferCustomRow {
+  id: string;
+  section: string;
+  label: string;
+  values: Record<string, string>;
+}
+
+/** Saved per enquiry and drive group. Same edit model as the Technical Data
+ *  Sheet (TechDocEditor), plus the two scope lines (null = the default). */
+export interface OfferConfig {
+  extras: string[];
+  hidden: string[];
+  labels: Record<string, string>;
+  values: Record<string, Record<string, string>>;
+  custom: OfferCustomRow[];
+  scope: string | null;
+  outOfScope: string | null;
+}
+
+export const EMPTY_OFFER_CONFIG: OfferConfig = {
+  extras: [],
+  hidden: [],
+  labels: {},
+  values: {},
+  custom: [],
+  scope: null,
+  outOfScope: null,
+};
+
+const MAX_TEXT = 300;
+const MAX_SCOPE = 1500;
+const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+const text = (v: unknown, max = MAX_TEXT): string => String(v ?? "").trim().slice(0, max);
+const offerCustomKey = (id: string) => `c_${id}`;
+
+export function normalizeOfferConfig(raw: unknown): OfferConfig {
+  const r = isObj(raw) ? raw : {};
+  const custom: OfferCustomRow[] = (Array.isArray(r.custom) ? r.custom : [])
+    .filter(isObj)
+    .map((c) => ({
+      id: text(c.id).replace(/[^a-z0-9-]/gi, "").slice(0, 40),
+      section: OFFER_TITLE,
+      label: text(c.label),
+      values: Object.fromEntries(Object.entries(isObj(c.values) ? c.values : {}).map(([k, v]) => [k.slice(0, 60), text(v)])),
+    }))
+    .filter((c) => c.id && c.label)
+    .slice(0, 30);
+  const validKeys = new Set([...OFFER_FIELDS.map((f) => f.key), ...custom.map((c) => offerCustomKey(c.id))]);
+  const keyList = (v: unknown) => [...new Set((Array.isArray(v) ? v : []).map(String).filter((k) => validKeys.has(k)))];
+  const labels: Record<string, string> = {};
+  for (const [k, v] of Object.entries(isObj(r.labels) ? r.labels : {})) if (validKeys.has(k) && text(v)) labels[k] = text(v);
+  const values: Record<string, Record<string, string>> = {};
+  for (const [k, perTag] of Object.entries(isObj(r.values) ? r.values : {})) {
+    if (!validKeys.has(k) || !isObj(perTag)) continue;
+    const m: Record<string, string> = {};
+    for (const [tagId, v] of Object.entries(perTag)) m[tagId.slice(0, 60)] = text(v);
+    if (Object.keys(m).length) values[k] = m;
+  }
+  const scopeText = (v: unknown) => (typeof v === "string" ? text(v, MAX_SCOPE) : null);
+  return {
+    extras: keyList(r.extras).filter((k) => OFFER_EXTRA_KEYS.has(k)),
+    hidden: keyList(r.hidden),
+    labels,
+    values,
+    custom,
+    scope: scopeText(r.scope),
+    outOfScope: scopeText(r.outOfScope),
+  };
+}
+
+/** Stored commercial_offer_config ({groups: {GM: …}}) → one config per group. */
+export function normalizeOfferConfigs(raw: unknown, groups: string[]): Record<string, OfferConfig> {
+  const stored = isObj(raw) && isObj(raw.groups) ? raw.groups : {};
+  return Object.fromEntries(groups.map((g) => [g, normalizeOfferConfig(stored[g])]));
+}
+
+// --- Build ------------------------------------------------------------------
+
+export interface OfferBlock {
+  title: string;
+  rows: TechDocRow[];
+}
+
+/** The sheet's rows with the customisation applied (TechDocEditor reads the
+ *  same row shape). Removed rows only with `includeHidden`. */
+export function buildOffer(
+  tags: OfferTag[],
+  config: OfferConfig,
+  geared: boolean,
+  opts: { includeHidden?: boolean } = {},
+): OfferBlock[] {
+  const picked = new Set(config.extras);
+  const hidden = new Set(config.hidden);
+  const rows: TechDocRow[] = [];
+  const finish = (key: string, kind: TechDocRow["kind"], autoLabel: string, autoValues: string[], span?: boolean) => {
+    const edits = config.values[key] ?? {};
+    // A whole-sheet row keys its one edit by "all".
+    const ids = span ? ["all"] : tags.map((t) => t.tagId);
+    const edited = ids.map((id) => Object.prototype.hasOwnProperty.call(edits, id));
+    rows.push({
+      key,
+      kind,
+      label: config.labels[key] || autoLabel,
+      autoLabel,
+      values: ids.map((id, i) => (edited[i] ? edits[id] : autoValues[i])),
+      autoValues,
+      edited,
+      hidden: hidden.has(key),
+      span,
+    });
+  };
+  for (const f of OFFER_FIELDS) {
+    if (f.extra && !picked.has(f.key)) continue;
+    if (f.gearedOnly && !geared) continue;
+    const auto = f.span ? [f.sheetValue?.(tags) ?? ""] : tags.map(f.value);
+    if (f.whenPriced && auto.every((v) => !v)) continue;
+    finish(f.key, f.extra ? "extra" : "fixed", f.label(geared), auto, f.span);
+  }
+  for (const c of config.custom) finish(offerCustomKey(c.id), "custom", c.label, tags.map((t) => c.values[t.tagId] ?? ""));
+  return [{ title: OFFER_TITLE, rows: opts.includeHidden ? rows : rows.filter((r) => !r.hidden) }];
+}
+
+export const offerScope = (c: OfferConfig) => (c.scope ?? DEFAULT_SCOPE).trim();
+export const offerOutOfScope = (c: OfferConfig) => (c.outOfScope ?? DEFAULT_OUT_OF_SCOPE).trim();
+
+// --- HTML (preview + print) ---------------------------------------------------
+
+export function buildOfferHtml(sheet: OfferSheet, logoUrl = "/logo.png"): string {
+  const n = Math.max(sheet.tags.length, 1);
+  const cols = n + 1;
+  const [block] = buildOffer(sheet.tags, sheet.config, sheet.geared);
+  const tagHead = `<tr class="tags"><th scope="row">Tag No.</th>${sheet.tags.map((t) => `<td>${esc(t.tagName)}</td>`).join("")}</tr>`;
+  const rows = block.rows
+    .map((r) =>
+      r.span
+        ? `<tr><th scope="row">${esc(r.label)}</th><td colspan="${n}"><b>${esc(r.values[0] || "-")}</b></td></tr>`
+        : `<tr><th scope="row">${esc(r.label)}</th>${r.values.map((v) => `<td>${esc(v || "-")}</td>`).join("")}</tr>`,
+    )
+    .join("");
+  const scope = offerScope(sheet.config);
+  const out = offerOutOfScope(sheet.config);
+  const body =
+    `<tr class="offer-band"><td colspan="${cols}">${esc(OFFER_TITLE)}</td></tr>` +
+    tagHead +
+    rows +
+    (scope ? `<tr class="scope"><td colspan="${cols}">Scope of supply :- ${esc(scope)}</td></tr>` : "") +
+    (out ? `<tr class="oos"><td colspan="${cols}">Out Of Scope :- ${esc(out)}</td></tr>` : "");
+  return sheetHtml({
+    projectCode: sheet.projectCode,
+    title: OFFER_TITLE,
+    header: sheet.header,
+    tagCount: sheet.tags.length,
+    body,
+    logoUrl,
+    css: `
+  tr.offer-band td { background: #365f91; color: #fff; font-weight: bold; text-align: center; font-size: 10.5pt; padding: 6px; }
+  tr.tags td { font-weight: bold; }
+  tr.scope td { color: #c00000; font-weight: bold; font-style: italic; text-align: center; font-size: 9.5pt; padding: 6px; }
+  tr.oos td { font-style: italic; text-align: center; font-size: 9pt; padding: 6px; }`,
+  });
+}

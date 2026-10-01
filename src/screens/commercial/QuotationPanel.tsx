@@ -3,10 +3,16 @@
 import { useEffect, useState } from "react";
 
 import ConfirmModal from "../../components/ui/ConfirmModal";
+import CommercialOfferModal from "./CommercialOfferModal";
+import { normalizeOfferConfig } from "../../lib/commercial-offer";
 import {
+  BOI_ITEMS,
+  type DriveGroup,
   type QuotationInfo,
+  type QuotationSnapshot,
   type QuotationVersionInfo,
   type TsmOption,
+  boiTotal,
   formatInr,
   versionLabel,
 } from "../../lib/commercial";
@@ -23,7 +29,7 @@ import {
 // the TSM, "New internal version" (the TSM asked for changes → next internal
 // version) and "Send to client" (→ next client version). The two version
 // tracks never move each other. Reassigning the TSM makes no version. The
-// serial part of the number is on hold, so it shows as a gap.
+// serial (6000, 6001, …) is issued when the quotation is created.
 
 const selectCls =
   "rounded-lg border border-line bg-paper px-3 py-2 text-[13px] text-fg outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:opacity-60";
@@ -225,9 +231,6 @@ export default function QuotationPanel({
         <div className="min-w-0">
           <h2 className="text-[14px] font-semibold text-fg">Quotation{groupLabel ? ` — ${groupLabel}` : ""}</h2>
           <p className="mt-0.5 font-mono text-[15px] font-semibold break-all text-fg">{quotation.number}</p>
-          {quotation.serial === null && (
-            <p className="text-[11.5px] text-fg-3">Serial number on hold — added once it is decided who issues it.</p>
-          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <VersionBadge label="Internal" value={versionLabel(quotation.internalVersion)} />
@@ -382,7 +385,15 @@ export default function QuotationPanel({
         onClose={() => setConfirm(null)}
         onConfirm={() => run(() => sendQuotationToClient(quotation.id), "Couldn't record the send.")}
       />
-      {viewing && <SnapshotModal version={viewing} onClose={() => setViewing(null)} />}
+      {viewing && (
+        <SnapshotModal
+          version={viewing}
+          number={quotation?.number}
+          projectId={projectId}
+          group={group as DriveGroup}
+          onClose={() => setViewing(null)}
+        />
+      )}
     </section>
   );
 }
@@ -459,7 +470,23 @@ function VersionList({
   );
 }
 
-function SnapshotModal({ version, onClose }: { version: QuotationVersionInfo; onClose: () => void }) {
+function SnapshotModal({
+  version,
+  number,
+  projectId,
+  group,
+  onClose,
+}: {
+  version: QuotationVersionInfo;
+  /** The quotation number, shown above the version. */
+  number?: string;
+  projectId: string;
+  group: DriveGroup;
+  onClose: () => void;
+}) {
+  // This version's Commercial Offer: its prices + the sheet edits frozen with it.
+  const [showOffer, setShowOffer] = useState(false);
+  const label = `${version.track === "internal" ? "Internal" : "Client"} V${version.version}`;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -474,11 +501,12 @@ function SnapshotModal({ version, onClose }: { version: QuotationVersionInfo; on
       onClick={onClose}
     >
       <div
-        className="flex max-h-[85vh] w-full max-w-[760px] flex-col overflow-hidden rounded-xl border border-line bg-paper"
+        className="flex max-h-[90vh] w-full max-w-[900px] flex-col overflow-hidden rounded-xl border border-line bg-paper"
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
           <div>
+            {number && <p className="font-mono text-[12.5px] font-semibold break-all text-fg-2">{number}</p>}
             <h3 className="text-[14px] font-semibold text-fg">
               {version.track === "internal" ? "Internal" : "Client"} V{version.version}
               {version.live && <span className="ml-2 text-[12px] font-normal text-pos">Live — current saved prices</span>}
@@ -492,10 +520,31 @@ function SnapshotModal({ version, onClose }: { version: QuotationVersionInfo; on
               </p>
             )}
           </div>
-          <button type="button" className={btnSm} onClick={onClose}>
-            Close
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button type="button" className={btnSm} onClick={() => setShowOffer(true)}>
+              Commercial Offer
+            </button>
+            <button type="button" className={btnSm} onClick={onClose}>
+              Close
+            </button>
+          </div>
         </header>
+        {showOffer && (
+          <CommercialOfferModal
+            projectId={projectId}
+            group={group}
+            tags={version.snapshot.tags.map((t) => ({
+              tagId: t.tagId ?? t.tagName,
+              tagName: t.tagName,
+              prices: t.prices,
+              quantity: t.quantity,
+              unit: t.unit,
+              sub: t.sub,
+            }))}
+            version={{ label, config: normalizeOfferConfig(version.snapshot.offer) }}
+            onClose={() => setShowOffer(false)}
+          />
+        )}
         <div className="overflow-auto">
           <table className="w-full min-w-[600px] text-[13px]">
             <thead>
@@ -527,8 +576,85 @@ function SnapshotModal({ version, onClose }: { version: QuotationVersionInfo; on
               </tr>
             </tfoot>
           </table>
+
+          {/* Each tag's price build-up, as saved in this version. */}
+          <div className="flex flex-col gap-3 border-t border-line bg-sunk p-4">
+            <h4 className="text-[11.5px] font-semibold tracking-[0.09em] text-fg-3 uppercase">Details by tag</h4>
+            {s.tags.map((t, i) => (
+              <TagBreakdown key={i} tag={t} />
+            ))}
+          </div>
         </div>
       </div>
     </div>
+  );
+}
+
+type SnapshotTag = QuotationSnapshot["tags"][number];
+
+/** Labels saved beside a BOI price (the BOI Master VFD / DRP kit picked). */
+const BOI_NOTE: Partial<Record<string, (p: SnapshotTag["prices"]) => string | null | undefined>> = {
+  vfdPrice: (p) => p.vfdModel,
+  drpPrice: (p) => p.drpModel,
+};
+
+function TagBreakdown({ tag }: { tag: SnapshotTag }) {
+  const p = tag.prices;
+  const line = (label: string, value: number | null | undefined, note?: string | null, key?: string) => (
+    <tr key={key ?? label} className="border-b border-line last:border-b-0">
+      <td className="px-3 py-1.5 text-fg-2">
+        {label}
+        {note && <span className="ml-2 font-mono text-[11.5px] text-fg-3">{note}</span>}
+      </td>
+      <td className={`px-3 py-1.5 text-right font-mono ${value == null ? "text-fg-4" : "text-fg"}`}>
+        {formatInr(value ?? null)}
+      </td>
+    </tr>
+  );
+  return (
+    <section className="rounded-lg border border-line bg-paper">
+      <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line px-3 py-2">
+        <span className="text-[13.5px] font-semibold text-fg">
+          {tag.tagName}
+          <span className="ml-2 text-[12.5px] font-normal text-fg-3">{tag.productCode ?? tag.model ?? "No pump"}</span>
+        </span>
+        <span className="text-[12px] text-fg-3">Qty {tag.quantity ?? "not set"}</span>
+      </header>
+      <table className="w-full text-[12.5px]">
+        <tbody>
+          {line("Pump & Accessories", p.paPrice)}
+          <tr className="border-b border-line bg-sunk">
+            <td colSpan={2} className="px-3 py-1 text-[11px] font-semibold tracking-[0.08em] text-fg-3 uppercase">
+              BOI items
+            </td>
+          </tr>
+          {BOI_ITEMS.map((it) => line(it.label, p[it.key], BOI_NOTE[it.key]?.(p), it.key))}
+          {(p.others ?? []).map((o, j) => line(o.name || "Other", o.price, null, `other-${j}`))}
+        </tbody>
+        <tfoot className="text-[12.5px]">
+          <tr className="border-t border-line">
+            <td className="px-3 py-1.5 text-right text-fg-3">BOI total</td>
+            <td className="px-3 py-1.5 text-right font-mono text-fg-2">{formatInr(boiTotal({ ...p, others: p.others ?? [] }))}</td>
+          </tr>
+          <tr>
+            <td className="px-3 py-1.5 text-right font-semibold text-fg">Unit price</td>
+            <td className="px-3 py-1.5 text-right font-mono font-semibold text-fg">{formatInr(tag.unit)}</td>
+          </tr>
+          <tr>
+            <td className="px-3 py-1.5 text-right text-fg-3">× Quantity</td>
+            <td className="px-3 py-1.5 text-right font-mono text-fg-2">{tag.quantity ?? "—"}</td>
+          </tr>
+          <tr className="border-t border-line-strong bg-sunk">
+            <td className="px-3 py-2 text-right font-semibold text-fg">Sub-total</td>
+            <td className="px-3 py-2 text-right font-mono font-bold text-fg">{formatInr(tag.sub)}</td>
+          </tr>
+        </tfoot>
+      </table>
+      {p.remarks && (
+        <p className="border-t border-line px-3 py-2 text-[12px] whitespace-pre-line text-fg-2">
+          <span className="font-semibold">Remarks:</span> {p.remarks}
+        </p>
+      )}
+    </section>
   );
 }

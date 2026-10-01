@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNotNull, sql } from "drizzle-orm";
 
 import { error, isUniqueViolation, json } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
@@ -41,8 +41,9 @@ export async function GET(req: Request) {
 
 // POST /api/quotations {projectId, group, tsmRepId?} — creates one drive
 // group's quotation for the enquiry: date = today, FY from it, region = the TSM's initials, internal
-// V0 (with a snapshot of the prices), client version not sent yet. Serial left
-// empty (on hold). TSM = the client's rep in sales (tsmRepId is ignored then);
+// V0 (with a snapshot of the prices), client version not sent yet. Serial =
+// the enquiry's serial if another drive group already has one, else the next
+// from quotation_serial_seq (6000, 6001, …). TSM = the client's rep in sales (tsmRepId is ignored then);
 // tsmRepId is only used when the client has no rep.
 export async function POST(req: Request) {
   let body: Record<string, unknown>;
@@ -85,6 +86,20 @@ export async function POST(req: Request) {
 
   try {
     const created = await db.transaction(async (tx) => {
+      // One serial per enquiry: its drive groups share it (they differ by the
+      // /GM… suffix). The lock stops two groups created at once from each
+      // taking a new number.
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${projectId}))`);
+      const [existing] = await tx
+        .select({ serial: quotation.serial })
+        .from(quotation)
+        .where(and(eq(quotation.projectId, projectId), isNotNull(quotation.serial)))
+        .limit(1);
+      const serial =
+        existing?.serial ??
+        Number(
+          (await tx.execute<{ n: string }>(sql`select nextval('quotation_serial_seq')::text as n`)).rows[0].n,
+        );
       const [q] = await tx
         .insert(quotation)
         .values({
@@ -93,6 +108,7 @@ export async function POST(req: Request) {
           productType: "PCP",
           quoteDate,
           finYear: finYearOf(quoteDate),
+          serial,
           regionCode: tsm.initials,
           tsmRepId: tsm.id,
           tsmName: tsm.name,

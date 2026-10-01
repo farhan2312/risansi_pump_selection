@@ -99,6 +99,10 @@ export const projects = pgTable("projects", {
   // cell values and manually added rows. Always read through
   // normalizeTechDocConfig.
   techDocConfig: jsonb("tech_doc_config").$type<Record<string, unknown>>().notNull().default({}),
+  /** Commercial Offer sheet edits per drive group ({groups: {GM: OfferConfig}},
+   *  lib/commercial-offer.ts): optional rows, removed / renamed rows, edited
+   *  cells, manual rows, scope texts. Document only — prices are not changed. */
+  commercialOfferConfig: jsonb("commercial_offer_config").$type<Record<string, unknown>>().notNull().default({}),
 });
 
 
@@ -1118,8 +1122,9 @@ export const commercialTagPrice = pgTable("commercial_tag_price", {
 // Quotation (v1) — one per enquiry and drive group, independent of the sales portal (Market
 // Intell is only READ, to prefill the client's TSM). Number:
 // RIL/QT/<region_code>/<fin_year>/<product_type>/<serial>. region_code is the
-// TSM's initials for now. `serial` is ON HOLD (who issues it is undecided;
-// agreed to start from 6000 when it is built) so it stays null.
+// TSM's initials for now. `serial` comes from the Postgres sequence
+// quotation_serial_seq (6000, 6001, … — user, 2026-10-01), one per enquiry:
+// its drive-group quotations share it (unique on serial + drive_group).
 // Two version tracks, independent of each other:
 //   internal_version — V0 on create, +1 each time the TSM asks for changes
 //                      (changing WHO the TSM is does not make a version);

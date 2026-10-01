@@ -600,8 +600,11 @@ never auto-filled from the AI result.
   One per enquiry (`quotation`, unique project_id) + `quotation_version`
   (track internal|client, version, reason, TSM, frozen price `snapshot` jsonb).
   Number `RIL/QT/<region>/<FY Apr–Mar e.g. 2627>/PCP/<serial>`; region = the
-  TSM's initials (user decision, for now); **serial is ON HOLD** (who issues it
-  is undecided; agreed start 6000) so it is null and shows as "····".
+  TSM's initials (user decision, for now); **serial** (user, 2026-10-01) =
+  Postgres sequence `quotation_serial_seq` from 6000 (6000, 6001, …), issued
+  on create (POST /api/quotations, under a per-enquiry advisory lock); all
+  drive-group quotations of one enquiry SHARE the serial (unique index on
+  serial + drive_group). The first two quotations were backfilled 6000/6001.
   Independent of the sales portal: Market Intell is only READ (miQuery).
   **TSM is LOCKED to the client's rep** (user decision 2026-09-26): the sales
   client's primary_rep_id, found by projects.client_code. Create ignores any
@@ -628,7 +631,7 @@ never auto-filled from the AI result.
   has unsaved prices. Audited quotation.create / tsm_change /
   internal_version / send. Snapshots built by lib/quotation-server.ts via
   lib/commercial-server.ts (same data as GET /api/commercial).
-- Not built yet: the quotation serial, L1–L4 price list and markup rules,
+- Not built yet: L1–L4 price list and markup rules,
   client price-sheet uploads, PDF output, scope of supply.
 
 ## Client Price Reference files (Commercial Summary → "Client Price Ref")
@@ -665,7 +668,7 @@ never auto-filled from the AI result.
   CIN / e-mail / phone / address in `LETTERHEAD`), "Risansi Industries Limited
   - Technical Data Sheet", Client Name (projects.name only), Enquiry No. & Date
   (full number + enquiry_date), Quotation No. & Date (quotationNumber with the
-  serial gap, FY printed "26-27"), then Liquid Parameters / Material of
+  serial, FY printed "26-27"), then Liquid Parameters / Material of
   Construction / Sealing Type / Pump Details / Drive Systems, one column per
   CONFIRMED tag (enquiry_tags.report_generated_at set).
 - `src/lib/tech-doc.ts` (client-safe) holds the field catalogue
@@ -695,6 +698,35 @@ never auto-filled from the AI result.
   section, name, per-tag values; key "c_<id>"). Edit mode = TechDocEditor.
   Document only — the wizard data is never changed. (tech_doc_extras was
   replaced by this column the same day.)
+
+## Commercial Offer sheet (Commercial Summary + quotation versions)
+- User format (photo 2026-10-01): same letterhead/header as the Technical Data
+  Sheet ("<company> - Commercial Offer", client, enquiry, quotation), blue
+  "Commercial Offer" band, Tag No. row, then per tag: Drive Motor Price In
+  Unit · Gear Box Price In Unit (GM/GB only) · [VFD · Strainer · PRV — only
+  when some tag has that price] · DRP with Panel (Probe type) IN unit Price ·
+  [Other Items — when priced] · Pump with Accessories Unit Price · "Pump With
+  Accessories + Motor (+ Gear Box) Unit Price" = unitTotal (ALL priced items)
+  · "… Qty. Price" = sub-total; then red "Scope of supply :- …" and "Out Of
+  Scope :- …" lines (defaults from the photo, editable; "Penel" typo fixed).
+  Optional rows: BOI total, Quantity, Total Price (one value across all tags,
+  a `span` row keyed "all").
+- `src/lib/commercial-offer.ts` (client-safe): OFFER_FIELDS, OfferConfig
+  (extras/hidden/labels/values/custom + scope/outOfScope, null = default),
+  normalizeOfferConfig(s), buildOffer, buildOfferHtml; Excel
+  lib/commercial-offer-excel.ts. Shares the tech sheet shell: tech-doc.ts
+  `sheetHtml`, `sheetFileStem`, `dotDate`, `esc`; tech-doc-excel.ts
+  `sheetHeaderRows`. TechDocEditor is generic now (takes `blocks` + any config
+  with hidden/labels/values/custom) and edits both sheets.
+- Edits per enquiry AND drive group in `projects.commercial_offer_config`
+  ({groups:{GM:…}}); GET/PUT /api/commercial-offer (header lines + configs).
+  Document only — never changes the saved prices.
+- UI: CommercialOfferModal (screens/commercial): "Commercial Offer" button on
+  the Summary section (per group, SAVED prices; warns about unsaved ones) —
+  Preview / Edit rows / Add parameters / scope textareas / Print / Excel. A
+  version's View modal has a read-only "Commercial Offer" with that version's
+  prices: buildSnapshot now stores `tagId` per tag and the group's `offer`
+  config, so frozen versions keep their sheet; older snapshots = defaults.
 
 ## Audit Log page (/admin/audit, system_admin)
 - Tabs: Overview (default) · Usage by User · Activity · Logins & Sessions ·

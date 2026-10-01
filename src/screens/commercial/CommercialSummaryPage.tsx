@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import PageHeader from "../../components/ui/PageHeader";
 import QuotationPanel from "./QuotationPanel";
 import ClientPriceRefModal from "./ClientPriceRefModal";
+import CommercialOfferModal from "./CommercialOfferModal";
 import {
   BOI_ITEMS,
   type BoiKey,
@@ -228,6 +229,27 @@ export default function CommercialSummaryPage() {
   const missingQty = groupRows.filter((r) => r.tag.quantity === null).length;
 
   const project = data?.project;
+  // Commercial Offer sheet of the open drive group — from the SAVED prices.
+  const [showOffer, setShowOffer] = useState(false);
+  // `saved` holds each tag's last-saved prices (data.tags is only the first
+  // load), so a Save shows up in the sheet straight away.
+  const offerTags = useMemo(
+    () =>
+      (data?.tags ?? [])
+        .filter((t) => (t.driveGroup ?? "NONE") === tab)
+        .map((t) => {
+          const prices = saved[t.tagId] ? parseDraft(saved[t.tagId]) : t.prices;
+          return {
+            tagId: t.tagId,
+            tagName: t.tagName,
+            prices,
+            quantity: t.quantity,
+            unit: unitTotal(prices),
+            sub: subTotal(prices, t.quantity),
+          };
+        }),
+    [data, saved, tab],
+  );
 
   return (
     <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-5 px-4 py-5 sm:px-6">
@@ -262,6 +284,19 @@ export default function CommercialSummaryPage() {
               title="View this client's past price reference sheets (SharePoint)"
             >
               Client Price Ref
+            </button>
+            <button
+              type="button"
+              className={btnSm}
+              onClick={() => setShowOffer(true)}
+              disabled={!data || !tab || tab === "NONE"}
+              title={
+                mixed && tab && tab !== "NONE"
+                  ? `Commercial Offer sheet for ${tabLabel(tab)} (the open drive-system tab)`
+                  : "Preview, edit, print or download the Commercial Offer sheet"
+              }
+            >
+              Commercial Offer
             </button>
             <Link href="/projects" className={btnSm}>
               Back to Enquiries
@@ -343,7 +378,19 @@ export default function CommercialSummaryPage() {
               <h2 className="text-[14px] font-semibold text-fg">
                 Summary{mixed && tab && tab !== "NONE" ? ` — ${tabLabel(tab)}` : ""}
               </h2>
-              <span className="text-[12px] text-fg-3">All prices in INR, per unit unless marked</span>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-[12px] text-fg-3">All prices in INR, per unit unless marked</span>
+                {tab && tab !== "NONE" && (
+                  <button
+                    type="button"
+                    className={btnSm}
+                    onClick={() => setShowOffer(true)}
+                    title="Preview, edit, print or download this drive group's Commercial Offer sheet"
+                  >
+                    Commercial Offer
+                  </button>
+                )}
+              </div>
             </header>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] text-[13px]">
@@ -426,6 +473,15 @@ export default function CommercialSummaryPage() {
             />
           ))}
         </>
+      )}
+      {showOffer && tab && tab !== "NONE" && (
+        <CommercialOfferModal
+          projectId={projectId}
+          group={tab}
+          tags={offerTags}
+          unsavedPrices={groupDirty}
+          onClose={() => setShowOffer(false)}
+        />
       )}
       {showPriceRef && data && (
         <ClientPriceRefModal

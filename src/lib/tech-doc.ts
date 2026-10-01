@@ -475,6 +475,9 @@ export interface TechDocRow {
   /** Per tag: the value was edited for this document. */
   edited: boolean[];
   hidden: boolean;
+  /** One value across all tag columns (values/edited have one entry, keyed
+   *  "all" in config.values) — used by the Commercial Offer's total row. */
+  span?: boolean;
 }
 export interface TechDocBlock {
   title: TechDocSection;
@@ -533,7 +536,14 @@ export function buildTechDoc(
 
 // --- HTML (on-screen view + print) ------------------------------------------
 
-const esc = (v: unknown): string =>
+/** "2026-09-24" → "24.09.2026" (the sheets' date style). */
+export const dotDate = (iso: string | null | undefined): string => {
+  if (!iso) return "";
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return y && m && d ? `${d}.${m}.${y}` : "";
+};
+
+export const esc = (v: unknown): string =>
   String(v ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -543,15 +553,8 @@ const esc = (v: unknown): string =>
 /** The whole sheet as a standalone HTML document (light, print-ready). Paper
  *  size / orientation stay the user's choice in the print dialog. */
 export function buildTechDocHtml(data: TechDocSheet, logoUrl = "/logo.png"): string {
-  const n = Math.max(data.tags.length, 1);
-  const cols = n + 1;
-  const blocks = buildTechDoc(data.tags, data.config);
-  // Enquiry takes the label column + half the tag columns; quotation the rest.
-  const leftSpan = 1 + Math.floor(n / 2);
-  const rightSpan = cols - leftSpan;
-  const L = LETTERHEAD;
-
-  const body = blocks
+  const cols = Math.max(data.tags.length, 1) + 1;
+  const body = buildTechDoc(data.tags, data.config)
     .filter((b) => b.rows.length > 0)
     .map(
       (b) =>
@@ -563,12 +566,46 @@ export function buildTechDocHtml(data: TechDocSheet, logoUrl = "/logo.png"): str
           .join(""),
     )
     .join("");
+  return sheetHtml({
+    projectCode: data.projectCode,
+    title: "Technical Data Sheet",
+    header: data.header,
+    tagCount: data.tags.length,
+    body,
+    logoUrl,
+  });
+}
+
+/** The shared printable shell of the Risansi sheets (Technical Data Sheet,
+ *  Commercial Offer): letterhead, "<company> - <title>" band, client /
+ *  enquiry / quotation rows, then `body` (table rows, label column + one
+ *  column per tag). */
+export function sheetHtml(opts: {
+  projectCode: string;
+  title: string;
+  header: TechDocHeader;
+  tagCount: number;
+  /** <tr> rows for the table body. */
+  body: string;
+  logoUrl?: string;
+  /** Extra CSS for the sheet's own row kinds. */
+  css?: string;
+}): string {
+  const n = Math.max(opts.tagCount, 1);
+  const cols = n + 1;
+  // Enquiry takes the label column + half the tag columns; quotation the rest.
+  const leftSpan = 1 + Math.floor(n / 2);
+  const rightSpan = cols - leftSpan;
+  const L = LETTERHEAD;
+  const logoUrl = opts.logoUrl ?? "/logo.png";
+  const body = opts.body;
+  const data = { projectCode: opts.projectCode, header: opts.header };
 
   const colgroup = `<colgroup><col class="lbl">${Array.from({ length: n }, () => "<col>").join("")}</colgroup>`;
 
   return `<!doctype html>
 <html><head><meta charset="utf-8">
-<title>${esc(data.projectCode)} - Technical Data Sheet</title>
+<title>${esc(data.projectCode)} - ${esc(opts.title)}</title>
 <style>
   @page { margin: 10mm; }
   * { box-sizing: border-box; }
@@ -590,6 +627,7 @@ export function buildTechDocHtml(data: TechDocSheet, logoUrl = "/logo.png"): str
   tr.meta td { text-align: left; font-size: 9pt; padding: 5px 6px; }
   tr.band td { background: #2b2b2b; color: #fff; font-weight: bold; text-align: center; padding: 4px; }
   tr { page-break-inside: avoid; break-inside: avoid; }
+  ${opts.css ?? ""}
 </style></head>
 <body><div class="sheet">
   <div class="lh">
@@ -601,7 +639,7 @@ export function buildTechDocHtml(data: TechDocSheet, logoUrl = "/logo.png"): str
     </div>
   </div>
   <table>${colgroup}<tbody>
-    <tr class="title"><td colspan="${cols}">${esc(L.company)} - Technical Data Sheet</td></tr>
+    <tr class="title"><td colspan="${cols}">${esc(L.company)} - ${esc(opts.title)}</td></tr>
     <tr class="meta"><td colspan="${cols}">Client Name: ${esc(data.header.clientName)}</td></tr>
     <tr class="meta">
       <td colspan="${leftSpan}">Enquiry No. &amp; Date: ${esc(data.header.enquiry)}</td>
@@ -614,8 +652,17 @@ export function buildTechDocHtml(data: TechDocSheet, logoUrl = "/logo.png"): str
 
 /** Suggested file name stem: Technical-Data-Sheet_<client>_<enquiry>_<date>. */
 export function techDocFileStem(data: TechDocSheet): string {
+  return sheetFileStem("Technical-Data-Sheet", data);
+}
+
+/** "<Title>_<client>_<enquiry>[_<group>]_<date>" for a sheet's downloads. */
+export function sheetFileStem(
+  title: string,
+  data: { projectCode: string; header: TechDocHeader; group?: string },
+  suffix?: string,
+): string {
   const slug = (v: string) => v.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "");
-  return ["Technical-Data-Sheet", slug(data.header.clientName), slug(data.projectCode), data.group ?? "", new Date().toISOString().slice(0, 10)]
+  return [title, slug(data.header.clientName), slug(data.projectCode), data.group ?? "", suffix ? slug(suffix) : "", new Date().toISOString().slice(0, 10)]
     .filter(Boolean)
     .join("_");
 }

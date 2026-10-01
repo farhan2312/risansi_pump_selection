@@ -10,6 +10,7 @@ import Spinner from "../ui/Spinner";
 import {
   EMPTY_TECH_DOC_CONFIG,
   TECH_DOC_SECTIONS,
+  buildTechDoc,
   buildTechDocHtml,
   techDocGroupLabel,
   techDocExtrasFor,
@@ -262,7 +263,12 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
 
               {mode === "edit" && doc ? (
                 <div className="max-h-[68vh] overflow-y-auto pr-1">
-                  <TechDocEditor tags={doc?.tags ?? []} config={config} onChange={updateConfig} />
+                  <TechDocEditor
+                    tags={doc.tags}
+                    blocks={buildTechDoc(doc.tags, config, { includeHidden: true })}
+                    config={config}
+                    onChange={updateConfig}
+                  />
                 </div>
               ) : (
                 /* The printable sheet itself, so what you see is what prints. */

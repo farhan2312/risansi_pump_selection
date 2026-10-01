@@ -1,20 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import {
-  buildTechDoc,
-  customKey,
-  type TechDocConfig,
-  type TechDocRow,
-  type TechDocSection,
-  type TechDocTag,
-} from "../../lib/tech-doc";
+import { customKey, type TechDocRow } from "../../lib/tech-doc";
 
-// Edit mode of the Technical Data Sheet: every row of the sheet, per section,
-// as editable cells. For this enquiry's document only — the wizard data is
-// never changed. Catalogue rows: rename the parameter, edit a tag's value
-// (reset brings back the wizard value), remove / restore. Manual rows: name
-// and values typed in, deleted outright.
+// Edit mode of a Risansi sheet (Technical Data Sheet, Commercial Offer): every
+// row, per section, as editable cells. For this document only — the wizard
+// data / saved prices are never changed. Catalogue rows: rename the parameter,
+// edit a tag's value (reset brings back the automatic value), remove /
+// restore. Manual rows: name and values typed in, deleted outright. A "span"
+// row has one value across all tags (keyed "all").
+
+/** The editable part of a sheet's config (TechDocConfig, OfferConfig). */
+export type EditableDocConfig = {
+  hidden: string[];
+  labels: Record<string, string>;
+  values: Record<string, Record<string, string>>;
+  custom: { id: string; section: string; label: string; values: Record<string, string> }[];
+};
 
 const cellCls =
   "w-full rounded-md border bg-paper px-2 py-1 text-[12.5px] text-fg outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-50";
@@ -22,16 +24,22 @@ const linkBtn = "text-[11.5px] font-semibold whitespace-nowrap hover:underline d
 
 const newId = () => Math.random().toString(36).slice(2, 10);
 
-export default function TechDocEditor({
+export default function TechDocEditor<C extends EditableDocConfig>({
   tags,
+  blocks,
   config,
-  onChange,
+  onChange: emit,
+  valueHint = "Wizard value",
 }: {
-  tags: TechDocTag[];
-  config: TechDocConfig;
-  onChange: (next: TechDocConfig) => void;
+  tags: { tagId: string; tagName: string }[];
+  /** The sheet's rows, built with removed rows included. */
+  blocks: { title: string; rows: TechDocRow[] }[];
+  config: C;
+  onChange: (next: C) => void;
+  /** Tooltip prefix on a cell's Reset ("Wizard value", "Saved price"). */
+  valueHint?: string;
 }) {
-  const blocks = buildTechDoc(tags, config, { includeHidden: true });
+  const onChange = (next: EditableDocConfig) => emit(next as C);
 
   // --- config updates ---------------------------------------------------------
   const setLabel = (row: TechDocRow, label: string) => {
@@ -46,7 +54,7 @@ export default function TechDocEditor({
   };
 
   const setValue = (row: TechDocRow, tagIndex: number, value: string) => {
-    const tagId = tags[tagIndex].tagId;
+    const tagId = row.span ? "all" : tags[tagIndex].tagId;
     if (row.kind === "custom") {
       onChange({
         ...config,
@@ -78,7 +86,7 @@ export default function TechDocEditor({
     onChange({ ...config, values, custom: config.custom.filter((c) => customKey(c.id) !== row.key) });
   };
 
-  const addCustom = (section: TechDocSection, label: string) =>
+  const addCustom = (section: string, label: string) =>
     onChange({ ...config, custom: [...config.custom, { id: newId(), section, label, values: {} }] });
 
   return (
@@ -124,21 +132,25 @@ export default function TechDocEditor({
                       {row.kind === "custom" && <span className="mt-0.5 block text-[10.5px] text-fg-3">Added by hand</span>}
                     </td>
                     {row.values.map((v, i) => (
-                      <td key={tags[i].tagId} className="px-2 py-1 align-top">
+                      <td
+                        key={row.span ? "all" : tags[i].tagId}
+                        colSpan={row.span ? Math.max(tags.length, 1) : undefined}
+                        className="px-2 py-1 align-top"
+                      >
                         <input
                           className={`${cellCls} ${row.edited[i] && row.kind !== "custom" ? "border-warn bg-[var(--warn-soft)]" : "border-line"}`}
                           value={v}
                           placeholder="-"
                           disabled={row.hidden}
                           onChange={(e) => setValue(row, i, e.target.value)}
-                          aria-label={`${row.label} — ${tags[i].tagName}`}
+                          aria-label={row.span ? row.label : `${row.label} — ${tags[i].tagName}`}
                         />
                         {row.edited[i] && row.kind !== "custom" && !row.hidden && (
                           <button
                             type="button"
                             className={`${linkBtn} mt-0.5 text-accent`}
                             onClick={() => setValue(row, i, row.autoValues[i])}
-                            title={`Wizard value: ${row.autoValues[i] || "-"}`}
+                            title={`${valueHint}: ${row.autoValues[i] || "-"}`}
                           >
                             Reset
                           </button>

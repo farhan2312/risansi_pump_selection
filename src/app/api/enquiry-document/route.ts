@@ -21,6 +21,7 @@ import {
 import { DRIVE_GROUPS, quotationNumber } from "@/lib/commercial";
 import { projectDriveGroups } from "@/lib/commercial-server";
 import {
+  dotDate,
   normalizeTechDocConfig,
   normalizeTechDocConfigs,
   type TechDocData,
@@ -56,12 +57,6 @@ function sheetColumns(table: PgTable): Record<string, AnyPgColumn> {
   return out;
 }
 
-/** "2026-09-24" → "24.09.2026" */
-const dotDate = (iso: string | null | undefined): string => {
-  if (!iso) return "";
-  const [y, m, d] = iso.slice(0, 10).split("-");
-  return y && m && d ? `${d}.${m}.${y}` : "";
-};
 
 // GET /api/enquiry-document?projectId=… — the enquiry's Technical Data Sheet
 // data: header (client, enquiry, quotation), every CONFIRMED tag with its
