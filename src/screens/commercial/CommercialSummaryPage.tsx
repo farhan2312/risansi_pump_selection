@@ -8,6 +8,7 @@ import PageHeader from "../../components/ui/PageHeader";
 import QuotationPanel from "./QuotationPanel";
 import ClientPriceRefModal from "./ClientPriceRefModal";
 import CommercialOfferModal from "./CommercialOfferModal";
+import PumpQtyStep from "./PumpQtyStep";
 import {
   BOI_ITEMS,
   type BoiKey,
@@ -31,7 +32,7 @@ import { getCommercialSummary, saveCommercialPrices } from "../../services/comme
 
 // Commercial Summary (pricing v1, manual). Every tag of one enquiry on one
 // page: Pump & Accessories + BOI items typed in per unit, quantity pulled from
-// the wizard's Pump Model & Qty step, sub-total = unit price × qty, grand total
+// step 1 (Pump & Qty, on this page), sub-total = unit price × qty, grand total
 // = sum of sub-totals. The wizard's motor / gearbox pick is shown beside those
 // rows as a reference the user can copy in — never applied on its own. With
 // VFD Required = Yes, the VFD row lists the BOI Master drives covering the
@@ -129,6 +130,9 @@ export default function CommercialSummaryPage() {
   const [pricesVersion, setPricesVersion] = useState(0);
   // "Client Price Ref" viewer (the client's old price sheets on SharePoint).
   const [showPriceRef, setShowPriceRef] = useState(false);
+  // Two steps: 1 Pump & Qty (product code + quantity per tag), 2 Summary.
+  // Opens on Pump & Qty while any tag still lacks either.
+  const [stage, setStage] = useState<"pump" | "summary" | null>(null);
 
   const load = useCallback(async () => {
     if (!projectId) {
@@ -142,6 +146,7 @@ export default function CommercialSummaryPage() {
       setData(res);
       setSaved(d);
       setDrafts(d);
+      setStage((s) => s ?? (res.tags.some((t) => !t.productCode || t.quantity === null) ? "pump" : "summary"));
     } catch (e) {
       const status = (e as { response?: { status?: number } })?.response?.status;
       setLoadError(status === 404 ? "This enquiry no longer exists." : "Couldn't load the Commercial Summary. Try again.");
@@ -329,6 +334,64 @@ export default function CommercialSummaryPage() {
       )}
 
       {data && data.tags.length > 0 && (
+        <nav className="flex flex-wrap items-center gap-2" aria-label="Commercial steps">
+          {(
+            [
+              ["pump", "1", "Pump & Qty"],
+              ["summary", "2", "Summary"],
+            ] as const
+          ).map(([key, n, label], i) => {
+            const incomplete = key === "pump" ? data.tags.filter((t) => !t.productCode || t.quantity === null).length : 0;
+            return (
+              <div key={key} className="flex items-center gap-2">
+                {i > 0 && <span className="text-fg-4">→</span>}
+                <button
+                  type="button"
+                  onClick={() => setStage(key)}
+                  aria-current={stage === key ? "step" : undefined}
+                  className={`inline-flex items-center gap-2 rounded-lg border px-3.5 py-2 text-[13px] font-semibold transition-colors ${
+                    stage === key ? "border-accent bg-accent text-white" : "border-line bg-paper text-fg-2 hover:border-accent"
+                  }`}
+                >
+                  <span
+                    className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] ${
+                      stage === key ? "bg-white/25" : "bg-sunk"
+                    }`}
+                  >
+                    {n}
+                  </span>
+                  {label}
+                  {incomplete > 0 && (
+                    <span
+                      className={`rounded-full px-1.5 text-[11px] ${stage === key ? "bg-white/25" : "bg-[var(--warn-soft)] text-warn"}`}
+                      title={`${incomplete} tag${incomplete === 1 ? "" : "s"} without a product code or quantity`}
+                    >
+                      {incomplete}
+                    </span>
+                  )}
+                </button>
+              </div>
+            );
+          })}
+        </nav>
+      )}
+
+      {data && data.tags.length > 0 && stage === "pump" && (
+        <PumpQtyStep
+          projectId={projectId}
+          tags={data.tags}
+          onSaved={(tagId, productCode, quantity) => {
+            setData((d) =>
+              d ? { ...d, tags: d.tags.map((t) => (t.tagId === tagId ? { ...t, productCode, quantity } : t)) } : d,
+            );
+            // The quotation's live version prices the new quantity.
+            setPricesVersion((n) => n + 1);
+          }}
+          onNext={() => setStage("summary")}
+        />
+      )}
+
+      {data && data.tags.length > 0 && stage === "summary" && (
         <>
           {tabs.length > 1 && (
             <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Drive system">
@@ -445,7 +508,7 @@ export default function CommercialSummaryPage() {
             {missingQty > 0 && (
               <p className="border-t border-line px-4 py-2.5 text-[12px] text-neg">
                 {missingQty} tag{missingQty === 1 ? " has" : "s have"} no quantity, so{" "}
-                {missingQty === 1 ? "it counts" : "they count"} as 0. Set Quantity on the tag&apos;s Pump Model &amp; Qty
+                {missingQty === 1 ? "it counts" : "they count"} as 0. Set Quantity on the Pump &amp; Qty step (step 1 above)
                 step.
               </p>
             )}
@@ -567,7 +630,7 @@ function TagCard({
               <p className="pt-2 text-[13px] text-fg-2">
                 {tag.productCode ?? tag.model ?? "Pump"} with accessories
                 {!tag.productCode && (
-                  <span className="block text-[11.5px] text-warn">Product code not picked on the Pump Model &amp; Qty step</span>
+                  <span className="block text-[11.5px] text-warn">Product code not picked on the Pump &amp; Qty step</span>
                 )}
               </p>
               <MoneyInput
@@ -713,7 +776,7 @@ function TagCard({
           />
           <div className="my-1 border-t border-line-strong" />
           <TotalRow label="Sub-total" value={formatInr(sub)} big />
-          <p className="mt-1 text-[11.5px] text-fg-3">Quantity comes from the Pump Model & Qty step in the pump selection.</p>
+          <p className="mt-1 text-[11.5px] text-fg-3">Quantity comes from the Pump & Qty step (step 1).</p>
         </aside>
       </div>
     </section>

@@ -294,18 +294,11 @@ wizard tables (e.g. the new step's PCP field is `pumpFamily` because
      (if set) narrow the already-screened result further rather than gating
      the initial screen. Every match across all 3 tables is shown as a
      clickable card grouped by source table; manual pick only.
-8. **Pump Model & Qty** (branch only, `PumpModelQtyStep.tsx`) — Pump Model =
-   ERP product code picked from `product_pump` (544 PCP codes from "Pump
-   Model Master_2509026.xlsx"; `ProductCodeSelect` loads all via GET
-   /api/product-pumps and filters client-side, each typed word matched
-   anywhere; "+ Add" puts a new code into product_pump as PCP via POST /api/product-pumps, audited product_pump.add), Pump Type = `pumpFamily` "PCP" (read-only), Quantity (Nos,
-   whole number ≥ 1). All required. Table `pump_model_qty_input`
-   (product_code, pump_family, quantity). NOT approvable (approvals stay
-   steps 1-7). Feeds the Commercial Summary and the Recommendation summary.
-   **At merge to main run `node scripts/renumber-wizard-steps-pump-model-qty.cjs
-   --apply` once** — it moves stored wizard_step / wizard_max_step >= 8 up by
-   one (guarded against a second run).
-   Then 9 = Approval, 10 = Recommendation (numbered 8 / 9 below from before).
+   (Pump Model & Qty was wizard step 8 from 2026-09-26 and MOVED to the
+   Commercial page on 2026-10-01 — see the Commercial Summary section. The
+   wizard is 9 steps again: 8 = Approval, 9 = Recommendation; TOTAL_STEPS 9
+   and restore clamps wizard_step / wizard_max_step, so tags saved on step 10
+   reopen on 9. The renumber script was never run and is deleted.)
    Also after the merge: drop fluid_properties_input.suction_size_remarks /
    discharge_size_remarks — the branch uses ONE `size_remarks` ("Suction /
    Discharge Size Remarks", required when either size deviates; backfilled
@@ -547,9 +540,16 @@ never auto-filled from the AI result.
 - Totals (`src/lib/commercial.ts`, shared by page + API): unit = P&A + all
   BOI; sub-total = unit × quantity; grand total = sum of sub-totals. A tag
   with no quantity counts as 0 and is flagged.
-- Quantity and the product code come from the wizard's **Pump Model & Qty**
-  step (step 8, `pump_model_qty_input`) — see the wizard section. Quantity
-  briefly lived on general_info_input and was moved (column dropped).
+- **Two steps on the page** (user, 2026-10-01): **1 · Pump & Qty**
+  (`PumpQtyStep.tsx`, one row per tag: selected model, ERP product code via
+  `ProductCodeSelect` from `product_pump` — 544 PCP codes, client-side word
+  search, "+ Add" new code via POST /api/product-pumps — pump type "PCP",
+  quantity whole number ≥ 1; both required to go Next) then **2 · Summary**.
+  Saved through PUT /api/wizard-input/pump-model-qty per tag into
+  `pump_model_qty_input` (product_code, pump_family, quantity) — NOT part of
+  the wizard any more (its TABLE_FIELDS entry is empty, so the wizard neither
+  restores nor saves it). The page opens on Pump & Qty while any tag lacks a
+  code or quantity; the step bar shows how many are incomplete.
 - Storage: `commercial_tag_price` (one row per tag, numeric price columns,
   `others` jsonb, remarks, updated_by). `GET /api/commercial?projectId=` /
   `PUT /api/commercial/[tagId]` (replace-all, audited as `commercial.update`

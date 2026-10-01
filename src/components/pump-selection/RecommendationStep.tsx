@@ -258,9 +258,6 @@ const RecommendationStep = ({
 
   const pumpDetailsItems: FieldItem[] = confirmedPump
     ? [
-        // Pump Model & Qty step.
-        ["Pump Model (Product Code)", formData.productCode],
-        ["Quantity (Nos)", formData.quantity],
         // Entered on the Fluid step (pre-filled from the recommendation, then
         // editable), so the user's own value wins over the derived one. One
         // remark explains an override of either size.
@@ -624,7 +621,7 @@ const RecommendationStep = ({
   return (
     <div className="step-container">
       <Stepper
-        currentStep={10}
+        currentStep={9}
         maxStep={formData.wizardMaxStep}
         onStepClick={onStepClick}
         finalCompleted={confirmed}

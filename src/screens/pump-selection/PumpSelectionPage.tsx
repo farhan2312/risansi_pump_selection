@@ -7,7 +7,6 @@ import GeneralInformationStep from "../../components/pump-selection/GeneralInfor
 import FluidPropertiesStep from "../../components/pump-selection/FluidPropertiesStep";
 import OperatingConditionsStep from "../../components/pump-selection/OperatingConditionsStep";
 import DriveDetailsStep from "../../components/pump-selection/DriveDetailsStep";
-import PumpModelQtyStep from "../../components/pump-selection/PumpModelQtyStep";
 import SealingDetailsStep from "../../components/pump-selection/SealingDetailsStep";
 import MocDetailsStep from "../../components/pump-selection/MocDetailsStep";
 import MotorRatingStep from "../../components/pump-selection/MotorRatingStep";
@@ -108,7 +107,9 @@ const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
     "gearboxOutputRpm", "gearboxServiceFactor", "gearboxRatePerNos", "gearboxConfirmed",
     "gearboxRpmManual",
   ],
-  "pump-model-qty": ["productCode", "pumpFamily", "quantity"],
+  // Product code + quantity are edited on the Commercial page, not here — the
+  // wizard neither restores nor saves them.
+  "pump-model-qty": [],
 };
 
 // Fields backed by a boolean column — a NULL restores as `false`, not the ""
@@ -126,7 +127,9 @@ const BOOLEAN_FIELDS = new Set([
 // the "" every other (string) field falls back to.
 const NUMBER_FIELDS = new Set(["wizardStep", "wizardMaxStep"]);
 
-const TOTAL_STEPS = 10;
+// Pump Model & Qty was step 8 for a while (Sep 2026) and moved to the
+// Commercial page (2026-10-01); tags saved on step 10 then reopen on 9.
+const TOTAL_STEPS = 9;
 
 // Keep a restored step inside the wizard's real range — a corrupt/stale value
 // shouldn't strand the user on a step that doesn't exist.
@@ -140,9 +143,10 @@ const clampStep = (n: unknown): number => {
 // (or stepper jump, or Previous) saves ONLY the step being left, not every
 // table. Steps 4+5 both write moc-sealing (MOC and Sealing share one table);
 // step 7's drive-system-specific table is appended conditionally at save time
-// (see stepTablesToSave). Step 8 (Pump Model & Qty) has its own table. Step 9
-// (Approval) keeps its state in step_approval via its own route, and step 10
-// (read-only Recommendation) writes nothing, so neither has a wizard-input table.
+// (see stepTablesToSave). Step 8 (Approval) keeps its state in step_approval
+// via its own route, and step 9 (read-only Recommendation) writes nothing, so
+// neither has a wizard-input table. (Pump Model & Qty lives on the Commercial
+// page, not in the wizard.)
 const STEP_TABLES: Record<number, WizardInputTable[]> = {
   1: ["general-info"],
   2: ["fluid-properties"],
@@ -151,9 +155,8 @@ const STEP_TABLES: Record<number, WizardInputTable[]> = {
   5: ["moc-sealing"],
   6: ["motor-drive"],
   7: ["motor-drive"],
-  8: ["pump-model-qty"],
+  8: [],
   9: [],
-  10: [],
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -233,10 +236,6 @@ const PumpSelectionPage = () => {
     temperatureRaw: "", // as-entered value in the currently-selected unit
     temperatureUnit: "C", // display-only unit for the input: C / F / K
     sg: "", // Specific Gravity
-    // Pump Model & Qty step (8)
-    productCode: "", // ERP pump product code, picked from product_pump
-    pumpFamily: "PCP", // not pumpType - that is the Specifications step's Type of Pump
-    quantity: "1", // number of pumps (Nos) - pulled into the Commercial Summary
     ph: "",
     rpmRange: "", // manual RPM band filter (low/medium/high/vhigh)
     selectedModel: "", // pump picked in the live panel; persists across steps
@@ -430,6 +429,7 @@ const PumpSelectionPage = () => {
         if (!merged.viscosityUnit) merged.viscosityUnit = "cP";
         setFormData((f: typeof formData) => ({ ...f, ...merged }));
         // Reopen the wizard exactly where the user left off.
+        merged.wizardMaxStep = clampStep(merged.wizardMaxStep);
         setStep(clampStep(merged.wizardStep));
       })
       .finally(() => {
@@ -600,29 +600,18 @@ const PumpSelectionPage = () => {
 
       case 8:
         return (
-          <PumpModelQtyStep
+          <ApprovalStep
             onPrevious={() => goToStep(7)}
             onNext={() => goToStep(9)}
-            formData={formData}
-            setFormData={setFormData}
             onStepClick={jumpToStep}
+            formData={formData}
           />
         );
 
       case 9:
         return (
-          <ApprovalStep
-            onPrevious={() => goToStep(8)}
-            onNext={() => goToStep(10)}
-            onStepClick={jumpToStep}
-            formData={formData}
-          />
-        );
-
-      case 10:
-        return (
           <RecommendationStep
-            onPrevious={() => goToStep(9)}
+            onPrevious={() => goToStep(8)}
             formData={formData}
             selectedPump={selectedPump}
             setSelectedPump={setSelectedPump}
