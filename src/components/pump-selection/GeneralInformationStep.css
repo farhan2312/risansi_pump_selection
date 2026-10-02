@@ -69,6 +69,10 @@
   white-space: nowrap;
   transition: background 120ms, border-color 120ms;
 }
+/* A second header button sits right beside the first. */
+.step-header-action + .step-header-action {
+  margin-left: 8px;
+}
 .step-header-action:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.24);
   border-color: rgba(255, 255, 255, 0.7);

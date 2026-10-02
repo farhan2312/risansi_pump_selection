@@ -7,7 +7,12 @@ import { db } from "@/lib/db";
 import { commercialTagPrice, enquiryTags } from "@/lib/db/schema";
 import {
   BOI_ITEMS,
+  type BoiAdjust,
+  type BoiKey,
   type CommercialOther,
+  MAX_DISCOUNT_PCT,
+  MAX_MARKUP_PCT,
+  parsePct,
   type CommercialPrices,
   MAX_OTHER_ITEMS,
   formatInr,
@@ -62,9 +67,28 @@ export async function PUT(req: Request, { params }: { params: Promise<{ tagId: s
     if (price === undefined) return error(`Other item "${name || "unnamed"}": enter a valid amount.`, 400);
     if (!name && price === null) continue; // an empty row the user never filled
     if (!name) return error("Every other item with a price needs a name.", 400);
-    others.push({ name, price });
+    const discountPct = parsePct(item.discountPct, MAX_DISCOUNT_PCT);
+    const markupPct = parsePct(item.markupPct, MAX_MARKUP_PCT);
+    if (discountPct === undefined || markupPct === undefined) {
+      return error(`Other item "${name}": discount must be 0–99 % and markup 0–999 %.`, 400);
+    }
+    others.push({ name, price, discountPct: discountPct ?? 0, markupPct: markupPct ?? 0 });
   }
   next.others = others;
+  // Vendor discount % and markup % per fixed BOI row (blank = 0; the page
+  // fills 25 % markup by default).
+  const rawAdjust = (body.adjust && typeof body.adjust === "object" ? body.adjust : {}) as Record<string, unknown>;
+  const adjust: Partial<Record<BoiKey, BoiAdjust>> = {};
+  for (const it of BOI_ITEMS) {
+    const a = (rawAdjust[it.key] ?? {}) as Record<string, unknown>;
+    const discountPct = parsePct(a.discountPct, MAX_DISCOUNT_PCT);
+    const markupPct = parsePct(a.markupPct, MAX_MARKUP_PCT);
+    if (discountPct === undefined || markupPct === undefined) {
+      return error(`${it.label}: discount must be 0–99 % and markup 0–999 %.`, 400);
+    }
+    adjust[it.key] = { discountPct: discountPct ?? 0, markupPct: markupPct ?? 0 };
+  }
+  next.adjust = adjust;
   // The BOI Master VFD picked for the VFD price (a label only; the price is
   // whatever was entered). Dropped when there is no VFD price.
   const vfdModel = typeof body.vfdModel === "string" ? body.vfdModel.trim().slice(0, 100) : "";
@@ -96,6 +120,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ tagId: s
   if ((prev?.drpModel ?? null) !== next.drpModel) {
     changes.push(`DRP ${prev?.drpModel ?? "—"} → ${next.drpModel ?? "—"}`);
   }
+  const pctText = (a: Partial<Record<string, BoiAdjust>> | null | undefined, key: string) => {
+    const x = a?.[key];
+    return x ? `-${x.discountPct ?? 0}% / +${x.markupPct ?? 0}%` : "default";
+  };
+  for (const it of BOI_ITEMS) {
+    const before = pctText(prev?.boiAdjust, it.key);
+    const after = pctText(adjust, it.key);
+    if (before !== after) changes.push(`${it.label} disc/markup ${before} → ${after}`);
+  }
   if ((prev?.remarks ?? "") !== next.remarks) changes.push("Remarks updated");
 
   const claims = tryDecodeToken(req);
@@ -111,6 +144,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ tagId: s
     prvPrice: next.prvPrice?.toString() ?? null,
     drpPrice: next.drpPrice?.toString() ?? null,
     others,
+    boiAdjust: adjust as Record<string, BoiAdjust>,
     remarks: next.remarks || null,
   };
 

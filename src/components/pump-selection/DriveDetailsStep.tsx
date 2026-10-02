@@ -119,50 +119,131 @@ const ConfirmBar = ({
     </div>
   );
 
-/** Fallback when the V-belt / gearbox screen finds nothing: the engineer
- *  types the selected pump RPM so Recheck can run and the wizard can move on.
- *  Confirmed the same way as a card. */
-const ManualRpmPanel = ({
+type ManualField = { key: string; label: string; numeric?: boolean; options?: string[] };
+
+const MANUAL_VBELT_FIELDS: ManualField[] = [
+  { key: "driveVbeltRpm", label: "Pump RPM (achieved)", numeric: true },
+  { key: "driveVbeltGroove", label: "V-Belt Groove" },
+  { key: "drivePumpPulley", label: "Pump Pulley", numeric: true },
+  { key: "driveMotorPulley", label: "Motor Pulley", numeric: true },
+  { key: "driveCenterDistance", label: "Centre Distance", numeric: true },
+  { key: "driveVbeltNo", label: "V-Belt No.", numeric: true },
+];
+
+const MANUAL_GEARBOX_FIELDS: ManualField[] = [
+  { key: "gearboxOutputRpm", label: "Output RPM", numeric: true },
+  { key: "gearboxSource", label: "Source", options: ["PBL", "PTL", "Top Gear", "Other"] },
+  { key: "gearboxModel", label: "Model" },
+  { key: "gearboxServiceFactor", label: "Service Factor", numeric: true },
+  { key: "gearboxRatePerNos", label: "Rate per Nos (INR)", numeric: true },
+];
+
+/** Manual V-belt / gearbox entry — always available, whether or not the
+ *  screen suggested options. The same details a card carries; only the RPM
+ *  (the first field) is required, since Recheck works from it. While
+ *  `active` (the tag's *RpmManual flag) the entry is the selection and is
+ *  confirmed like a card; picking a card switches back. */
+const ManualDrivePanel = ({
   what,
-  value,
+  fields,
+  values,
+  active,
   confirmed,
   rpmLo,
   rpmHi,
-  onChange,
+  onEdit,
   onConfirm,
+  onCancel,
 }: {
   /** "V-belt" | "gearbox" */
   what: string;
-  value: string;
+  fields: ManualField[];
+  values: Record<string, string>;
+  active: boolean;
   confirmed: boolean;
   /** The pump's required speed window, when known — out-of-window values warn. */
   rpmLo?: number;
   rpmHi?: number;
-  onChange: (value: string) => void;
+  /** A field typed in — the caller marks the entry manual and unconfirmed. */
+  onEdit: (patch: Record<string, string>) => void;
   onConfirm: () => void;
+  /** Drop the manual entry and go back to the suggestions. */
+  onCancel: () => void;
 }) => {
-  const n = Number(value);
-  const valid = value.trim() !== "" && Number.isFinite(n) && n > 0;
+  const [open, setOpen] = useState(false);
+  const rpmField = fields[0];
+  const rpm = values[rpmField.key] ?? "";
+  const n = Number(rpm);
+  const valid = rpm.trim() !== "" && Number.isFinite(n) && n > 0;
   const hasWindow = Number.isFinite(rpmLo) && Number.isFinite(rpmHi);
-  const outside = valid && hasWindow && (n < (rpmLo as number) || n > (rpmHi as number));
+  const outside = active && valid && hasWindow && (n < (rpmLo as number) || n > (rpmHi as number));
+  const inputCls =
+    "w-full rounded-lg border border-line bg-paper px-3 py-2 text-[13px] text-fg outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft";
+
+  if (!active && !open) {
+    return (
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="rounded-lg border border-line bg-paper px-3 py-1.5 text-[12.5px] font-semibold text-accent hover:border-accent"
+        >
+          ✎ Enter {what} details manually
+        </button>
+        <span className="text-[12px] text-fg-3">Use your own RPM and details instead of a suggestion.</span>
+      </div>
+    );
+  }
+
   return (
     <div className="mt-3 rounded-lg border border-line bg-paper p-3">
-      <label className="flex flex-col gap-1 sm:max-w-[280px]">
-        <span className="text-[12px] font-semibold text-fg-2">Selected pump RPM (manual)</span>
-        <input
-          type="number"
-          min={1}
-          step="any"
-          inputMode="decimal"
-          className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-right font-mono text-[13px] text-fg outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="e.g. 250"
-        />
-      </label>
-      <p className="mt-1 text-[12px] text-fg-3">
-        No {what} option was found, so enter the pump RPM you have selected — Recheck then works out capacity and
-        BKW at this speed.
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-[12.5px] font-semibold text-fg">
+          Manual {what} entry
+          {active && <span className="ml-2 rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-semibold text-white">In use</span>}
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            if (active) onCancel();
+            setOpen(false);
+          }}
+          className="text-[12px] font-semibold text-fg-3 hover:text-neg"
+        >
+          {active ? "Remove manual entry" : "Close"}
+        </button>
+      </div>
+      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        {fields.map((f, i) => (
+          <label key={f.key} className="flex flex-col gap-1">
+            <span className="text-[11.5px] font-semibold text-fg-3">
+              {f.label}
+              {i === 0 && <span className="text-neg"> *</span>}
+            </span>
+            {f.options ? (
+              <select className={inputCls} value={values[f.key] ?? ""} onChange={(e) => onEdit({ [f.key]: e.target.value })}>
+                <option value="">Select</option>
+                {f.options.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type={f.numeric ? "number" : "text"}
+                min={f.numeric ? 0 : undefined}
+                step={f.numeric ? "any" : undefined}
+                className={`${inputCls} ${f.numeric ? "text-right font-mono" : ""}`}
+                value={values[f.key] ?? ""}
+                onChange={(e) => onEdit({ [f.key]: e.target.value })}
+              />
+            )}
+          </label>
+        ))}
+      </div>
+      <p className="mt-2 text-[12px] text-fg-3">
+        Only the RPM is required — Recheck works out capacity and BKW at this speed.
         {hasWindow && (
           <>
             {" "}Required window:{" "}
@@ -172,25 +253,27 @@ const ManualRpmPanel = ({
             .
           </>
         )}
+        {!active && " Typing here replaces the selected card."}
       </p>
-      {value.trim() !== "" && !valid && <p className="mt-1 text-[12px] text-neg">Enter an RPM above 0.</p>}
+      {active && rpm.trim() !== "" && !valid && <p className="mt-1 text-[12px] text-neg">Enter an RPM above 0.</p>}
       {outside && (
         <p className="mt-1 text-[12px] text-warn">
           {n} rpm is outside the pump&apos;s required window — check the Recheck result before proceeding.
         </p>
       )}
-      {valid &&
+      {active &&
+        valid &&
         (confirmed ? (
           <div className="mt-2 flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2">
             <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white">
               ✓ Confirmed
             </span>
             <span className="text-[13px] text-emerald-900">
-              <b>{n} rpm</b> (manual) is locked in. Change the RPM to edit it.
+              Manual {what} at <b>{n} rpm</b> is locked in. Edit a field to change it.
             </span>
           </div>
         ) : (
-          <ConfirmBar label={`${n} rpm (manual)`} confirmed={false} onConfirm={onConfirm} />
+          <ConfirmBar label={`manual ${what} at ${n} rpm`} confirmed={false} onConfirm={onConfirm} />
         ))}
     </div>
   );
@@ -817,9 +900,9 @@ const DriveDetailsStep = ({
     if (!finalPumpRpmRaw) {
       setRecheckError(
         isVBelt
-          ? "Pick a V-Belt option first — final pump RPM comes from the belt selection (or enter it manually when no belt is found)."
+          ? "Pick a V-Belt option or enter the V-belt details manually — final pump RPM comes from the belt."
           : isGeared
-            ? "Pick a gearbox first — final pump RPM comes from the gearbox output (or enter it manually when no gearbox is found)."
+            ? "Pick a gearbox or enter the gearbox details manually — final pump RPM comes from the gearbox output."
             : "Motor RPM is required.",
       );
       setShowRecheck(true);
@@ -925,18 +1008,20 @@ const DriveDetailsStep = ({
     });
   };
 
-  // Manual pump RPM (no belt option found): the RPM stands in for the belt's
-  // achieved RPM; the pulley/belt details don't apply, so they're cleared.
-  const setManualVbeltRpm = (value: string) =>
+  // Manual V-belt entry: the typed details are the selection (the RPM stands
+  // in for the belt's achieved RPM); any edit needs confirming again.
+  const editManualVbelt = (patch: Record<string, string>) =>
+    setFormData({ ...formData, ...patch, vbeltRpmManual: true, vbeltConfirmed: false });
+  const cancelManualVbelt = () =>
     setFormData({
       ...formData,
       driveVbeltGroove: "",
       drivePumpPulley: "",
       driveMotorPulley: "",
+      driveVbeltRpm: "",
       driveCenterDistance: "",
       driveVbeltNo: "",
-      driveVbeltRpm: value,
-      vbeltRpmManual: value.trim() !== "",
+      vbeltRpmManual: false,
       vbeltConfirmed: false,
     });
 
@@ -1161,19 +1246,10 @@ const DriveDetailsStep = ({
       gearboxRpmManual: false,
     });
 
-  // Manual pump RPM (no gearbox option found): stands in for the gearbox
-  // output RPM; there is no gearbox model/source/rate to record.
-  const setManualGearboxRpm = (value: string) =>
-    setFormData({
-      ...formData,
-      gearboxSource: "",
-      gearboxModel: "",
-      gearboxServiceFactor: "",
-      gearboxRatePerNos: "",
-      gearboxOutputRpm: value,
-      gearboxRpmManual: value.trim() !== "",
-      gearboxConfirmed: false,
-    });
+  // Manual gearbox entry: the typed details are the selection (output RPM
+  // feeds Recheck); any edit needs confirming again.
+  const editManualGearbox = (patch: Record<string, string>) =>
+    setFormData({ ...formData, ...patch, gearboxRpmManual: true, gearboxConfirmed: false });
 
   // Same select/unselect + confirm cycle as the belt cards above.
   const selectGearbox = (
@@ -1572,23 +1648,10 @@ const DriveDetailsStep = ({
                     <p className="mt-2 text-[13px] text-warn">
                       No gearbox options match this window/KW
                       {formData.asfRange || formData.gbConstructionType
-                        ? " with the current ASF Range/GB Type narrowing — try clearing one, or enter the selected pump RPM below."
-                        : " — enter the selected pump RPM below."}
+                        ? " with the current ASF Range/GB Type narrowing — try clearing one, or enter the details manually below."
+                        : " — enter the details manually below."}
                     </p>
                   )}
-
-                {((gearboxRec.pbl.length === 0 && gearboxRec.ptl.length === 0 && gearboxRec.topGear.length === 0) ||
-                  formData.gearboxRpmManual) && (
-                  <ManualRpmPanel
-                    what="gearbox"
-                    value={formData.gearboxRpmManual ? String(formData.gearboxOutputRpm ?? "") : ""}
-                    confirmed={Boolean(formData.gearboxConfirmed)}
-                    rpmLo={gearboxRec.rpmLo}
-                    rpmHi={gearboxRec.rpmHi}
-                    onChange={setManualGearboxRpm}
-                    onConfirm={() => setFormData({ ...formData, gearboxConfirmed: true })}
-                  />
-                )}
 
                 {(
                   [
@@ -1684,7 +1747,7 @@ const DriveDetailsStep = ({
                     chosen). Show it anyway, from the saved values, so it stays
                     visible and clearable — without this the confirm bar tells
                     you to "click the card" when no card is rendered. */}
-                {formData.gearboxModel && !gearboxSelectionInList && (
+                {formData.gearboxModel && !gearboxSelectionInList && !formData.gearboxRpmManual && (
                   <div className="mt-4">
                     <span className="section-label text-orange-800">
                       Current selection (outside the options below)
@@ -1743,7 +1806,7 @@ const DriveDetailsStep = ({
                   </div>
                 )}
 
-                {formData.gearboxModel && (
+                {formData.gearboxModel && !formData.gearboxRpmManual && (
                   <ConfirmBar
                     label={`${formData.gearboxSource ? `${formData.gearboxSource} ` : ""}${
                       formData.gearboxModel
@@ -1754,6 +1817,19 @@ const DriveDetailsStep = ({
                 )}
               </>
             )}
+
+            <ManualDrivePanel
+              what="gearbox"
+              fields={MANUAL_GEARBOX_FIELDS}
+              values={Object.fromEntries(MANUAL_GEARBOX_FIELDS.map((f) => [f.key, String(formData[f.key] ?? "")]))}
+              active={Boolean(formData.gearboxRpmManual)}
+              confirmed={Boolean(formData.gearboxConfirmed)}
+              rpmLo={gearboxRec?.rpmLo}
+              rpmHi={gearboxRec?.rpmHi}
+              onEdit={editManualGearbox}
+              onConfirm={() => setFormData({ ...formData, gearboxConfirmed: true })}
+              onCancel={clearGearbox}
+            />
           </div>
         )}
 
@@ -1781,20 +1857,8 @@ const DriveDetailsStep = ({
             {vbeltStatus === "ready" && vbelt && vbelt.candidates.length === 0 && (
               <p className="mt-2 text-[13px] text-warn">
                 No V-belt/pulley data for {vbelt.model} at {vbelt.motorRpm} rpm /{" "}
-                {vbelt.motorKw} kW — enter the selected pump RPM below.
+                {vbelt.motorKw} kW — enter the details manually below.
               </p>
-            )}
-
-            {vbeltStatus === "ready" && vbelt && (vbelt.candidates.length === 0 || formData.vbeltRpmManual) && (
-              <ManualRpmPanel
-                what="V-belt"
-                value={formData.vbeltRpmManual ? String(formData.driveVbeltRpm ?? "") : ""}
-                confirmed={Boolean(formData.vbeltConfirmed)}
-                rpmLo={vbelt.rpmLo}
-                rpmHi={vbelt.rpmHi}
-                onChange={setManualVbeltRpm}
-                onConfirm={() => setFormData({ ...formData, vbeltConfirmed: true })}
-              />
             )}
 
             {vbeltStatus === "ready" && vbelt && vbelt.candidates.length > 0 && (
@@ -1811,8 +1875,8 @@ const DriveDetailsStep = ({
                 </p>
                 {!vbelt.withinRange && (
                   <p className="mt-1 text-[12px] text-warn">
-                    No belt lands the pump exactly inside that window — showing the
-                    nearest available belt as the next best.
+                    No belt lands the pump inside that window — showing the next
+                    lower and next higher belt speed to choose from.
                   </p>
                 )}
 
@@ -1909,6 +1973,19 @@ const DriveDetailsStep = ({
                 )}
               </>
             )}
+
+            <ManualDrivePanel
+              what="V-belt"
+              fields={MANUAL_VBELT_FIELDS}
+              values={Object.fromEntries(MANUAL_VBELT_FIELDS.map((f) => [f.key, String(formData[f.key] ?? "")]))}
+              active={Boolean(formData.vbeltRpmManual)}
+              confirmed={Boolean(formData.vbeltConfirmed)}
+              rpmLo={vbelt?.rpmLo}
+              rpmHi={vbelt?.rpmHi}
+              onEdit={editManualVbelt}
+              onConfirm={() => setFormData({ ...formData, vbeltConfirmed: true })}
+              onCancel={cancelManualVbelt}
+            />
           </div>
         )}
 

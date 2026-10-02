@@ -29,7 +29,6 @@ import { computeRecheck, finalPumpRpm, recheckTables } from "../../lib/recheck-c
 import { mechSealDescription } from "./SealingDetailsStep";
 import { frequencyText, voltageText } from "../../lib/rating-plate";
 import { getReportSummary, saveReportSummary, uploadFinalReport } from "../../services/reportsService";
-import FormatChoiceModal, { type DownloadFormat } from "../ui/FormatChoiceModal";
 import { downloadSelectionSummaryExcel } from "../../lib/selection-summary-excel";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import { getMotorRating, type MotorRating } from "../../services/motorRatingService";
@@ -555,10 +554,43 @@ const RecommendationStep = ({
   const [confirming, setConfirming] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
-  // Confirm asks PDF or Excel before it generates.
-  const [choosingFormat, setChoosingFormat] = useState(false);
-  // Which format is mid-generation, so the prompt marks the right button.
-  const [confirmFormat, setConfirmFormat] = useState<DownloadFormat | null>(null);
+
+  // The report's content — shared by Confirm (saved copy) and the Summary
+  // Report preview / downloads, so all three are the same document.
+  const reportInput = () => ({
+    projectCode: projectCode || "",
+    projectName,
+    customerName,
+    pumpFields,
+    sections: pdfSections,
+    generatedBy: user?.name || user?.email || undefined,
+  });
+
+  // "Summary Report": the PDF opens in a preview first; PDF / Excel download
+  // from there.
+  const [preparingSummary, setPreparingSummary] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [summaryPreview, setSummaryPreview] = useState<{ url: string; filename: string } | null>(null);
+  const closeSummaryPreview = () => {
+    setSummaryPreview((p) => {
+      if (p) URL.revokeObjectURL(p.url);
+      return null;
+    });
+  };
+  const handleSummaryReport = async () => {
+    if (!confirmedPump) return;
+    setPreparingSummary(true);
+    setSummaryError(null);
+    try {
+      const { filename, bytes } = await downloadSelectionSummaryPdf(reportInput(), { save: false });
+      const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+      setSummaryPreview({ url, filename });
+    } catch {
+      setSummaryError("Couldn't generate the Summary Report. Please try again.");
+    } finally {
+      setPreparingSummary(false);
+    }
+  };
 
   // Persist the "confirmed" (green summary) state across reloads: if this tag
   // already has a saved report summary, the selection was confirmed on an
@@ -578,43 +610,32 @@ const RecommendationStep = ({
     };
   }, [tagId]);
 
-  const handleConfirmSelection = async (format: DownloadFormat) => {
+  // Confirm only records the selection: the report is built and saved for the
+  // Reports page, but nothing is downloaded — the Summary Report button is
+  // for viewing / downloading.
+  const handleConfirmSelection = async () => {
     // Reports live on the tag now (a project can carry N tags, each with its
     // own final report). The Confirm button is gated on projectId AND tagId
     // - if we have a project open but no tag id (legacy handoff), the server
     // wouldn't know which tag's row to write.
     if (!confirmedPump || !projectId || !tagId) return;
     setConfirming(true);
-    setConfirmFormat(format);
     setConfirmError(null);
     try {
-      const pdfInput = {
-        projectCode: projectCode || "",
-        projectName,
-        customerName,
-        pumpFields,
-        sections: pdfSections,
-        generatedBy: user?.name || user?.email || undefined,
-      };
-      // The PDF is always built and stored - it is what the Reports page
-      // serves as the saved report. Only the file handed to the user follows
-      // their chosen format.
-      const { filename, bytes } = await downloadSelectionSummaryPdf(pdfInput, {
-        save: format === "pdf",
-      });
-      if (format === "excel") downloadSelectionSummaryExcel(pdfInput);
+      const pdfInput = reportInput();
+      // The PDF is built and stored — it is what the Reports page serves as
+      // the saved report. No file is handed to the user here.
+      const { filename, bytes } = await downloadSelectionSummaryPdf(pdfInput, { save: false });
       await uploadFinalReport(tagId, filename, bytes);
       // Structured mirror of the same data, for the Reports list's
       // click-to-view summary — best-effort, doesn't block on the PDF
       // upload above having already succeeded.
       await saveReportSummary(tagId, { pumpFields, sections: pdfSections }).catch(() => {});
       setConfirmed(true);
-      setChoosingFormat(false);
     } catch {
-      setConfirmError("Couldn't generate/save the report. Please try again.");
+      setConfirmError("Couldn't save the pump selection. Please try again.");
     } finally {
       setConfirming(false);
-      setConfirmFormat(null);
     }
   };
 
@@ -630,6 +651,30 @@ const RecommendationStep = ({
       <div className="step-card">
         <h2>
           Selection Summary
+          <button
+            type="button"
+            className="step-header-action"
+            disabled={!confirmedPump || preparingSummary}
+            onClick={() => void handleSummaryReport()}
+            title={
+              confirmedPump
+                ? "View the Pump Selection Summary Report, then download it as PDF or Excel"
+                : isLoading
+                  ? "Loading pump data…"
+                  : "Needs a confirmed pump model"
+            }
+          >
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            {preparingSummary ? "Preparing…" : "Summary Report"}
+          </button>
           <button
             type="button"
             className="step-header-action"
@@ -658,6 +703,23 @@ const RecommendationStep = ({
 
         {recheckPreview && (
           <PdfPreviewModal preview={recheckPreview} title="Recheck at Final Selected RPM" onClose={closeRecheckPreview} />
+        )}
+        {summaryPreview && (
+          <PdfPreviewModal
+            preview={summaryPreview}
+            title="Pump Selection Summary Report"
+            onClose={closeSummaryPreview}
+            downloadLabel="Download PDF"
+            actions={
+              <button
+                type="button"
+                onClick={() => downloadSelectionSummaryExcel(reportInput())}
+                className="rounded-lg border border-line px-3 py-2 text-[13px] font-semibold text-fg-2 transition hover:border-accent hover:text-accent"
+              >
+                Download Excel
+              </button>
+            }
+          />
         )}
 
         <p>
@@ -728,10 +790,11 @@ const RecommendationStep = ({
         )}
 
         {recheckError && <p className="error-message">{recheckError}</p>}
+        {summaryError && <p className="error-message">{summaryError}</p>}
         {confirmError && <p className="error-message">{confirmError}</p>}
         {confirmed && (
-          <p className="mt-2 text-[13px] text-pos">
-            Report generated and saved — see it on the Reports page.
+          <p className="mt-2 text-[13px] font-semibold text-pos">
+            ✓ Pump selected — summary step completed. Use Summary Report to view or download it.
           </p>
         )}
 
@@ -740,36 +803,22 @@ const RecommendationStep = ({
 
           <button
             disabled={!confirmedPump || !projectId || !tagId || confirming}
-            onClick={() => setChoosingFormat(true)}
+            onClick={() => void handleConfirmSelection()}
             title={
               !projectId
                 ? "No project open"
                 : !tagId
                   ? "No tag open - reports are per-tag; open a tag from the Projects page"
-                  : undefined
+                  : confirmed
+                    ? "Save the selection again with the current inputs (e.g. after changing a step)"
+                    : undefined
             }
           >
-            {confirming
-              ? "Generating report…"
-              : confirmed
-                ? "Regenerate Report"
-                : "Confirm Pump Selection"}
+            {confirming ? "Saving…" : confirmed ? "Update Pump Selection" : "Confirm Pump Selection"}
           </button>
         </div>
       </div>
 
-      {choosingFormat && (
-        <FormatChoiceModal
-          title={confirmed ? "Regenerate report" : "Confirm pump selection"}
-          message="The report is saved either way — this chooses the file you get."
-          busy={confirmFormat}
-          onCancel={() => {
-            if (confirming) return;
-            setChoosingFormat(false);
-          }}
-          onChoose={(format) => void handleConfirmSelection(format)}
-        />
-      )}
     </div>
   );
 };

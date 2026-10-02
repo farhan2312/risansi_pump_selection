@@ -11,6 +11,12 @@ import CommercialOfferModal from "./CommercialOfferModal";
 import PumpQtyStep from "./PumpQtyStep";
 import {
   BOI_ITEMS,
+  DEFAULT_MARKUP_PCT,
+  MAX_DISCOUNT_PCT,
+  MAX_MARKUP_PCT,
+  boiNet,
+  otherNet,
+  parsePct,
   type BoiKey,
   type CommercialPrices,
   type CommercialReference,
@@ -34,9 +40,9 @@ import { getCommercialSummary, saveCommercialPrices } from "../../services/comme
 // page: Pump & Accessories + BOI items typed in per unit, quantity pulled from
 // step 1 (Pump & Qty, on this page), sub-total = unit price × qty, grand total
 // = sum of sub-totals. The wizard's motor / gearbox pick is shown beside those
-// rows as a reference the user can copy in — never applied on its own. With
-// VFD Required = Yes, the VFD row lists the BOI Master drives covering the
-// motor kW (one per duty) to pick from; the DRP row offers the BOI Master
+// rows as a reference the user can copy in — never applied on its own. The
+// VFD row lists the BOI Master drives covering the motor kW (one per duty) to
+// pick from, for every tag; the DRP row offers the BOI Master
 // probe + panel for the tag's model (every tag).
 
 type PriceKey = "paPrice" | BoiKey;
@@ -48,9 +54,21 @@ type Draft = {
   vfdModel: string;
   /** Used BOI Master DRP kit ("" = none). */
   drpModel: string;
-  others: { name: string; price: string }[];
+  others: OtherDraft[];
+  /** Per BOI row: vendor discount % and markup % as typed. */
+  adjust: Record<BoiKey, PctDraft>;
   remarks: string;
 } & Record<BoiKey, string>;
+
+type PctDraft = { discountPct: string; markupPct: string };
+type OtherDraft = { name: string; price: string } & PctDraft;
+
+/** A saved % as text; markup falls back to the 25 % default, discount to "". */
+const pctDraft = (discountPct: number | null | undefined, markupPct: number | null | undefined): PctDraft => ({
+  discountPct: discountPct === null || discountPct === undefined || discountPct === 0 ? "" : String(discountPct),
+  markupPct: markupPct === null || markupPct === undefined ? String(DEFAULT_MARKUP_PCT) : String(markupPct),
+});
+const newOther = (): OtherDraft => ({ name: "", price: "", ...pctDraft(null, null) });
 
 const priceText = (n: number | null) => (n === null ? "" : String(n));
 
@@ -64,7 +82,10 @@ const toDraft = (p: CommercialPrices): Draft => ({
   strainerPrice: priceText(p.strainerPrice),
   prvPrice: priceText(p.prvPrice),
   drpPrice: priceText(p.drpPrice),
-  others: p.others.map((o) => ({ name: o.name, price: priceText(o.price) })),
+  others: p.others.map((o) => ({ name: o.name, price: priceText(o.price), ...pctDraft(o.discountPct, o.markupPct) })),
+  adjust: Object.fromEntries(
+    BOI_ITEMS.map((it) => [it.key, pctDraft(p.adjust?.[it.key]?.discountPct, p.adjust?.[it.key]?.markupPct)]),
+  ) as Record<BoiKey, PctDraft>,
   remarks: p.remarks,
 });
 
@@ -72,6 +93,7 @@ const toDraft = (p: CommercialPrices): Draft => ({
  *  is flagged on its field instead. */
 const parseDraft = (d: Draft): CommercialPrices => {
   const val = (s: string) => parsePrice(s) ?? null;
+  const pct = (s: string, max: number) => parsePct(s, max) ?? 0;
   const vfdPrice = val(d.vfdPrice);
   const drpPrice = val(d.drpPrice);
   return {
@@ -86,10 +108,26 @@ const parseDraft = (d: Draft): CommercialPrices => {
     strainerPrice: val(d.strainerPrice),
     prvPrice: val(d.prvPrice),
     drpPrice,
-    others: d.others.map((o) => ({ name: o.name.trim(), price: val(o.price) })),
+    others: d.others.map((o) => ({
+      name: o.name.trim(),
+      price: val(o.price),
+      discountPct: pct(o.discountPct, MAX_DISCOUNT_PCT),
+      markupPct: pct(o.markupPct, MAX_MARKUP_PCT),
+    })),
+    // Blank = 0 (the page pre-fills the 25 % markup).
+    adjust: Object.fromEntries(
+      BOI_ITEMS.map((it) => [
+        it.key,
+        { discountPct: pct(d.adjust[it.key].discountPct, MAX_DISCOUNT_PCT), markupPct: pct(d.adjust[it.key].markupPct, MAX_MARKUP_PCT) },
+      ]),
+    ),
     remarks: d.remarks.trim(),
   };
 };
+
+const PCT_ERROR = "Discount 0–99 %, markup 0–999 %.";
+const badPct = (p: PctDraft) =>
+  parsePct(p.discountPct, MAX_DISCOUNT_PCT) === undefined || parsePct(p.markupPct, MAX_MARKUP_PCT) === undefined;
 
 /** Field-level problems that would make the save fail. */
 const draftErrors = (d: Draft): Record<string, string> => {
@@ -101,6 +139,10 @@ const draftErrors = (d: Draft): Record<string, string> => {
   d.others.forEach((o, i) => {
     if (bad(o.price)) errs[`other-${i}`] = "Enter a valid amount.";
     else if (!o.name.trim() && o.price.trim()) errs[`other-${i}`] = "Name this item.";
+    if (badPct(o)) errs[`other-${i}-pct`] = PCT_ERROR;
+  });
+  BOI_ITEMS.forEach((it) => {
+    if (badPct(d.adjust[it.key])) errs[`${it.key}-pct`] = PCT_ERROR;
   });
   return errs;
 };
@@ -590,7 +632,7 @@ function TagCard({
     motorPrice: tag.motorRef,
     gearboxPrice: tag.gearboxRef,
   };
-  const setOther = (i: number, patch: Partial<{ name: string; price: string }>) =>
+  const setOther = (i: number, patch: Partial<OtherDraft>) =>
     onChange({ others: draft.others.map((o, j) => (j === i ? { ...o, ...patch } : o)) });
 
   return (
@@ -648,12 +690,18 @@ function TagCard({
               BOI Items (bought-out)
             </h3>
             <div className="flex flex-col divide-y divide-line rounded-lg border border-line">
+              <div className="hidden justify-end gap-1.5 bg-sunk px-3 py-1.5 text-[11px] font-semibold tracking-[0.04em] text-fg-3 uppercase sm:flex">
+                <span className="w-[150px] text-right">Base price</span>
+                <span className="w-[68px] text-right">Disc %</span>
+                <span className="w-[68px] text-right">Markup %</span>
+                <span className="w-[112px] text-right">Price</span>
+              </div>
               {BOI_ITEMS.map((item) => {
                 const ref = refs[item.key];
                 return (
                   <div
                     key={item.key}
-                    className="grid grid-cols-1 items-start gap-2 px-3 py-2.5 sm:grid-cols-[110px_1fr_200px]"
+                    className="grid grid-cols-1 items-start gap-2 px-3 py-2.5 sm:grid-cols-[110px_1fr]"
                   >
                     <span className="pt-2 text-[13px] font-semibold text-fg">{item.label}</span>
                     <div className="min-w-0 pt-1 text-[12px] text-fg-3">
@@ -690,18 +738,25 @@ function TagCard({
                         <span className="pt-1 inline-block">Not selected in the wizard</span>
                       ) : null}
                     </div>
-                    <MoneyInput
-                      value={draft[item.key]}
-                      error={errors[item.key]}
-                      onChange={(v) => onChange({ [item.key]: v } as Partial<Draft>)}
-                      label={`${item.label} price per unit`}
-                    />
+                    <div className="sm:col-span-2">
+                      <PriceCluster
+                        label={item.label}
+                        base={draft[item.key]}
+                        pct={draft.adjust[item.key]}
+                        net={boiNet(prices, item.key)}
+                        error={errors[item.key] || errors[`${item.key}-pct`]}
+                        onBase={(v) => onChange({ [item.key]: v } as Partial<Draft>)}
+                        onPct={(patch) =>
+                          onChange({ adjust: { ...draft.adjust, [item.key]: { ...draft.adjust[item.key], ...patch } } })
+                        }
+                      />
+                    </div>
                   </div>
                 );
               })}
 
               {draft.others.map((o, i) => (
-                <div key={i} className="grid grid-cols-1 items-start gap-2 px-3 py-2.5 sm:grid-cols-[110px_1fr_200px]">
+                <div key={i} className="grid grid-cols-1 items-start gap-2 px-3 py-2.5 sm:grid-cols-[110px_1fr]">
                   <span className="pt-2 text-[13px] font-semibold text-fg">Other</span>
                   <div className="flex items-center gap-2">
                     <input
@@ -721,12 +776,17 @@ function TagCard({
                       Remove
                     </button>
                   </div>
-                  <MoneyInput
-                    value={o.price}
-                    error={errors[`other-${i}`]}
-                    onChange={(v) => setOther(i, { price: v })}
-                    label="Other item price per unit"
-                  />
+                  <div className="sm:col-span-2">
+                    <PriceCluster
+                      label={o.name || "Other item"}
+                      base={o.price}
+                      pct={o}
+                      net={prices.others[i] ? otherNet(prices, prices.others[i]) : null}
+                      error={errors[`other-${i}`] || errors[`other-${i}-pct`]}
+                      onBase={(v) => setOther(i, { price: v })}
+                      onPct={(patch) => setOther(i, patch)}
+                    />
+                  </div>
                 </div>
               ))}
 
@@ -734,7 +794,7 @@ function TagCard({
                 <button
                   type="button"
                   className="text-[12.5px] font-semibold text-accent hover:underline disabled:cursor-not-allowed disabled:text-fg-4 disabled:no-underline"
-                  onClick={() => onChange({ others: [...draft.others, { name: "", price: "" }] })}
+                  onClick={() => onChange({ others: [...draft.others, newOther()] })}
                   disabled={draft.others.length >= MAX_OTHER_ITEMS}
                 >
                   + Add other item
@@ -872,13 +932,12 @@ function VfdPicker({
       <span className={warn ? "text-warn" : undefined}>{text}</span>
     </span>
   );
-  if (!tag.vfdRequired) return note("VFD not required on the Drive step");
-  if (tag.motorKw === null) return note("VFD required, but no motor kW on the Motor Rating step", true);
+  if (tag.motorKw === null) return note("No motor kW on the Motor Rating step to match a drive", true);
   if (tag.vfdOptions.length === 0) return note(`No drive in the BOI Master covers ${tag.motorKw} kW`, true);
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span>Motor {tag.motorKw} kW · pick a drive (BOI Master: list less discount, plus BOP extra):</span>
+      <span>Motor {tag.motorKw} kW{tag.vfdRequired ? " · VFD required on the Drive step" : ""} · pick a drive (BOI Master: list less discount, plus BOP extra):</span>
       {tag.vfdOptions.map((o) => {
         const active = o.driveDescription === picked;
         return (
@@ -906,6 +965,55 @@ function VfdPicker({
       })}
       {picked && !tag.vfdOptions.some((o) => o.driveDescription === picked) && pickedLine}
       <span className="text-[11px] text-fg-4">N = Nominal use · LD = Light duty · HD = Heavy duty</span>
+    </div>
+  );
+}
+
+/** One BOI line's price: base (vendor) price, vendor discount %, markup %
+ *  (pre-filled 25 %) and the resulting quoted price. */
+function PriceCluster({
+  label,
+  base,
+  pct,
+  net,
+  error,
+  onBase,
+  onPct,
+}: {
+  label: string;
+  base: string;
+  pct: PctDraft;
+  net: number | null;
+  error?: string;
+  onBase: (v: string) => void;
+  onPct: (patch: Partial<PctDraft>) => void;
+}) {
+  const pctInput = (key: keyof PctDraft, aria: string, placeholder: string) => (
+    <div className="relative w-[68px] shrink-0">
+      <input
+        className={`${moneyCls} pr-6`}
+        inputMode="decimal"
+        placeholder={placeholder}
+        value={pct[key]}
+        aria-label={`${label} ${aria}`}
+        onChange={(e) => onPct({ [key]: e.target.value })}
+      />
+      <span className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-[12px] text-fg-3">%</span>
+    </div>
+  );
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex flex-wrap items-center justify-end gap-1.5">
+        <div className="w-[150px] shrink-0">
+          <MoneyInput value={base} onChange={onBase} label={`${label} base price per unit`} />
+        </div>
+        {pctInput("discountPct", "vendor discount %", "0")}
+        {pctInput("markupPct", "markup %", "0")}
+        <span className="w-[112px] shrink-0 text-right font-mono text-[13px] font-semibold text-fg" title="Base × (1 − disc %) × (1 + markup %)">
+          {formatInr(net)}
+        </span>
+      </div>
+      {error && <span className="text-[11.5px] text-neg">{error}</span>}
     </div>
   );
 }

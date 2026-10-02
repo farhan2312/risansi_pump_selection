@@ -216,23 +216,27 @@ wizard tables (e.g. the new step's PCP field is `pumpFamily` because
    **"Geared Motor Drive/Gear Box + Motor"** (renamed from "Geared Motor
    Drive"). Motor RPM field only appears after a drive type is chosen; fixed
    at 1440 (read-only) for the Geared option, selectable 960/1440 otherwise.
-   - **Manual pump RPM fallback** (2026-09-30): when the V-belt screen returns
-     no candidates, or the gearbox screen returns none (PBL/PTL/Top Gear all
-     empty), `ManualRpmPanel` lets the engineer type the selected pump RPM. It
-     is stored in the existing RPM field (driveVbeltRpm / gearboxOutputRpm), so
-     `finalPumpRpm` → Recheck and proceeding work unchanged. Flags
-     `vbeltRpmManual` (drive_vbelt_input.vbelt_rpm_manual) and
-     `gearboxRpmManual` (drive_geared_input.gearbox_rpm_manual) mark it; the
-     pulley/belt or gearbox model/source/rate fields are cleared. Confirmed via
-     the usual vbeltConfirmed / gearboxConfirmed. Picking a card clears the
-     flag. Out-of-window values warn but don't block. Recheck's source line and
-     the approval details say "entered manually".
+   - **Manual V-belt / gearbox entry** (2026-10-03; replaced the RPM-only
+     fallback of 2026-09-30): `ManualDrivePanel` at the bottom of each
+     recommendation box, ALWAYS available ("✎ Enter … details manually"),
+     whether or not cards are shown. Same fields as the cards — V-belt: pump
+     RPM (achieved), groove, pump/motor pulley, centre distance, V-belt no.;
+     gearbox: output RPM, source (PBL/PTL/Top Gear/Other), model, service
+     factor, rate per nos. Only the RPM is required; it lives in the normal
+     RPM field (driveVbeltRpm / gearboxOutputRpm) so `finalPumpRpm` → Recheck
+     and proceeding are never blocked. Any edit sets `vbeltRpmManual` /
+     `gearboxRpmManual` (drive_*_input.*_rpm_manual) and unconfirms; confirmed
+     via vbeltConfirmed / gearboxConfirmed. Picking a card clears the flag;
+     "Remove manual entry" clears the fields. Out-of-window RPM warns only.
+     Recheck source + approval details say "(entered manually)".
    - **V-Belt**: once Motor RPM + Motor KW (step 6) are known,
      `computeVBeltDrive()` returns **every** belt option whose achieved pump
      speed falls inside the model's required RPM window (VE-band derived) as
      clickable candidate cards — not a single auto-pick. If none land inside
-     the window, the single nearest one is returned as a flagged "next best"
-     fallback. Selection is manual (click a card); nothing is auto-filled
+     the window, the next LOWER and next HIGHER speed belt either side of it
+     are offered (whichever exist; user, 2026-10-03) under a flagged note.
+     Common when VE min = VE max on the head row (188 of 587 master rows):
+     the window is then a single RPM. Selection is manual (click a card); nothing is auto-filled
      into formData on fetch anymore.
    - **"Drive System Inputs" + Motor Selection (ALL drive types, not just
      V-Belt)**: field order is Motor Rating → Speed → Make → Mounting →
@@ -311,6 +315,13 @@ wizard tables (e.g. the new step's PCP field is `pumpFamily` because
    range, Sealing Type, MOC code, Testing Status) plus every other configured
    field, including the V-Belt/Gearbox picks and the per-component MOC AI
    selections (see below) with their remarks folded into each summary line.
+   **Confirm Pump Selection** (2026-10-03) only records the selection: it
+   builds + uploads the PDF (Reports page copy, report_generated_at) and the
+   report summary, downloads nothing, then shows "✓ Pump selected — summary
+   step completed" (stepper finalCompleted); afterwards the button reads
+   "Update Pump Selection" (re-saves with current inputs). Viewing /
+   downloading is the header **Summary Report** button: PdfPreviewModal with
+   Download PDF + Download Excel (beside the Recheck PDF button).
 
 **Wizard progress / stepper**: `general_info_input.wizard_step` (last step
 visited) and `.wizard_max_step` (furthest step ever reached) persist per
@@ -556,10 +567,21 @@ never auto-filled from the AI result.
   with old → new per changed price). Any signed-in user can edit for now.
 - The wizard's motor / gearbox pick (uplifted price) is shown next to those
   rows with a "Use ₹x" button — a reference only, never auto-applied.
+- **BOI vendor discount + markup** (user, 2026-10-03): every BOI row (fixed
+  rows and each Other) has Base price · Disc % · Markup % · Price. Quoted row
+  price = base × (1 − disc%) × (1 + markup%); markup auto-filled 25 %
+  (`DEFAULT_MARKUP_PCT`), discount blank = 0, both editable per row. The
+  *_price columns / Other.price are BASE prices; % per fixed row in
+  `commercial_tag_price.boi_adjust` jsonb ({motorPrice:{discountPct,
+  markupPct}}), Others carry discountPct/markupPct in `others`. `boiNet` /
+  `otherNet` / `boiTotal` in lib/commercial.ts give quoted prices (totals,
+  Commercial Offer rows, version breakdown). `prices.adjust` undefined =
+  snapshot from before this change → prices used as-is (no markup).
 - **VFD** BOI row (2026-09-30), order Motor, Gearbox, VFD, Strainer, PRV, DRP.
   Columns `vfd_price` + `vfd_model` (the picked BOI Master drive; the API
-  drops it when there is no VFD price). Only when the Drive step's VFD
-  Required = Yes, the row lists the BOI Master drives covering the motor kW
+  drops it when there is no VFD price). For EVERY tag with a motor kW — NOT
+  tied to the Drive step's VFD Required answer (user, 2026-10-03; it is only
+  noted beside the options) — the row lists the BOI Master drives covering the motor kW
   (motor_drive_input.drive_motor_kw): per duty (Nominal P_N / Light Duty P_LD /
   Heavy Duty P_HD) the smallest drive with rating ≥ kW (cheaper on a tie),
   merged when one drive wins several duties (`vfdOptionsFor` in

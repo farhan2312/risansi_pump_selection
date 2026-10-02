@@ -55,13 +55,13 @@ export function finalPumpRpm(form: RecheckForm): { raw: string; source: string }
   if (form.driveSystem === VBELT_DRIVE) {
     return {
       raw: form.driveVbeltRpm || "",
-      source: form.vbeltRpmManual ? "Pump RPM entered manually (no V-belt found)" : "V-Belt achieved pump RPM",
+      source: form.vbeltRpmManual ? "V-belt pump RPM (entered manually)" : "V-Belt achieved pump RPM",
     };
   }
   if (form.driveSystem === GEARED_DRIVE) {
     return {
       raw: form.gearboxOutputRpm || "",
-      source: form.gearboxRpmManual ? "Pump RPM entered manually (no gearbox found)" : "Gearbox output RPM",
+      source: form.gearboxRpmManual ? "Gearbox output RPM (entered manually)" : "Gearbox output RPM",
     };
   }
   return { raw: form.motorRPM || "", source: "Motor RPM (direct drive)" };

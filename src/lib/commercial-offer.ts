@@ -19,7 +19,7 @@
  *
  * Client-safe (no DB / DOM): the modal, print and Excel all build from here.
  */
-import { boiTotal, type CommercialPrices, type DriveGroup } from "./commercial";
+import { boiNet, boiTotal, otherNet, type CommercialPrices, type DriveGroup } from "./commercial";
 import { esc, sheetHtml, type TechDocHeader, type TechDocRow } from "./tech-doc";
 
 export const OFFER_TITLE = "Commercial Offer";
@@ -90,19 +90,20 @@ interface OfferField {
   sheetValue?: (tags: OfferTag[]) => string;
 }
 
+// BOI rows show the QUOTED price (after vendor discount and markup).
 const otherSum = (p: CommercialPrices): number | null =>
-  (p.others ?? []).some((o) => o.price !== null) ? (p.others ?? []).reduce((s, o) => s + (o.price ?? 0), 0) : null;
+  (p.others ?? []).some((o) => o.price !== null) ? (p.others ?? []).reduce((s, o) => s + (otherNet(p, o) ?? 0), 0) : null;
 
 const withGb = (geared: boolean) => (geared ? "Pump With Accessories + Motor + Gear Box" : "Pump With Accessories + Motor");
 
 /** In sheet order (the format's rows, with the optional ones in place). */
 export const OFFER_FIELDS: OfferField[] = [
-  { key: "motor", label: () => "Drive Motor Price In Unit (INR)", value: (t) => money(t.prices.motorPrice) },
-  { key: "gearbox", label: () => "Gear Box Price In Unit (INR)", gearedOnly: true, value: (t) => money(t.prices.gearboxPrice) },
-  { key: "vfd", label: () => "VFD Price In Unit (INR)", whenPriced: true, value: (t) => money(t.prices.vfdPrice) },
-  { key: "strainer", label: () => "Strainer Price In Unit (INR)", whenPriced: true, value: (t) => money(t.prices.strainerPrice) },
-  { key: "prv", label: () => "PRV Price In Unit (INR)", whenPriced: true, value: (t) => money(t.prices.prvPrice) },
-  { key: "drp", label: () => "DRP with Panel (Probe type) IN unit Price", value: (t) => money(t.prices.drpPrice) },
+  { key: "motor", label: () => "Drive Motor Price In Unit (INR)", value: (t) => money(boiNet(t.prices, "motorPrice")) },
+  { key: "gearbox", label: () => "Gear Box Price In Unit (INR)", gearedOnly: true, value: (t) => money(boiNet(t.prices, "gearboxPrice")) },
+  { key: "vfd", label: () => "VFD Price In Unit (INR)", whenPriced: true, value: (t) => money(boiNet(t.prices, "vfdPrice")) },
+  { key: "strainer", label: () => "Strainer Price In Unit (INR)", whenPriced: true, value: (t) => money(boiNet(t.prices, "strainerPrice")) },
+  { key: "prv", label: () => "PRV Price In Unit (INR)", whenPriced: true, value: (t) => money(boiNet(t.prices, "prvPrice")) },
+  { key: "drp", label: () => "DRP with Panel (Probe type) IN unit Price", value: (t) => money(boiNet(t.prices, "drpPrice")) },
   { key: "others", label: () => "Other Items Price In Unit (INR)", whenPriced: true, value: (t) => money(otherSum(t.prices)) },
   {
     key: "x_boi",

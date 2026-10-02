@@ -253,7 +253,7 @@ export function approvalStepGroups(step: number, f: ApprovalForm): DetailGroup[]
                 ["V-Belt Groove", f.driveVbeltGroove],
                 ["Pump Pulley", f.drivePumpPulley],
                 ["Motor Pulley", f.driveMotorPulley],
-                ["Achieved Pump RPM", f.vbeltRpmManual && f.driveVbeltRpm ? `${f.driveVbeltRpm} (entered manually — no V-belt found)` : f.driveVbeltRpm],
+                ["Achieved Pump RPM", f.vbeltRpmManual && f.driveVbeltRpm ? `${f.driveVbeltRpm} (entered manually)` : f.driveVbeltRpm],
                 ["Centre Distance", f.driveCenterDistance],
                 ["V-Belt No.", f.driveVbeltNo],
               ],
@@ -265,7 +265,7 @@ export function approvalStepGroups(step: number, f: ApprovalForm): DetailGroup[]
                 ? [
                     ["Gearbox Source", f.gearboxSource],
                     ["Gearbox Model", f.gearboxModel],
-                    ["Gearbox Output RPM", f.gearboxRpmManual && f.gearboxOutputRpm ? `${f.gearboxOutputRpm} (entered manually — no gearbox found)` : f.gearboxOutputRpm],
+                    ["Gearbox Output RPM", f.gearboxRpmManual && f.gearboxOutputRpm ? `${f.gearboxOutputRpm} (entered manually)` : f.gearboxOutputRpm],
                     ["Gearbox Service Factor", f.gearboxServiceFactor],
                     ...gearboxRateItems(f),
                   ]

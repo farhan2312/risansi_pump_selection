@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 
 export interface PdfPreview {
   /** Object URL of the generated PDF blob. */
@@ -18,12 +18,18 @@ export default function PdfPreviewModal({
   title,
   onClose,
   onDownload,
+  downloadLabel = "Download",
+  actions,
 }: {
   preview: PdfPreview;
   title: string;
   onClose: () => void;
   /** Runs when the user clicks Download (the browser saves the file itself). */
   onDownload?: () => void;
+  /** Text on the PDF download button (e.g. "Download PDF" beside an Excel one). */
+  downloadLabel?: string;
+  /** Extra buttons before Download (e.g. "Download Excel"). */
+  actions?: ReactNode;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -46,6 +52,7 @@ export default function PdfPreviewModal({
             <div className="truncate font-mono text-[11.5px] text-fg-3">{preview.filename}</div>
           </div>
           <div className="flex items-center gap-2">
+            {actions}
             <a
               href={preview.url}
               download={preview.filename}
@@ -61,7 +68,7 @@ export default function PdfPreviewModal({
                   strokeLinejoin="round"
                 />
               </svg>
-              Download
+              {downloadLabel}
             </a>
             <button
               type="button"

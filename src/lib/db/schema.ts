@@ -1088,7 +1088,16 @@ export const stepApproval = pgTable(
 // wizard's Pump Model & Qty step (pump_model_qty_input.quantity). Tag sub-total = (P&A + all BOI) ×
 // quantity; the enquiry's grand total = sum of its tags' sub-totals — both
 // computed (src/lib/commercial.ts), never stored.
-export type CommercialOtherItem = { name: string; price: number | null };
+export type CommercialOtherItem = {
+  name: string;
+  /** Base (vendor) price. */
+  price: number | null;
+  discountPct?: number | null;
+  markupPct?: number | null;
+};
+/** Per fixed BOI row (motorPrice, gearboxPrice, …): vendor discount % and
+ *  markup %. A missing row means 0 discount and the default 25 % markup. */
+export type BoiAdjustMap = Record<string, { discountPct: number | null; markupPct: number | null }>;
 export const commercialTagPrice = pgTable("commercial_tag_price", {
   id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   projectId: uuid("project_id")
@@ -1113,6 +1122,9 @@ export const commercialTagPrice = pgTable("commercial_tag_price", {
   drpModel: varchar("drp_model", { length: 200 }),
   /** Extra BOI lines, each named by the user. */
   others: jsonb("others").$type<CommercialOtherItem[]>().notNull().default([]),
+  /** Vendor discount % + markup % per fixed BOI row; the *_price columns hold
+   *  BASE prices. Quoted row price = base × (1 − disc) × (1 + markup). */
+  boiAdjust: jsonb("boi_adjust").$type<BoiAdjustMap>().notNull().default({}),
   remarks: text("remarks"),
   updatedBy: uuid("updated_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),

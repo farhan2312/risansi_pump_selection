@@ -682,8 +682,9 @@ async function computePumpRpmWindow(
  * at the duty point, same formula as findCandidates). The pulley master
  * offers discrete belt ratios (target RPMs 180/220/260/300/…); every option
  * landing inside the window is returned as a candidate for manual selection —
- * if none land inside it, the single nearest option is returned instead as a
- * "next best" fallback (withinRange=false).
+ * if none land inside it, the nearest option BELOW the window and the nearest
+ * ABOVE it are returned instead (whichever exist) as the next best, for the
+ * engineer to choose (withinRange=false).
  */
 export async function computeVBeltDrive(
   db: Db,
@@ -751,9 +752,9 @@ export async function computeVBeltDrive(
 
   // Every belt whose pump speed lands inside the window is a candidate — no
   // single auto-pick, selection is manual (per spec, same as pump model
-  // screening). If none land inside it, fall back to the single nearest
-  // option as a "next best" — ties break toward the faster option so the
-  // duty flow is met rather than under-delivered.
+  // screening). If none land inside it, offer the next lower and the next
+  // higher speed either side of the window (user, 2026-10-03), so the
+  // engineer chooses between slightly under and slightly over.
   const inRange = options.filter((o) => speed(o) >= rpmLo && speed(o) <= rpmHi);
   let candidates: VBeltOption[] = [];
   let withinRange = false;
@@ -761,18 +762,10 @@ export async function computeVBeltDrive(
     candidates = inRange; // already sorted ascending by speed
     withinRange = true;
   } else if (options.length > 0) {
-    const dist = (o: VBeltOption) => {
-      const s = speed(o);
-      return s < rpmLo ? rpmLo - s : s - rpmHi;
-    };
-    const nextBest = options.reduce((best, o) => {
-      const d = dist(o);
-      const bd = dist(best);
-      if (d < bd) return o;
-      if (d === bd) return speed(o) > speed(best) ? o : best;
-      return best;
-    });
-    candidates = [nextBest];
+    // options are sorted ascending by speed.
+    const below = options.filter((o) => speed(o) < rpmLo).at(-1);
+    const above = options.find((o) => speed(o) > rpmHi);
+    candidates = [below, above].filter((o): o is VBeltOption => o !== undefined);
     withinRange = false;
   }
 

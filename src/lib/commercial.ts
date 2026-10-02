@@ -4,6 +4,8 @@
  * live totals and anything computed server-side can never disagree.
  *
  * Every price is per unit and typed in by the quotation team:
+ *   BOI row price = base (vendor) price × (1 − vendor disc %) × (1 + markup %)
+ *                   — markup auto-filled 25 %, both editable per row
  *   unit price = Pump & Accessories + every BOI item (fixed rows + Others)
  *   sub-total  = unit price × quantity (quantity from the wizard's Pump Model & Qty step)
  *   grand total = sum of every tag's sub-total
@@ -23,7 +25,20 @@ export const BOI_ITEMS = [
 
 export type BoiKey = (typeof BOI_ITEMS)[number]["key"];
 
-export type CommercialOther = { name: string; price: number | null };
+/** Vendor discount and markup on one BOI row (percent; null = 0 discount /
+ *  the default markup). */
+export type BoiAdjust = { discountPct: number | null; markupPct: number | null };
+
+/** Markup auto-filled on every BOI row (user, 2026-10-03); editable per row. */
+export const DEFAULT_MARKUP_PCT = 25;
+
+/** An extra BOI line; `price` is its base (vendor) price, like the fixed rows. */
+export type CommercialOther = {
+  name: string;
+  price: number | null;
+  discountPct?: number | null;
+  markupPct?: number | null;
+};
 
 /** The editable prices of one tag (numbers, or null when not entered). */
 export type CommercialPrices = {
@@ -36,6 +51,10 @@ export type CommercialPrices = {
   drpModel: string | null;
   others: CommercialOther[];
   remarks: string;
+  /** Per fixed BOI row: vendor discount % and markup %. The BoiKey prices
+   *  are BASE prices. Missing on quotation snapshots made before 2026-10-03 —
+   *  those prices were final and are used as-is. */
+  adjust?: Partial<Record<BoiKey, BoiAdjust>>;
 } & Record<BoiKey, number | null>;
 
 /** What the wizard already knows about a tag's pick — shown next to the
@@ -68,7 +87,7 @@ export type CommercialTag = {
   vfdRequired: boolean;
   /** Drive motor kW the VFD is matched against (null when not entered). */
   motorKw: number | null;
-  /** BOI Master drives covering motorKw — only when vfdRequired. */
+  /** BOI Master drives covering motorKw (every tag, whatever vfdRequired says). */
   vfdOptions: VfdOption[];
   /** BOI Master DRP kit for the tag's model (every tag), or null with the
    *  reason in drpNote. */
@@ -104,6 +123,7 @@ export const emptyPrices = (): CommercialPrices => ({
   drpPrice: null,
   others: [],
   remarks: "",
+  adjust: {},
 });
 
 // --- VFD (BOI Master, VFD tab) ---------------------------------------------
@@ -230,11 +250,43 @@ export function drpOptionFor(
   };
 }
 
-/** Sum of the BOI items only (fixed rows + Others), per unit. */
-export function boiTotal(p: CommercialPrices): number {
-  const fixed = BOI_ITEMS.reduce((s, it) => s + (p[it.key] ?? 0), 0);
-  return fixed + p.others.reduce((s, o) => s + (o.price ?? 0), 0);
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** base × (1 − disc%) × (1 + markup%); null base stays null. */
+export const netPrice = (base: number | null, discountPct: number | null, markupPct: number | null): number | null =>
+  base === null ? null : round2(base * (1 - (discountPct ?? 0) / 100) * (1 + (markupPct ?? DEFAULT_MARKUP_PCT) / 100));
+
+/** A fixed BOI row's quoted price (after vendor discount and markup). */
+export function boiNet(p: CommercialPrices, key: BoiKey): number | null {
+  const base = p[key] ?? null;
+  if (!p.adjust) return base; // snapshot from before discount/markup: final already
+  const a = p.adjust[key];
+  return netPrice(base, a?.discountPct ?? 0, a?.markupPct ?? DEFAULT_MARKUP_PCT);
 }
+
+/** An Other line's quoted price (after vendor discount and markup). */
+export function otherNet(p: CommercialPrices, o: CommercialOther): number | null {
+  if (!p.adjust) return o.price;
+  return netPrice(o.price, o.discountPct ?? 0, o.markupPct ?? DEFAULT_MARKUP_PCT);
+}
+
+/** Sum of the BOI items only (fixed rows + Others, quoted prices), per unit. */
+export function boiTotal(p: CommercialPrices): number {
+  const fixed = BOI_ITEMS.reduce((s, it) => s + (boiNet(p, it.key) ?? 0), 0);
+  return fixed + (p.others ?? []).reduce((s, o) => s + (otherNet(p, o) ?? 0), 0);
+}
+
+/** A percentage as sent / typed: "" or null → null; undefined when invalid
+ *  (negative, not a number, or not below `max`). */
+export function parsePct(raw: unknown, max: number): number | null | undefined {
+  if (raw === null || raw === undefined || raw === "") return null;
+  const n = typeof raw === "number" ? raw : Number(String(raw).replace(/%/g, "").trim());
+  if (!Number.isFinite(n) || n < 0 || n >= max) return undefined;
+  return round2(n);
+}
+/** Vendor discount must stay below 100 %; markup up to 1000 %. */
+export const MAX_DISCOUNT_PCT = 100;
+export const MAX_MARKUP_PCT = 1000;
 
 /** P&A + all BOI, per unit. */
 export const unitTotal = (p: CommercialPrices): number => (p.paPrice ?? 0) + boiTotal(p);

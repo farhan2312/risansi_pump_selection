@@ -121,10 +121,10 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
     const drp = drpOptionFor(r.model || null, shafts, probes, panel);
     const vfdRequired = r.vfdRequired === VFD_YES;
     const motorKw = num(r.motorKw);
-    // A "Geared Motor" is one integrated unit: the wizard doesn't pick a
-    // separate motor for it, so there is no motor reference to show.
+    // The wizard's motor pick, for every drive configuration — "Geared Motor"
+    // tags pick a motor on the Drive step too (all of them have one saved).
     const motorRef: CommercialReference | null =
-      r.motorMake && r.gearedConfig !== "Geared Motor"
+      r.motorMake
         ? {
             label: [r.motorMake, r.motorKw ? `${r.motorKw} kW` : null, r.motorFrame ? `Frame ${r.motorFrame}` : null]
               .filter(Boolean)
@@ -156,7 +156,9 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
       gearboxRef,
       vfdRequired,
       motorKw,
-      vfdOptions: vfdRequired ? vfdOptionsFor(vfdRows, motorKw) : [],
+      // Offered for every tag with a motor kW — the VFD BOI does not depend on
+      // the Drive step's VFD Required answer (user, 2026-10-03).
+      vfdOptions: vfdOptionsFor(vfdRows, motorKw),
       drpOption: drp.option,
       drpNote: drp.note,
       prices: p
@@ -172,6 +174,7 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
             drpPrice: num(p.drpPrice),
             others: Array.isArray(p.others) ? p.others : [],
             remarks: p.remarks ?? "",
+            adjust: (p.boiAdjust ?? {}) as CommercialTag["prices"]["adjust"],
           }
         : emptyPrices(),
       updatedAt: p?.updatedAt ? p.updatedAt.toISOString() : null,

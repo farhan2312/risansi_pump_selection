@@ -12,8 +12,10 @@ import {
   type QuotationSnapshot,
   type QuotationVersionInfo,
   type TsmOption,
+  boiNet,
   boiTotal,
   formatInr,
+  otherNet,
   versionLabel,
 } from "../../lib/commercial";
 import {
@@ -598,8 +600,13 @@ const BOI_NOTE: Partial<Record<string, (p: SnapshotTag["prices"]) => string | nu
   drpPrice: (p) => p.drpModel,
 };
 
+/** "base ₹10,000 −5% +25%" beside a BOI line (versions saved with discount / markup). */
+const pctNote = (base: number | null, d?: number | null, m?: number | null) =>
+  base === null ? null : `base ${formatInr(base)}${d ? ` −${d}%` : ""} +${m ?? 0}%`;
+
 function TagBreakdown({ tag }: { tag: SnapshotTag }) {
   const p = tag.prices;
+  const join = (...parts: (string | null | undefined)[]) => parts.filter(Boolean).join(" · ") || null;
   const line = (label: string, value: number | null | undefined, note?: string | null, key?: string) => (
     <tr key={key ?? label} className="border-b border-line last:border-b-0">
       <td className="px-3 py-1.5 text-fg-2">
@@ -628,8 +635,25 @@ function TagBreakdown({ tag }: { tag: SnapshotTag }) {
               BOI items
             </td>
           </tr>
-          {BOI_ITEMS.map((it) => line(it.label, p[it.key], BOI_NOTE[it.key]?.(p), it.key))}
-          {(p.others ?? []).map((o, j) => line(o.name || "Other", o.price, null, `other-${j}`))}
+          {BOI_ITEMS.map((it) =>
+            line(
+              it.label,
+              boiNet(p, it.key),
+              join(
+                BOI_NOTE[it.key]?.(p),
+                p.adjust ? pctNote(p[it.key] ?? null, p.adjust[it.key]?.discountPct, p.adjust[it.key]?.markupPct ?? 25) : null,
+              ),
+              it.key,
+            ),
+          )}
+          {(p.others ?? []).map((o, j) =>
+            line(
+              o.name || "Other",
+              otherNet(p, o),
+              p.adjust ? pctNote(o.price, o.discountPct, o.markupPct ?? 25) : null,
+              `other-${j}`,
+            ),
+          )}
         </tbody>
         <tfoot className="text-[12.5px]">
           <tr className="border-t border-line">
