@@ -12,6 +12,7 @@
  */
 
 import type { OfferConfig } from "./commercial-offer";
+import type { CodeHints, CodeParts } from "./pump-code";
 
 /** The fixed BOI rows, in display order. `key` is the API/DB field. */
 export const BOI_ITEMS = [
@@ -49,6 +50,9 @@ export type CommercialPrices = {
   /** The BOI Master DRP kit used for drpPrice ("RTD probe 50 mm + RTD panel"),
    *  if any. Missing on older quotation snapshots. */
   drpModel: string | null;
+  /** What a used L1–L4 P&A suggestion was based on, or null (typed by hand).
+   *  Missing on older quotation snapshots. */
+  paBasis?: string | null;
   others: CommercialOther[];
   remarks: string;
   /** Per fixed BOI row: vendor discount % and markup %. The BoiKey prices
@@ -81,6 +85,14 @@ export type CommercialTag = {
   quantity: number | null;
   /** ERP pump product code picked on the Pump Model & Qty step. */
   productCode: string | null;
+  /** The code's parts when it was built with the code builder, else null. */
+  codeParts: CodeParts | null;
+  /** What the pump selection says (model, size, rubber, sealing) — prefills
+   *  the code builder. */
+  codeHints: CodeHints;
+  /** For the P&A price suggestion (lib/pa-price.ts): base plate material and
+   *  the model's standard vs entered suction / delivery size. */
+  paHints: { basePlate: string | null; recommendedSize: string | null; dischargeSize: string | null };
   motorRef: CommercialReference | null;
   gearboxRef: CommercialReference | null;
   /** Drive step answer "VFD Required" = Yes. */
@@ -118,6 +130,7 @@ export const emptyPrices = (): CommercialPrices => ({
   vfdPrice: null,
   vfdModel: null,
   drpModel: null,
+  paBasis: null,
   strainerPrice: null,
   prvPrice: null,
   drpPrice: null,

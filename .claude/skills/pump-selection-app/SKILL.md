@@ -551,6 +551,24 @@ never auto-filled from the AI result.
 - Totals (`src/lib/commercial.ts`, shared by page + API): unit = P&A + all
   BOI; sub-total = unit × quantity; grand total = sum of sub-totals. A tag
   with no quantity counts as 0 and is flagged.
+- **Pump product-code builder** (user, 2026-10-03) in Pump & Qty: per tag
+  "Build code" (default) or "Pick existing code" (ProductCodeSelect). Code =
+  SERIES[SUBCAT] SIZE STAGE MODEL MOC RUBBER, then "-GP" (Gland Packing) or
+  "-<MS sub-type>" (MSA/SCG/DCG/MSK; "-MS" if none), then optional "-CC"
+  housing — e.g. RTOHBAG6170ABBN-SCG. Model code = family without H (H40L6 →
+  40L6); stage separate (1/2/4/8). `lib/pump-code.ts` (buildPumpCode,
+  missingParts, partsFromHints, partsFromFields/fieldsFromParts). Choices in
+  `pump_code_option` (segment, code, label, sort_order; seeded: series RTOH
+  RMOH RBL PSLH RBH RAH, sub-cat AG BAG, sizes 0.75–12, stages, 30 models from
+  pump_model_master minus stage prefix + H10/H120L, MOC AAA…X, rubber N/E/V/H/
+  FGM/FGE, sealing GP/MS, sub-sealing = wizard list, housing CC). "+ Add new…"
+  on series/sub-cat/size/model/MOC/rubber → POST /api/pump-code-options
+  (audited pump_code_option.add). Prefill from the wizard: model + stage
+  (2H48 → 2, 48), size = suction size, rubber from stator rubber, sealing +
+  sub-type; MOC NOT prefilled (wizard stores free-text materials, no code).
+  Parts saved in pump_model_qty_input.code_* (null when picked from list); a
+  built code not in product_pump is added via POST /api/product-pumps on save.
+  The old V6OF/V5OF part of existing codes is intentionally not built.
 - **Two steps on the page** (user, 2026-10-01): **1 · Pump & Qty**
   (`PumpQtyStep.tsx`, one row per tag: selected model, ERP product code via
   `ProductCodeSelect` from `product_pump` — 544 PCP codes, client-side word
@@ -653,8 +671,26 @@ never auto-filled from the AI result.
   has unsaved prices. Audited quotation.create / tsm_change /
   internal_version / send. Snapshots built by lib/quotation-server.ts via
   lib/commercial-server.ts (same data as GET /api/commercial).
-- Not built yet: L1–L4 price list and markup rules,
-  client price-sheet uploads, PDF output, scope of supply.
+- **P&A price suggestion — L1–L4 lists** (user's l1-l4.xlsx, 2026-10-03):
+  tables `pa_price_level` (L1 "NI- NON SUGAR … V5" 19-02-2025; L2 NI SUGAR
+  V6, L3 NON SUGAR V6, L4 SUGAR V6 — 27-03-2026), `pa_price_list` (50 rows
+  as in the sheet: sr_no, pump_model_no e.g. "H-48/50/52", "H60L-3",
+  "2H-50/2H-48/2H-52"; l1_abbn … l4_cccn — L2/L4 have no ACCN; Sr 14 / H-80
+  is missing in the sheet; the 2H-120 row repeats some 2H-110 values — kept
+  as-is), `pa_rubber_addon` (Viton/HNBR ₹ per family, "H-48/52", "H-80/85").
+  GET /api/pa-price-list. `lib/pa-price.ts`: model → row via aliases
+  (H40L6 → "H-40L" fallback), MOC → column (ABB/AAB → ABBN per MOC chart,
+  BBB, CCC, ACC; others none), the sheet's notes as tick-box adjustments
+  pre-ticked from data: BAG +15/20/25 %, AG +10/12/15 % (by MOC), EPDM ×1.1,
+  food grade +5 %, Viton/HNBR + amount (exact family on; nearest family
+  offered off), SS304 base plate +5 % (MOC step base plate), size ±3 %
+  (entered vs recommended_size), CI casing = BBBN −10 % (off). % multiply,
+  add-on last, rounded to ₹. Inputs from the built code parts, else parsed
+  from a picked product code, else the pump selection (`paInputsFor`).
+  PaSuggestionPanel under the P&A price: one "Use ₹…" per list; the basis is
+  saved in `commercial_tag_price.pa_basis` (shown in version breakdowns).
+- Not built yet: admin page for the L1–L4 lists, client price-sheet uploads,
+  PDF output.
 
 ## Client Price Reference files (Commercial Summary → "Client Price Ref")
 - Table `client_price_ref` (2026-09-30): 1,549 client pump price reference
@@ -730,11 +766,21 @@ never auto-filled from the AI result.
   [Other Items — when priced] · Pump with Accessories Unit Price · "Pump With
   Accessories + Motor (+ Gear Box) Unit Price" = unitTotal (ALL priced items)
   · "… Qty. Price" = sub-total; then red "Scope of supply :- …" and "Out Of
-  Scope :- …" lines (defaults from the photo, editable; "Penel" typo fixed).
+  Scope :- …" lines ("Penel" typo fixed). Since 2026-10-03 both are
+  MULTI-SELECT dropdowns over one pool, set on the COMMERCIAL SUMMARY page
+  ("Scope of Supply" card per drive-group tab, screens/commercial/ScopeControls.tsx;
+  saved at once; the page re-reads configs after the offer modal closes), not in the
+  modal —
+  (SCOPE_ITEMS + items added by hand = config.scopeExtra); an item is in one
+  list or the other. Defaults = the photo's lines (Gear Box only on geared
+  sheets). Printed as "A, B & C" (scope) and "A + B" (out of scope). Config
+  scope/outOfScope are string[] | null (null = default); an older free-text
+  value is kept as one item.
   Optional rows: BOI total, Quantity, Total Price (one value across all tags,
   a `span` row keyed "all").
 - `src/lib/commercial-offer.ts` (client-safe): OFFER_FIELDS, OfferConfig
-  (extras/hidden/labels/values/custom + scope/outOfScope, null = default),
+  (extras/hidden/labels/values/custom + scope/outOfScope item lists, null =
+  default, + scopeExtra),
   normalizeOfferConfig(s), buildOffer, buildOfferHtml; Excel
   lib/commercial-offer-excel.ts. Shares the tech sheet shell: tech-doc.ts
   `sheetHtml`, `sheetFileStem`, `dotDate`, `esc`; tech-doc-excel.ts

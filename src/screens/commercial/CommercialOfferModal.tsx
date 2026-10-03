@@ -5,8 +5,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import TechDocEditor from "../../components/reports/TechDocEditor";
 import { DRIVE_GROUP_LABEL, type DriveGroup } from "../../lib/commercial";
 import {
-  DEFAULT_OUT_OF_SCOPE,
-  DEFAULT_SCOPE,
   EMPTY_OFFER_CONFIG,
   OFFER_EXTRAS,
   buildOffer,
@@ -33,8 +31,6 @@ const btn =
   "inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-[12.5px] font-semibold text-fg-2 hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";
 const btnPrimary =
   "inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-[12.5px] font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50";
-const areaCls =
-  "min-h-[64px] w-full resize-y rounded-lg border border-line bg-paper px-3 py-2 text-[12.5px] text-fg outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft";
 
 export default function CommercialOfferModal({
   projectId,
@@ -113,7 +109,8 @@ export default function CommercialOfferModal({
       config.custom.length >
       0 ||
     config.scope !== null ||
-    config.outOfScope !== null;
+    config.outOfScope !== null ||
+    config.scopeExtra.length > 0;
 
   const geared = isGearedGroup(group);
   const sheet: OfferSheet | null = useMemo(() => {
@@ -252,18 +249,6 @@ export default function CommercialOfferModal({
                     onChange={update}
                     valueHint="Saved price"
                   />
-                  <ScopeField
-                    label="Scope of supply"
-                    value={config.scope}
-                    fallback={DEFAULT_SCOPE}
-                    onChange={(scope) => update({ ...config, scope })}
-                  />
-                  <ScopeField
-                    label="Out of scope"
-                    value={config.outOfScope}
-                    fallback={DEFAULT_OUT_OF_SCOPE}
-                    onChange={(outOfScope) => update({ ...config, outOfScope })}
-                  />
                 </div>
               ) : (
                 <iframe title="Commercial Offer" srcDoc={html} className="min-h-[62vh] w-full flex-1 rounded-lg border border-line bg-white" />
@@ -287,42 +272,5 @@ export default function CommercialOfferModal({
         </footer>
       </div>
     </div>
-  );
-}
-
-/** A scope line: null = the format's default text (shown, editable). */
-function ScopeField({
-  label,
-  value,
-  fallback,
-  onChange,
-}: {
-  label: string;
-  value: string | null;
-  fallback: string;
-  onChange: (v: string | null) => void;
-}) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className="flex flex-wrap items-center gap-2 text-[11.5px] font-semibold tracking-[0.08em] text-fg-3 uppercase">
-        {label}
-        {value !== null && (
-          <button
-            type="button"
-            className="text-[11.5px] font-semibold tracking-normal text-accent normal-case hover:underline"
-            onClick={() => onChange(null)}
-          >
-            Reset to default
-          </button>
-        )}
-      </span>
-      <textarea
-        className={`${areaCls} ${value !== null ? "border-warn bg-[var(--warn-soft)]" : ""}`}
-        value={value ?? fallback}
-        maxLength={1500}
-        onChange={(e) => onChange(e.target.value === fallback ? null : e.target.value)}
-        placeholder="Leave empty to leave this line off the sheet"
-      />
-    </label>
   );
 }

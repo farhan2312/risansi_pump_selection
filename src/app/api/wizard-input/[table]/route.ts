@@ -130,7 +130,12 @@ const FIELDS: Record<TableKey, readonly string[]> = {
     "gearboxOutputRpm", "gearboxServiceFactor", "gearboxRatePerNos", "gearboxConfirmed",
     "gearboxRpmManual",
   ],
-  "pump-model-qty": ["productCode", "pumpFamily", "quantity"],
+  "pump-model-qty": [
+    "productCode", "pumpFamily", "quantity",
+    // Code-builder parts (lib/pump-code.ts) — null when picked from the list.
+    "codeSeries", "codeSubCategory", "codeSize", "codeStage", "codeModel",
+    "codeMoc", "codeRubber", "codeSealing", "codeSubSealing", "codeHousing",
+  ],
 };
 
 // Columns backed by a Drizzle `timestamp` — Drizzle calls .toISOString() on the

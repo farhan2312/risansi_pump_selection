@@ -612,9 +612,44 @@ export const pumpModelQtyInput = pgTable("pump_model_qty_input", {
   pumpFamily: varchar("pump_family", { length: 20 }),
   // Whole number, kept as the raw string like the other wizard fields.
   quantity: varchar("quantity", { length: 10 }),
+  // The product code's parts when it was built with the code builder
+  // (lib/pump-code.ts; option codes from pump_code_option). All null when the
+  // code was picked from the existing list instead.
+  codeSeries: varchar("code_series", { length: 30 }),
+  codeSubCategory: varchar("code_sub_category", { length: 30 }),
+  codeSize: varchar("code_size", { length: 30 }),
+  codeStage: varchar("code_stage", { length: 30 }),
+  codeModel: varchar("code_model", { length: 30 }),
+  codeMoc: varchar("code_moc", { length: 30 }),
+  codeRubber: varchar("code_rubber", { length: 30 }),
+  codeSealing: varchar("code_sealing", { length: 30 }),
+  codeSubSealing: varchar("code_sub_sealing", { length: 30 }),
+  codeHousing: varchar("code_housing", { length: 30 }),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
+
+// Choices for each part of the pump product code (Pump & Qty code builder,
+// lib/pump-code.ts): segment = series | sub_category | size | stage | model |
+// moc | rubber | sealing | sub_sealing | housing; `code` is what goes into the
+// product code, `label` what the dropdown shows (model "40L6" = H40L6, rubber
+// "N" = Nitrile). Seeded 2026-10-03 from the user's sheet + the wizard lists
+// (models from pump_model_master without the stage prefix); "+ Add" in the
+// builder adds options to the addable segments.
+export const pumpCodeOption = pgTable(
+  "pump_code_option",
+  {
+    id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    segment: varchar("segment", { length: 20 }).notNull(),
+    code: varchar("code", { length: 30 }).notNull(),
+    label: varchar("label", { length: 100 }).notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    active: boolean("active").notNull().default(true),
+    createdBy: uuid("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+  },
+  (t) => [unique("pump_code_option_segment_code_key").on(t.segment, t.code)],
+);
 
 // ERP pump product codes (e.g. RTOHV6OF8185AABN-MSA) — the list the Pump
 // Model & Qty step picks from. Loaded from "Pump Model Master_2509026.xlsx"
@@ -1120,6 +1155,9 @@ export const commercialTagPrice = pgTable("commercial_tag_price", {
   /** The DRP kit suggested from the BOI Master and used for drp_price
    *  (e.g. "RTD probe 50 mm + RTD panel"), or null when typed by hand. */
   drpModel: varchar("drp_model", { length: 200 }),
+  /** What a used P&A price suggestion was based on (L1–L4 list, model row,
+   *  MOC, adjustments), or null when the P&A price was typed by hand. */
+  paBasis: varchar("pa_basis", { length: 300 }),
   /** Extra BOI lines, each named by the user. */
   others: jsonb("others").$type<CommercialOtherItem[]>().notNull().default([]),
   /** Vendor discount % + markup % per fixed BOI row; the *_price columns hold
@@ -1291,4 +1329,50 @@ export const pumpShaftDia = pgTable("pump_shaft_dia", {
   shaftDia: numeric("shaft_dia", { precision: 8, scale: 3 }),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
+});
+
+// P&A price lists L1–L4 ("l1-l4.xlsx", user 2026-10-03), mirrored as in the
+// sheet. pa_price_level = the four lists' header rows (L-1 "NI- NON SUGAR
+// INDUSTRIES - Price List_V5_" 19-02-2025; L-2 NI SUGAR V6, L-3 NON SUGAR V6,
+// L-4 SUGAR V6, all 27-03-2026). pa_price_list = one row per pump model row
+// (Sr. No., Pump Model No as written, e.g. "H-48/50/52", "H60L-3") with each
+// list's MOC columns (L2 and L4 have no ACCN). pa_rubber_addon = "Viton AND
+// HNBR — ADDED TO P&A" per family. The sheet's notes (bucket/auger %, EPDM,
+// food grade, SS304 base plate, size ±3 %, CI casing, AABN = ABBN) are the
+// rules in lib/pa-price.ts. Used by the Commercial Summary's P&A suggestion.
+export const paPriceLevel = pgTable("pa_price_level", {
+  level: varchar("level", { length: 4 }).primaryKey(),
+  title: varchar("title", { length: 200 }).notNull(),
+  dateText: varchar("date_text", { length: 60 }),
+  listDate: date("list_date", { mode: "string" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+});
+
+export const paPriceList = pgTable("pa_price_list", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  srNo: integer("sr_no"),
+  pumpModelNo: varchar("pump_model_no", { length: 60 }).notNull().unique(),
+  l1Abbn: numeric("l1_abbn", { precision: 14, scale: 2 }),
+  l1Bbbn: numeric("l1_bbbn", { precision: 14, scale: 2 }),
+  l1Accn: numeric("l1_accn", { precision: 14, scale: 2 }),
+  l1Cccn: numeric("l1_cccn", { precision: 14, scale: 2 }),
+  l2Abbn: numeric("l2_abbn", { precision: 14, scale: 2 }),
+  l2Bbbn: numeric("l2_bbbn", { precision: 14, scale: 2 }),
+  l2Cccn: numeric("l2_cccn", { precision: 14, scale: 2 }),
+  l3Abbn: numeric("l3_abbn", { precision: 14, scale: 2 }),
+  l3Bbbn: numeric("l3_bbbn", { precision: 14, scale: 2 }),
+  l3Accn: numeric("l3_accn", { precision: 14, scale: 2 }),
+  l3Cccn: numeric("l3_cccn", { precision: 14, scale: 2 }),
+  l4Abbn: numeric("l4_abbn", { precision: 14, scale: 2 }),
+  l4Bbbn: numeric("l4_bbbn", { precision: 14, scale: 2 }),
+  l4Cccn: numeric("l4_cccn", { precision: 14, scale: 2 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
+});
+
+export const paRubberAddon = pgTable("pa_rubber_addon", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  pumpModel: varchar("pump_model", { length: 60 }).notNull().unique(),
+  amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });

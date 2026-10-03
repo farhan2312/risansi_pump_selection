@@ -16,6 +16,8 @@ import {
   motorDriveInput,
   projects,
   pumpModelQtyInput,
+  fluidPropertiesInput,
+  mocSealingInput,
   users,
 } from "@/lib/db/schema";
 import {
@@ -33,6 +35,7 @@ import {
 } from "@/lib/commercial";
 import { VFD_YES } from "@/lib/recheck-calc";
 import { gearboxUpliftedRate } from "@/lib/motor-price";
+import { partsFromFields } from "@/lib/pump-code";
 
 const num = (v: string | null | undefined): number | null => {
   if (v === null || v === undefined || v === "") return null;
@@ -65,6 +68,14 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
       media: generalInfoInput.media,
       quantity: pumpModelQtyInput.quantity,
       productCode: pumpModelQtyInput.productCode,
+      qty: pumpModelQtyInput,
+      suctionSize: fluidPropertiesInput.suctionSize,
+      dischargeSize: fluidPropertiesInput.dischargeSize,
+      recommendedSize: fluidPropertiesInput.recommendedSize,
+      basePlate: mocSealingInput.mocAiBasePlate,
+      statorRubber: mocSealingInput.mocAiStatorRubber,
+      sealingType: mocSealingInput.sealingType,
+      sealingSubType: mocSealingInput.sealingSubType,
       driveSystem: motorDriveInput.driveSystem,
       motorMake: motorDriveInput.driveMotorMake,
       motorKw: motorDriveInput.driveMotorKw,
@@ -86,6 +97,8 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
     .from(enquiryTags)
     .leftJoin(generalInfoInput, eq(generalInfoInput.tagId, enquiryTags.id))
     .leftJoin(pumpModelQtyInput, eq(pumpModelQtyInput.tagId, enquiryTags.id))
+    .leftJoin(fluidPropertiesInput, eq(fluidPropertiesInput.tagId, enquiryTags.id))
+    .leftJoin(mocSealingInput, eq(mocSealingInput.tagId, enquiryTags.id))
     .leftJoin(motorDriveInput, eq(motorDriveInput.tagId, enquiryTags.id))
     .leftJoin(driveGearedInput, eq(driveGearedInput.tagId, enquiryTags.id))
     .leftJoin(commercialTagPrice, eq(commercialTagPrice.tagId, enquiryTags.id))
@@ -152,6 +165,19 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
       driveGroup: driveGroupOf(r.driveSystem, r.gearedConfig),
       quantity: parseQuantity(r.quantity),
       productCode: r.productCode || null,
+      codeParts: r.qty ? partsFromFields(r.qty) : null,
+      paHints: {
+        basePlate: r.basePlate || null,
+        recommendedSize: r.recommendedSize || null,
+        dischargeSize: r.dischargeSize || null,
+      },
+      codeHints: {
+        model: r.model || null,
+        suctionSize: r.suctionSize || null,
+        statorRubber: r.statorRubber || null,
+        sealingType: r.sealingType || null,
+        sealingSubType: r.sealingSubType || null,
+      },
       motorRef,
       gearboxRef,
       vfdRequired,
@@ -169,6 +195,7 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
             vfdPrice: num(p.vfdPrice),
             vfdModel: p.vfdModel || null,
             drpModel: p.drpModel || null,
+            paBasis: p.paBasis || null,
             strainerPrice: num(p.strainerPrice),
             prvPrice: num(p.prvPrice),
             drpPrice: num(p.drpPrice),

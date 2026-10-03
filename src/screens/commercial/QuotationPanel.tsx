@@ -629,7 +629,7 @@ function TagBreakdown({ tag }: { tag: SnapshotTag }) {
       </header>
       <table className="w-full text-[12.5px]">
         <tbody>
-          {line("Pump & Accessories", p.paPrice)}
+          {line("Pump & Accessories", p.paPrice, p.paBasis)}
           <tr className="border-b border-line bg-sunk">
             <td colSpan={2} className="px-3 py-1 text-[11px] font-semibold tracking-[0.08em] text-fg-3 uppercase">
               BOI items

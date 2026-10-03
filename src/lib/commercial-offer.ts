@@ -24,9 +24,28 @@ import { esc, sheetHtml, type TechDocHeader, type TechDocRow } from "./tech-doc"
 
 export const OFFER_TITLE = "Commercial Offer";
 
-export const DEFAULT_SCOPE =
-  "Pump With Base-Plate, Driven Coupling, Foundation & Grouting Bolts, Coupling & Motor Guard, Matching Flange, (For Suc. & Delivery) Gasket & Fasteners, Gear Box, Motor & DRP";
-export const DEFAULT_OUT_OF_SCOPE = "Starter + VFD + VFD Panel + 3PTC Thermistor + VPI Treatment";
+// Scope of supply / Out of scope: multi-select lists from one item pool (an
+// item is in one list or the other, never both). Defaults = the format's two
+// lines; Gear Box is only in the default scope of a geared sheet.
+export const SCOPE_ITEMS = [
+  "Pump With Base-Plate",
+  "Driven Coupling",
+  "Foundation & Grouting Bolts",
+  "Coupling & Motor Guard",
+  "Matching Flange",
+  "(For Suc. & Delivery) Gasket & Fasteners",
+  "Gear Box",
+  "Motor",
+  "DRP",
+  "Starter",
+  "VFD",
+  "VFD Panel",
+  "3PTC Thermistor",
+  "VPI Treatment",
+];
+export const DEFAULT_OUT_OF_SCOPE_ITEMS = ["Starter", "VFD", "VFD Panel", "3PTC Thermistor", "VPI Treatment"];
+export const defaultScopeItems = (geared: boolean): string[] =>
+  SCOPE_ITEMS.filter((i) => !DEFAULT_OUT_OF_SCOPE_ITEMS.includes(i) && (geared || i !== "Gear Box"));
 
 /** One tag column: its saved prices and totals. */
 export interface OfferTag {
@@ -138,15 +157,19 @@ export interface OfferCustomRow {
 }
 
 /** Saved per enquiry and drive group. Same edit model as the Technical Data
- *  Sheet (TechDocEditor), plus the two scope lines (null = the default). */
+ *  Sheet (TechDocEditor), plus the two scope lists (null = the default). */
 export interface OfferConfig {
   extras: string[];
   hidden: string[];
   labels: Record<string, string>;
   values: Record<string, Record<string, string>>;
   custom: OfferCustomRow[];
-  scope: string | null;
-  outOfScope: string | null;
+  /** Scope of supply items, in order (null = the default). */
+  scope: string[] | null;
+  /** Out of scope items, in order (null = the default). */
+  outOfScope: string[] | null;
+  /** Items added by hand to this sheet's pool. */
+  scopeExtra: string[];
 }
 
 export const EMPTY_OFFER_CONFIG: OfferConfig = {
@@ -157,10 +180,12 @@ export const EMPTY_OFFER_CONFIG: OfferConfig = {
   custom: [],
   scope: null,
   outOfScope: null,
+  scopeExtra: [],
 };
 
 const MAX_TEXT = 300;
-const MAX_SCOPE = 1500;
+const MAX_SCOPE_ITEM = 120;
+const MAX_SCOPE_ITEMS = 40;
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const text = (v: unknown, max = MAX_TEXT): string => String(v ?? "").trim().slice(0, max);
 const offerCustomKey = (id: string) => `c_${id}`;
@@ -188,15 +213,21 @@ export function normalizeOfferConfig(raw: unknown): OfferConfig {
     for (const [tagId, v] of Object.entries(perTag)) m[tagId.slice(0, 60)] = text(v);
     if (Object.keys(m).length) values[k] = m;
   }
-  const scopeText = (v: unknown) => (typeof v === "string" ? text(v, MAX_SCOPE) : null);
+  // A list of items; an older free-text line is kept as one item.
+  const scopeList = (v: unknown): string[] | null => {
+    if (typeof v === "string") return text(v, MAX_SCOPE_ITEM) ? [text(v, MAX_SCOPE_ITEM)] : [];
+    if (!Array.isArray(v)) return null;
+    return [...new Set(v.map((x) => text(x, MAX_SCOPE_ITEM)).filter(Boolean))].slice(0, MAX_SCOPE_ITEMS);
+  };
   return {
     extras: keyList(r.extras).filter((k) => OFFER_EXTRA_KEYS.has(k)),
     hidden: keyList(r.hidden),
     labels,
     values,
     custom,
-    scope: scopeText(r.scope),
-    outOfScope: scopeText(r.outOfScope),
+    scope: scopeList(r.scope),
+    outOfScope: scopeList(r.outOfScope),
+    scopeExtra: scopeList(r.scopeExtra) ?? [],
   };
 }
 
@@ -252,8 +283,23 @@ export function buildOffer(
   return [{ title: OFFER_TITLE, rows: opts.includeHidden ? rows : rows.filter((r) => !r.hidden) }];
 }
 
-export const offerScope = (c: OfferConfig) => (c.scope ?? DEFAULT_SCOPE).trim();
-export const offerOutOfScope = (c: OfferConfig) => (c.outOfScope ?? DEFAULT_OUT_OF_SCOPE).trim();
+/** The selected items of each list (the default when not changed). */
+export const scopeItems = (c: OfferConfig, geared: boolean): string[] => c.scope ?? defaultScopeItems(geared);
+export const outOfScopeItems = (c: OfferConfig): string[] => c.outOfScope ?? DEFAULT_OUT_OF_SCOPE_ITEMS;
+
+/** Every item that can be picked: the standard pool, items added by hand, and
+ *  anything already selected (e.g. an older free-text line). */
+export const scopePool = (c: OfferConfig, geared: boolean): string[] => [
+  ...new Set([...SCOPE_ITEMS, ...c.scopeExtra, ...scopeItems(c, geared), ...outOfScopeItems(c)]),
+];
+
+/** "A, B, C & D" — the scope line as the format writes it. */
+export const offerScope = (c: OfferConfig, geared: boolean): string => {
+  const items = scopeItems(c, geared);
+  return items.length > 1 ? `${items.slice(0, -1).join(", ")} & ${items[items.length - 1]}` : (items[0] ?? "");
+};
+/** "A + B + C" — the out-of-scope line as the format writes it. */
+export const offerOutOfScope = (c: OfferConfig): string => outOfScopeItems(c).join(" + ");
 
 // --- HTML (preview + print) ---------------------------------------------------
 
@@ -269,7 +315,7 @@ export function buildOfferHtml(sheet: OfferSheet, logoUrl = "/logo.png"): string
         : `<tr><th scope="row">${esc(r.label)}</th>${r.values.map((v) => `<td>${esc(v || "-")}</td>`).join("")}</tr>`,
     )
     .join("");
-  const scope = offerScope(sheet.config);
+  const scope = offerScope(sheet.config, sheet.geared);
   const out = offerOutOfScope(sheet.config);
   const body =
     `<tr class="offer-band"><td colspan="${cols}">${esc(OFFER_TITLE)}</td></tr>` +

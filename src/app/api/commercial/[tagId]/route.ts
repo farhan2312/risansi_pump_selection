@@ -95,6 +95,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ tagId: s
   next.vfdModel = next.vfdPrice !== null && vfdModel ? vfdModel : null;
   const drpModel = typeof body.drpModel === "string" ? body.drpModel.trim().slice(0, 200) : "";
   next.drpModel = next.drpPrice !== null && drpModel ? drpModel : null;
+  // What a used L1–L4 suggestion was based on (a label; the price is whatever
+  // was entered). Dropped when there is no P&A price.
+  const paBasis = typeof body.paBasis === "string" ? body.paBasis.trim().slice(0, 300) : "";
+  next.paBasis = next.paPrice !== null && paBasis ? paBasis : null;
   next.remarks = typeof body.remarks === "string" ? body.remarks.trim().slice(0, 2000) : "";
 
   // --- diff against what's stored, for the audit trail ----------------------
@@ -116,6 +120,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ tagId: s
   }
   if ((prev?.vfdModel ?? null) !== next.vfdModel) {
     changes.push(`VFD model ${prev?.vfdModel ?? "—"} → ${next.vfdModel ?? "—"}`);
+  }
+  if ((prev?.paBasis ?? null) !== next.paBasis) {
+    changes.push(`P&A basis ${prev?.paBasis ?? "—"} → ${next.paBasis ?? "—"}`);
   }
   if ((prev?.drpModel ?? null) !== next.drpModel) {
     changes.push(`DRP ${prev?.drpModel ?? "—"} → ${next.drpModel ?? "—"}`);
@@ -140,6 +147,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ tagId: s
     vfdPrice: next.vfdPrice?.toString() ?? null,
     vfdModel: next.vfdModel,
     drpModel: next.drpModel,
+    paBasis: next.paBasis ?? null,
     strainerPrice: next.strainerPrice?.toString() ?? null,
     prvPrice: next.prvPrice?.toString() ?? null,
     drpPrice: next.drpPrice?.toString() ?? null,

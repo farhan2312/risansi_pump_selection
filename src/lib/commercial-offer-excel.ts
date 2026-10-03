@@ -27,7 +27,7 @@ export function downloadOfferExcel(sheet: OfferSheet): string {
         : [{ value: r.label, bold: true, wrap: true }, ...r.values.map((v) => ({ value: v || "-", align: "center" }) as XlsxCell)],
     );
   }
-  const scope = offerScope(sheet.config);
+  const scope = offerScope(sheet.config, sheet.geared);
   const out = offerOutOfScope(sheet.config);
   if (scope) rows.push([{ value: `Scope of supply :- ${scope}`, colSpan: width, color: "C00000", bold: true, align: "center", wrap: true }]);
   if (out) rows.push([{ value: `Out Of Scope :- ${out}`, colSpan: width, align: "center", wrap: true }]);

@@ -8,7 +8,19 @@ import PageHeader from "../../components/ui/PageHeader";
 import QuotationPanel from "./QuotationPanel";
 import ClientPriceRefModal from "./ClientPriceRefModal";
 import CommercialOfferModal from "./CommercialOfferModal";
+import ScopeControls, { ScopeLines } from "./ScopeControls";
+import { EMPTY_OFFER_CONFIG, isGearedGroup, type OfferConfig } from "../../lib/commercial-offer";
+import { getCommercialOffer, saveCommercialOfferConfig } from "../../services/commercialOfferService";
 import PumpQtyStep from "./PumpQtyStep";
+import {
+  paBasisText,
+  paInputsFor,
+  paPrice,
+  paSuggestion,
+  type PaLevel,
+  type PaPriceData,
+} from "../../lib/pa-price";
+import { getPaPriceList } from "../../services/paPriceService";
 import {
   BOI_ITEMS,
   DEFAULT_MARKUP_PCT,
@@ -54,6 +66,8 @@ type Draft = {
   vfdModel: string;
   /** Used BOI Master DRP kit ("" = none). */
   drpModel: string;
+  /** Basis of a used L1–L4 P&A suggestion ("" = typed by hand). */
+  paBasis: string;
   others: OtherDraft[];
   /** Per BOI row: vendor discount % and markup % as typed. */
   adjust: Record<BoiKey, PctDraft>;
@@ -79,6 +93,7 @@ const toDraft = (p: CommercialPrices): Draft => ({
   vfdPrice: priceText(p.vfdPrice),
   vfdModel: p.vfdModel ?? "",
   drpModel: p.drpModel ?? "",
+  paBasis: p.paBasis ?? "",
   strainerPrice: priceText(p.strainerPrice),
   prvPrice: priceText(p.prvPrice),
   drpPrice: priceText(p.drpPrice),
@@ -105,6 +120,7 @@ const parseDraft = (d: Draft): CommercialPrices => {
     // applies the same rule).
     vfdModel: vfdPrice !== null && d.vfdModel ? d.vfdModel : null,
     drpModel: drpPrice !== null && d.drpModel ? d.drpModel : null,
+    paBasis: val(d.paPrice) !== null && d.paBasis ? d.paBasis : null,
     strainerPrice: val(d.strainerPrice),
     prvPrice: val(d.prvPrice),
     drpPrice,
@@ -172,6 +188,17 @@ export default function CommercialSummaryPage() {
   const [pricesVersion, setPricesVersion] = useState(0);
   // "Client Price Ref" viewer (the client's old price sheets on SharePoint).
   const [showPriceRef, setShowPriceRef] = useState(false);
+  // L1–L4 P&A price lists for the P&A suggestion (null while loading).
+  const [paData, setPaData] = useState<PaPriceData | "error" | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getPaPriceList()
+      .then((d) => !cancelled && setPaData(d))
+      .catch(() => !cancelled && setPaData("error"));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   // Two steps: 1 Pump & Qty (product code + quantity per tag), 2 Summary.
   // Opens on Pump & Qty while any tag still lacks either.
   const [stage, setStage] = useState<"pump" | "summary" | null>(null);
@@ -278,6 +305,27 @@ export default function CommercialSummaryPage() {
   const project = data?.project;
   // Commercial Offer sheet of the open drive group — from the SAVED prices.
   const [showOffer, setShowOffer] = useState(false);
+  // Each group's Commercial Offer edits — the page sets its scope lists; the
+  // modal edits the rest. Re-read after the modal closes so the two never
+  // overwrite each other with a stale copy.
+  const [offerConfigs, setOfferConfigs] = useState<Record<string, OfferConfig> | null>(null);
+  const [scopeSave, setScopeSave] = useState<"" | "saving" | "saved" | "error">("");
+  const loadOfferConfigs = useCallback(() => {
+    if (!projectId) return;
+    getCommercialOffer(projectId)
+      .then((d) => setOfferConfigs(d.configs))
+      .catch(() => setOfferConfigs((c) => c ?? {}));
+  }, [projectId]);
+  useEffect(() => {
+    loadOfferConfigs();
+  }, [loadOfferConfigs]);
+  const saveScope = (group: DriveGroup, next: OfferConfig) => {
+    setOfferConfigs((m) => ({ ...(m ?? {}), [group]: next }));
+    setScopeSave("saving");
+    saveCommercialOfferConfig(projectId, group, next)
+      .then(() => setScopeSave("saved"))
+      .catch(() => setScopeSave("error"));
+  };
   // `saved` holds each tag's last-saved prices (data.tags is only the first
   // load), so a Save shows up in the sheet straight away.
   const offerTags = useMemo(
@@ -422,9 +470,11 @@ export default function CommercialSummaryPage() {
         <PumpQtyStep
           projectId={projectId}
           tags={data.tags}
-          onSaved={(tagId, productCode, quantity) => {
+          onSaved={(tagId, productCode, quantity, codeParts) => {
             setData((d) =>
-              d ? { ...d, tags: d.tags.map((t) => (t.tagId === tagId ? { ...t, productCode, quantity } : t)) } : d,
+              d
+                ? { ...d, tags: d.tags.map((t) => (t.tagId === tagId ? { ...t, productCode, quantity, codeParts } : t)) }
+                : d,
             );
             // The quotation's live version prices the new quantity.
             setPricesVersion((n) => n + 1);
@@ -475,6 +525,39 @@ export default function CommercialSummaryPage() {
                 pricesVersion={pricesVersion}
               />
             )
+          )}
+
+          {tab && tab !== "NONE" && (
+            <section className="rounded-xl border border-line bg-paper">
+              <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
+                <h2 className="text-[14px] font-semibold text-fg">
+                  Scope of Supply{mixed ? ` — ${tabLabel(tab)}` : ""}
+                </h2>
+                <span className="text-[12px] text-fg-3">
+                  {scopeSave === "saving"
+                    ? "Saving…"
+                    : scopeSave === "saved"
+                      ? "Saved — shown on the Commercial Offer"
+                      : scopeSave === "error"
+                        ? "Couldn't save — try again"
+                        : "Printed on the Commercial Offer"}
+                </span>
+              </header>
+              <div className="flex flex-col gap-3 p-4">
+                {offerConfigs === null ? (
+                  <p className="text-[12.5px] text-fg-3">Loading…</p>
+                ) : (
+                  <>
+                    <ScopeControls
+                      config={offerConfigs[tab] ?? EMPTY_OFFER_CONFIG}
+                      geared={isGearedGroup(tab)}
+                      onChange={(next) => saveScope(tab, next)}
+                    />
+                    <ScopeLines config={offerConfigs[tab] ?? EMPTY_OFFER_CONFIG} geared={isGearedGroup(tab)} />
+                  </>
+                )}
+              </div>
+            </section>
           )}
 
           {/* Summary across all tags */}
@@ -560,6 +643,7 @@ export default function CommercialSummaryPage() {
             <TagCard
               key={tag.tagId}
               tag={tag}
+              paData={paData}
               draft={drafts[tag.tagId]}
               prices={prices}
               unit={unit}
@@ -585,7 +669,10 @@ export default function CommercialSummaryPage() {
           group={tab}
           tags={offerTags}
           unsavedPrices={groupDirty}
-          onClose={() => setShowOffer(false)}
+          onClose={() => {
+            setShowOffer(false);
+            loadOfferConfigs();
+          }}
         />
       )}
       {showPriceRef && data && (
@@ -601,6 +688,7 @@ export default function CommercialSummaryPage() {
 
 function TagCard({
   tag,
+  paData,
   draft,
   prices,
   unit,
@@ -615,6 +703,7 @@ function TagCard({
   onReset,
 }: {
   tag: CommercialTag;
+  paData: PaPriceData | "error" | null;
   draft: Draft;
   prices: CommercialPrices;
   unit: number;
@@ -682,6 +771,13 @@ function TagCard({
                 label="Pump & Accessories price per unit"
               />
             </div>
+            <PaSuggestionPanel
+              tag={tag}
+              data={paData}
+              used={draft.paBasis}
+              onUse={(price, basis) => onChange({ paPrice: String(price), paBasis: basis })}
+              onClear={() => onChange({ paBasis: "" })}
+            />
           </div>
 
           {/* BOI items */}
@@ -896,6 +992,138 @@ function DrpPicker({
         </button>
       </div>
       {used && !active && usedLine}
+    </div>
+  );
+}
+
+/** "NON SUGAR INDUSTRIES - Price List_V6_" → "Non Sugar Industries V6". */
+const levelName = (l: PaLevel) =>
+  l.title
+    .replace(/\s*-\s*Price List_?/i, " ")
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase()
+    .replace(/\b([a-z])/g, (c) => c.toUpperCase())
+    .replace(/\bNi\b/g, "NI")
+    .replace(/\bV(\d)/g, "V$1");
+const dmy = (iso: string | null) => (iso ? iso.split("-").reverse().join("-") : "");
+
+/** The P&A price suggestion from the L1–L4 price lists (lib/pa-price.ts):
+ *  the tag's model row × MOC column, the sheet's adjustments as tick-boxes
+ *  (pre-ticked from the data), one price per list to use. */
+function PaSuggestionPanel({
+  tag,
+  data,
+  used,
+  onUse,
+  onClear,
+}: {
+  tag: CommercialTag;
+  data: PaPriceData | "error" | null;
+  used: string;
+  onUse: (price: number, basis: string) => void;
+  onClear: () => void;
+}) {
+  const inputs = useMemo(() => paInputsFor(tag), [tag]);
+  const sug = useMemo(() => (data && data !== "error" ? paSuggestion(data, inputs) : null), [data, inputs]);
+  const defaults = useMemo(
+    () => new Set((sug?.adjustments ?? []).filter((a) => a.defaultOn).map((a) => a.key)),
+    [sug],
+  );
+  const [on, setOn] = useState<Set<string>>(defaults);
+  useEffect(() => setOn(defaults), [defaults]);
+  const toggle = (key: string, group?: string) =>
+    setOn((cur) => {
+      const next = new Set(cur);
+      if (next.has(key)) next.delete(key);
+      else {
+        // Only one of a group (size up / size down).
+        if (group) for (const a of sug?.adjustments ?? []) if (a.group === group) next.delete(a.key);
+        next.add(key);
+      }
+      return next;
+    });
+
+  const from = (k: keyof typeof inputs.source) => (inputs.source[k] ? `${k === "subCategory" ? "sub-category" : k} from ${inputs.source[k]}` : null);
+
+  return (
+    <div className="mt-2 rounded-lg border border-line bg-sunk/50 p-3 text-[12px] text-fg-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-semibold text-fg">Price suggestion · L1–L4 price list</span>
+        {used && (
+          <span className="flex flex-wrap items-center gap-2">
+            <span>
+              Used: <span className="font-mono text-[11.5px]">{used}</span>
+            </span>
+            <button type="button" className="text-[11.5px] font-semibold text-fg-3 hover:text-neg" onClick={onClear}>
+              Clear
+            </button>
+          </span>
+        )}
+      </div>
+
+      {data === null && <p className="mt-1 text-fg-3">Loading the price list…</p>}
+      {data === "error" && <p className="mt-1 text-neg">Couldn&apos;t load the price list.</p>}
+      {sug?.problem && <p className="mt-1 text-warn">{sug.problem}</p>}
+
+      {sug && !sug.problem && sug.row && sug.col && data && data !== "error" && (
+        <div className="mt-1.5 flex flex-col gap-2">
+          <p>
+            Row <b className="text-fg">{sug.row.pumpModelNo}</b> · MOC <b className="text-fg">{sug.col.toUpperCase()}</b>
+            <span className="ml-1 text-fg-3">
+              ({[from("model"), from("moc"), from("subCategory"), from("rubber")].filter(Boolean).join(", ")})
+            </span>
+          </p>
+          {sug.notes.length > 0 && <p className="text-fg-3">{sug.notes.join(" · ")}</p>}
+
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            {sug.adjustments.map((a) => (
+              <label key={a.key} className="flex cursor-pointer items-center gap-1.5" title={a.note}>
+                <input
+                  type="checkbox"
+                  checked={on.has(a.key)}
+                  onChange={() => toggle(a.key, a.group)}
+                  className="h-3.5 w-3.5 accent-[var(--brand-blue)]"
+                />
+                <span className={on.has(a.key) ? "text-fg" : ""}>{a.label}</span>
+                {a.note && <span className="text-[11px] text-fg-4">({a.note})</span>}
+              </label>
+            ))}
+          </div>
+
+          <div className="flex flex-col divide-y divide-line rounded-md border border-line bg-paper">
+            {data.levels.map((l) => {
+              const { base, price } = paPrice(sug, l.level, on);
+              const basis = paBasisText(sug, l.level, on);
+              const active = used === basis;
+              return (
+                <div key={l.level} className={`flex flex-wrap items-center gap-x-3 gap-y-1 px-2.5 py-1.5 ${active ? "bg-accent-soft" : ""}`}>
+                  <span className="w-[22px] font-mono font-semibold text-fg">{l.level}</span>
+                  <span className="min-w-0 flex-1 truncate" title={`${l.title} ${l.dateText ?? ""}`}>
+                    {levelName(l)} <span className="text-fg-4">· {dmy(l.listDate)}</span>
+                  </span>
+                  {price === null ? (
+                    <span className="text-fg-4">no {sug.col?.toUpperCase()} price in this list</span>
+                  ) : (
+                    <>
+                      <span className="font-mono text-fg-3">list {formatInr(base)}</span>
+                      <button
+                        type="button"
+                        className="rounded-md border border-line bg-paper px-1.5 py-0.5 font-mono text-[11.5px] text-accent hover:border-accent"
+                        onClick={() => onUse(price, basis)}
+                        title={basis}
+                      >
+                        {active ? "Used" : "Use"} {formatInr(price)}
+                      </button>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
