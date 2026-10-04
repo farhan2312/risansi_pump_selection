@@ -17,8 +17,19 @@ export const listTsmOptions = async (): Promise<TsmOption[]> => {
   return data;
 };
 
-export const createQuotation = async (projectId: string, group: string, tsmRepId?: number): Promise<QuotationInfo> => {
-  const { data } = await apiClient.post<QuotationInfo>("/quotations", { projectId, group, tsmRepId });
+export const createQuotation = async (
+  projectId: string,
+  group: string,
+  tsmRepId?: number,
+  erpSerial?: string,
+): Promise<QuotationInfo> => {
+  const { data } = await apiClient.post<QuotationInfo>("/quotations", { projectId, group, tsmRepId, erpSerial });
+  return data;
+};
+
+/** Sets (or clears, with "") the quotation's ERP serial — no new version. */
+export const setQuotationErpSerial = async (id: string, erpSerial: string): Promise<QuotationInfo> => {
+  const { data } = await apiClient.patch<QuotationInfo>(`/quotations/${id}`, { erpSerial });
   return data;
 };
 

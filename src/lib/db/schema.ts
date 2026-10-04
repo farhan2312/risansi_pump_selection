@@ -102,6 +102,10 @@ export const projects = pgTable("projects", {
   /** Commercial Offer sheet edits per drive group ({groups: {GM: OfferConfig}},
    *  lib/commercial-offer.ts): optional rows, removed / renamed rows, edited
    *  cells, manual rows, scope texts. Document only — prices are not changed. */
+  /** One remarks note for the whole Commercial Summary (user, 2026-10-05 —
+   *  replaces commercial_tag_price.remarks per tag). Frozen into quotation
+   *  versions with the prices. */
+  commercialRemarks: text("commercial_remarks"),
   commercialOfferConfig: jsonb("commercial_offer_config").$type<Record<string, unknown>>().notNull().default({}),
 });
 
@@ -1149,6 +1153,10 @@ export const commercialTagPrice = pgTable("commercial_tag_price", {
   prvPrice: numeric("prv_price", { precision: 14, scale: 2 }),
   drpPrice: numeric("drp_price", { precision: 14, scale: 2 }),
   vfdPrice: numeric("vfd_price", { precision: 14, scale: 2 }),
+  mechSealPrice: numeric("mech_seal_price", { precision: 14, scale: 2 }),
+  /** The BOI Master mechanical seal used for mech_seal_price
+   *  ("ACME SCG-1.5-7774 · SIC/SIC/VITON/304"), or null when typed by hand. */
+  mechSealModel: varchar("mech_seal_model", { length: 200 }),
   /** The BOI Master VFD picked for vfd_price (its drive description), or null
    *  when the price was typed without picking one. */
   vfdModel: varchar("vfd_model", { length: 100 }),
@@ -1195,6 +1203,9 @@ export const quotation = pgTable(
   /** Indian financial year of quote_date, e.g. "2627" for Apr 2026 – Mar 2027. */
   finYear: varchar("fin_year", { length: 4 }).notNull(),
   serial: integer("serial"),
+  /** Serial of the same quotation in ERP, typed in by hand (user, 2026-10-05);
+   *  shown as "Quotation No. (ERP)" with the portal number's prefix. */
+  erpSerial: varchar("erp_serial", { length: 30 }),
   regionCode: varchar("region_code", { length: 20 }),
   /** Market Intell users.id of the TSM (a reference only — no FK across DBs). */
   tsmRepId: integer("tsm_rep_id"),
@@ -1376,3 +1387,48 @@ export const paRubberAddon = pgTable("pa_rubber_addon", {
   amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
+
+// BOI Master, Mechanical Seal tab — "ACME PRICE LIST NEW 25-03-26.pdf"
+// (docs/BOI): DCG / SCG / K SERIES / N SERIES rows as in the list (MMP left
+// out — user, 2026-10-04). Priced by shaft size (matched to the tag model's
+// pump_shaft_dia); the list's PUMP MODEL NO column is not kept. Two material
+// columns: SiC faces with SS304 / SS316 (DCG: SIC/SIC/C/SIC/VITON/…). Wizard
+// seal type → series: SCG → SCG, DCG → DCG, MSA → N SERIES, MSK → K SERIES;
+// SCG's "-AG" (AUGAR) row is used for auger pumps (sub-category AG / BAG).
+export const boiMechSeal = pgTable("boi_mech_seal", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  make: varchar("make", { length: 60 }).notNull(),
+  series: varchar("series", { length: 30 }).notNull(),
+  drawingNo: varchar("drawing_no", { length: 60 }).notNull().unique(),
+  shaftSizeInch: varchar("shaft_size_inch", { length: 20 }),
+  shaftSizeMm: numeric("shaft_size_mm", { precision: 8, scale: 3 }).notNull(),
+  type: varchar("type", { length: 20 }),
+  material304: varchar("material_304", { length: 60 }),
+  price304: numeric("price_304", { precision: 14, scale: 2 }),
+  material316: varchar("material_316", { length: 60 }),
+  price316: numeric("price_316", { precision: 14, scale: 2 }),
+  priceListDate: date("price_list_date", { mode: "string" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
+});
+
+// Technical Data Sheet client versions (user, 2026-10-05): "Send to client" on
+// a drive group's sheet freezes it — rows, edits, values, header — as Client
+// V0, V1, … per enquiry and group (NONE = tags without a drive). Independent
+// of the quotation's versions. snapshot = the lib/tech-doc TechDocSheet.
+export const techDocVersion = pgTable(
+  "tech_doc_version",
+  {
+    id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    driveGroup: varchar("drive_group", { length: 4 }).notNull(),
+    version: integer("version").notNull(),
+    note: text("note"),
+    snapshot: jsonb("snapshot").notNull(),
+    createdBy: uuid("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+  },
+  (t) => [unique("tech_doc_version_project_id_drive_group_version_key").on(t.projectId, t.driveGroup, t.version)],
+);

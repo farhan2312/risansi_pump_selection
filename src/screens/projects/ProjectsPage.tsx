@@ -724,10 +724,10 @@ const ProjectsPage = () => {
                         type="button"
                         className={btn}
                         onClick={() => openDocument(project)}
-                        title="View this enquiry's Technical Quotation"
+                        title="View this enquiry's Technical Data Sheet"
                       >
                         <DocumentIcon />
-                        <span className="hidden 2xl:inline">Document</span>
+                        <span className="hidden 2xl:inline">Technical</span>
                       </button>
                       <button
                         type="button"

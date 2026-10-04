@@ -16,6 +16,7 @@ import {
   type QuotationSnapshot,
   type QuotationTrack,
   type TsmOption,
+  erpQuotationNumber,
   quotationNumber,
   subTotal,
   unitTotal,
@@ -84,6 +85,7 @@ export async function buildSnapshot(projectId: string, driveGroup: string): Prom
     tagName: t.tagName,
     productCode: t.productCode,
     model: t.model,
+    tech: t.tech,
     quantity: t.quantity,
     prices: t.prices,
     unit: unitTotal(t.prices),
@@ -97,7 +99,12 @@ export async function buildSnapshot(projectId: string, driveGroup: string): Prom
     .where(eq(projects.id, projectId))
     .limit(1);
   const offer = normalizeOfferConfigs(p?.offer, [driveGroup])[driveGroup];
-  return { tags, grandTotal: tags.reduce((s, t) => s + t.sub, 0), offer };
+  return {
+    tags,
+    grandTotal: tags.reduce((s, t) => s + t.sub, 0),
+    offer,
+    ...(summary?.project.remarks ? { remarks: summary.project.remarks } : {}),
+  };
 }
 
 /** One drive group's quotation for the enquiry, with its version history
@@ -122,6 +129,8 @@ export async function loadQuotation(projectId: string, driveGroup: string): Prom
     id: q.id,
     driveGroup: q.driveGroup,
     number: quotationNumber(q, mixed),
+    erpSerial: q.erpSerial,
+    erpNumber: erpQuotationNumber(q, mixed),
     productType: q.productType,
     quoteDate: q.quoteDate,
     finYear: q.finYear,

@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import {
   boiDrpPanel,
   boiDrpProbe,
+  boiMechSeal,
   boiVfd,
   commercialTagPrice,
   pumpShaftDia,
@@ -16,6 +17,8 @@ import {
   motorDriveInput,
   projects,
   pumpModelQtyInput,
+  operatingConditionsInput,
+  driveVbeltInput,
   fluidPropertiesInput,
   mocSealingInput,
   users,
@@ -27,6 +30,8 @@ import {
   type DriveGroup,
   type VfdMasterRow,
   drpOptionFor,
+  mechSealOptionFor,
+  type MechSealRow,
   driveGroupOf,
   emptyPrices,
   groupsIn,
@@ -36,6 +41,8 @@ import {
 import { VFD_YES } from "@/lib/recheck-calc";
 import { gearboxUpliftedRate } from "@/lib/motor-price";
 import { partsFromFields } from "@/lib/pump-code";
+import { finalPumpRpm } from "@/lib/recheck-calc";
+import { partsFromProductCode } from "@/lib/pa-price";
 
 const num = (v: string | null | undefined): number | null => {
   if (v === null || v === undefined || v === "") return null;
@@ -52,6 +59,7 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
       name: projects.name,
       customerName: projects.customerName,
       clientCode: projects.clientCode,
+      remarks: projects.commercialRemarks,
     })
     .from(projects)
     .where(eq(projects.id, projectId))
@@ -66,6 +74,11 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
       model: generalInfoInput.selectedModel,
       modelConfirmed: generalInfoInput.modelConfirmed,
       media: generalInfoInput.media,
+      pumpType: operatingConditionsInput.pumpType,
+      motorRpm: motorDriveInput.motorRPM,
+      vbeltRpm: driveVbeltInput.driveVbeltRpm,
+      vbeltRpmManual: driveVbeltInput.vbeltRpmManual,
+      gbRpmManual: driveGearedInput.gearboxRpmManual,
       quantity: pumpModelQtyInput.quantity,
       productCode: pumpModelQtyInput.productCode,
       qty: pumpModelQtyInput,
@@ -76,6 +89,9 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
       statorRubber: mocSealingInput.mocAiStatorRubber,
       sealingType: mocSealingInput.sealingType,
       sealingSubType: mocSealingInput.sealingSubType,
+      mechSealMake: mocSealingInput.mechSealMake,
+      mechSealMoc: mocSealingInput.mechSealMoc,
+      mechSealFace: mocSealingInput.mechSealFace,
       driveSystem: motorDriveInput.driveSystem,
       motorMake: motorDriveInput.driveMotorMake,
       motorKw: motorDriveInput.driveMotorKw,
@@ -101,6 +117,8 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
     .leftJoin(mocSealingInput, eq(mocSealingInput.tagId, enquiryTags.id))
     .leftJoin(motorDriveInput, eq(motorDriveInput.tagId, enquiryTags.id))
     .leftJoin(driveGearedInput, eq(driveGearedInput.tagId, enquiryTags.id))
+    .leftJoin(operatingConditionsInput, eq(operatingConditionsInput.tagId, enquiryTags.id))
+    .leftJoin(driveVbeltInput, eq(driveVbeltInput.tagId, enquiryTags.id))
     .leftJoin(commercialTagPrice, eq(commercialTagPrice.tagId, enquiryTags.id))
     .leftJoin(users, eq(users.id, commercialTagPrice.updatedBy))
     .where(eq(enquiryTags.projectId, projectId))
@@ -129,6 +147,20 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
   const shafts = drpShafts.map((s) => ({ model: s.model, shaftDia: num(s.shaftDia) }));
   const probes = drpProbes.map((p) => ({ description: p.description, sizeMm: Number(p.sizeMm), ratePerNos: num(p.ratePerNos) }));
   const panel = drpPanels[0] ? { description: drpPanels[0].description, ratePerNos: num(drpPanels[0].ratePerNos) } : null;
+
+  const sealRows: MechSealRow[] = (await db.select().from(boiMechSeal)).map((m) => ({
+    make: m.make,
+    series: m.series,
+    drawingNo: m.drawingNo,
+    shaftSizeMm: Number(m.shaftSizeMm),
+    type: m.type,
+    material304: m.material304,
+    price304: num(m.price304),
+    material316: m.material316,
+    price316: num(m.price316),
+  }));
+  const shaftOf = (model: string | null) =>
+    model ? (shafts.find((s) => s.model.trim().toUpperCase() === model.trim().toUpperCase())?.shaftDia ?? null) : null;
 
   const tags: CommercialTag[] = rows.map((r) => {
     const drp = drpOptionFor(r.model || null, shafts, probes, panel);
@@ -166,6 +198,23 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
       quantity: parseQuantity(r.quantity),
       productCode: r.productCode || null,
       codeParts: r.qty ? partsFromFields(r.qty) : null,
+      // Same values as the Technical Data Sheet's rows (lib/tech-doc).
+      tech: {
+        liquid: r.media || "",
+        pumpType: r.pumpType || "",
+        pumpSpeed: (() => {
+          const rpm = finalPumpRpm({
+            driveSystem: r.driveSystem ?? undefined,
+            driveVbeltRpm: r.vbeltRpm ?? undefined,
+            vbeltRpmManual: r.vbeltRpmManual ?? undefined,
+            gearboxOutputRpm: r.gbRpm ?? undefined,
+            gearboxRpmManual: r.gbRpmManual ?? undefined,
+            motorRPM: r.motorRpm ?? undefined,
+          } as never).raw;
+          return rpm ? `${rpm} RPM` : "";
+        })(),
+        motorKw: r.motorKw ? `${r.motorKw} kW` : "",
+      },
       paHints: {
         basePlate: r.basePlate || null,
         recommendedSize: r.recommendedSize || null,
@@ -187,12 +236,27 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
       vfdOptions: vfdOptionsFor(vfdRows, motorKw),
       drpOption: drp.option,
       drpNote: drp.note,
+      ...(() => {
+        // Auger pumps (sub-category AG / BAG on the product code) take the
+        // "AUGAR" seal row where the list has one.
+        const parts = r.qty ? partsFromFields(r.qty) : null;
+        const sub = parts ? parts.subCategory : partsFromProductCode(r.productCode || null).subCategory;
+        const ms = mechSealOptionFor(
+          { sealingType: r.sealingType || null, type: r.sealingSubType || null, make: r.mechSealMake || null, moc: r.mechSealMoc || null, face: r.mechSealFace || null },
+          shaftOf(r.model || null),
+          sub === "AG" || sub === "BAG",
+          sealRows,
+        );
+        return { mechSealOption: ms.option, mechSealNote: ms.note };
+      })(),
       prices: p
         ? {
             paPrice: num(p.paPrice),
             motorPrice: num(p.motorPrice),
             gearboxPrice: num(p.gearboxPrice),
             vfdPrice: num(p.vfdPrice),
+            mechSealPrice: num(p.mechSealPrice),
+            mechSealModel: p.mechSealModel || null,
             vfdModel: p.vfdModel || null,
             drpModel: p.drpModel || null,
             paBasis: p.paBasis || null,
@@ -209,7 +273,7 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
     };
   });
 
-  return { project, tags };
+  return { project: { ...project, remarks: project.remarks ?? "" }, tags };
 }
 
 /** Each tag's drive group (null = no drive system yet), keyed by tag id. */

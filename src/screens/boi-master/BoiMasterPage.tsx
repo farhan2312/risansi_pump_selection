@@ -38,6 +38,7 @@ const TABS = [
   { key: "vfd", label: "VFD" },
   { key: "drp", label: "DRP" },
   { key: "shaft", label: "Shaft Dia" },
+  { key: "mechseal", label: "Mech Seal" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 
@@ -75,6 +76,12 @@ export default function BoiMasterPage() {
         <BoiTableTab
           tab="drp"
           intro="DRP (Dry Run Protection) per pump = RTD probe (smallest size ≥ the pump model's shaft dia, from the Shaft Dia tab) + RTD panel. The Commercial Summary suggests it for every tag."
+        />
+      )}
+      {tab === "mechseal" && (
+        <BoiTableTab
+          tab="mechseal"
+          intro="Mechanical seal prices (ACME). The Commercial Summary's Mechanical Seal row suggests the price from the Sealing step's seal type, MOC (SS304 / SS316) and SiC face, and the pump's shaft dia."
         />
       )}
       {tab === "shaft" && (

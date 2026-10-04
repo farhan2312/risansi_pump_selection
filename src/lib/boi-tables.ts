@@ -4,8 +4,8 @@
 // admin page. Client-safe.
 import type { BoiFieldDef } from "./boi-master";
 
-export type BoiTableKey = "drp-probe" | "drp-panel" | "shaft-dia";
-export type BoiTableTab = "drp" | "shaft";
+export type BoiTableKey = "drp-probe" | "drp-panel" | "shaft-dia" | "mech-seal";
+export type BoiTableTab = "drp" | "shaft" | "mechseal";
 
 export type BoiTableDef = {
   key: BoiTableKey;
@@ -56,6 +56,27 @@ export const BOI_TABLES: BoiTableDef[] = [
       { key: "shaftDia", label: "Shaft Dia (mm)", kind: "number" },
     ],
     label: (r) => String(r.model ?? "model"),
+  },
+  {
+    key: "mech-seal",
+    tab: "mechseal",
+    title: "Mechanical Seal",
+    subtitle:
+      "ACME price list (25-03-2026). Picked by the seal type (SCG, DCG, MSA → N SERIES, MSK → K SERIES) and the pump's shaft dia.",
+    fields: [
+      { key: "make", label: "Make", kind: "text", required: true, max: 60 },
+      { key: "series", label: "Series", kind: "text", required: true, max: 30 },
+      { key: "drawingNo", label: "Drawing No.", kind: "text", required: true, max: 60 },
+      { key: "shaftSizeInch", label: "Shaft (inch)", kind: "text", max: 20 },
+      { key: "shaftSizeMm", label: "Shaft (mm)", kind: "number", required: true },
+      { key: "type", label: "Type", kind: "text", max: 20 },
+      { key: "material304", label: "Material /304", kind: "text", max: 60 },
+      { key: "price304", label: "Price /304 (INR)", kind: "number" },
+      { key: "material316", label: "Material /316", kind: "text", max: 60 },
+      { key: "price316", label: "Price /316 (INR)", kind: "number" },
+      { key: "priceListDate", label: "Price List Date", kind: "date" },
+    ],
+    label: (r) => `${r.make} ${r.drawingNo}`,
   },
 ];
 

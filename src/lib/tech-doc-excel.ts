@@ -23,7 +23,12 @@ export function sheetHeaderRows(title: string, header: TechDocHeader, tagCount: 
     [{ value: `Client Name: ${header.clientName}`, colSpan: width, wrap: true }],
     [
       { value: `Enquiry No. & Date: ${header.enquiry}`, colSpan: leftSpan, wrap: true },
-      { value: `Quotation No. & Date: ${header.quotation || "-"}`, colSpan: width - leftSpan, wrap: true },
+      {
+        value: `Quotation No. & Date: ${header.quotation || "-"}${header.erp ? `
+Quotation No. (ERP): ${header.erp}` : ""}`,
+        colSpan: width - leftSpan,
+        wrap: true,
+      },
     ],
   ];
 }

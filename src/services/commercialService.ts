@@ -7,6 +7,11 @@ export const getCommercialSummary = async (projectId: string): Promise<Commercia
   return data;
 };
 
+/** Saves the one remarks note for the whole Commercial Summary. */
+export const saveCommercialRemarks = async (projectId: string, remarks: string): Promise<void> => {
+  await apiClient.put("/commercial/remarks", { projectId, remarks });
+};
+
 /** Saves one tag's full price set (replace-all). */
 export const saveCommercialPrices = async (
   tagId: string,

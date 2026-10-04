@@ -93,6 +93,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ tagId: s
   // whatever was entered). Dropped when there is no VFD price.
   const vfdModel = typeof body.vfdModel === "string" ? body.vfdModel.trim().slice(0, 100) : "";
   next.vfdModel = next.vfdPrice !== null && vfdModel ? vfdModel : null;
+  const mechSealModel = typeof body.mechSealModel === "string" ? body.mechSealModel.trim().slice(0, 200) : "";
+  next.mechSealModel = next.mechSealPrice !== null && mechSealModel ? mechSealModel : null;
   const drpModel = typeof body.drpModel === "string" ? body.drpModel.trim().slice(0, 200) : "";
   next.drpModel = next.drpPrice !== null && drpModel ? drpModel : null;
   // What a used L1–L4 suggestion was based on (a label; the price is whatever
@@ -124,6 +126,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ tagId: s
   if ((prev?.paBasis ?? null) !== next.paBasis) {
     changes.push(`P&A basis ${prev?.paBasis ?? "—"} → ${next.paBasis ?? "—"}`);
   }
+  if ((prev?.mechSealModel ?? null) !== (next.mechSealModel ?? null)) {
+    changes.push(`Mechanical seal ${prev?.mechSealModel ?? "—"} → ${next.mechSealModel ?? "—"}`);
+  }
   if ((prev?.drpModel ?? null) !== next.drpModel) {
     changes.push(`DRP ${prev?.drpModel ?? "—"} → ${next.drpModel ?? "—"}`);
   }
@@ -145,6 +150,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ tagId: s
     motorPrice: next.motorPrice?.toString() ?? null,
     gearboxPrice: next.gearboxPrice?.toString() ?? null,
     vfdPrice: next.vfdPrice?.toString() ?? null,
+    mechSealPrice: next.mechSealPrice?.toString() ?? null,
+    mechSealModel: next.mechSealModel ?? null,
     vfdModel: next.vfdModel,
     drpModel: next.drpModel,
     paBasis: next.paBasis ?? null,

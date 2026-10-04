@@ -19,11 +19,17 @@ import {
   type TechDocConfig,
   type TechDocData,
   type TechDocGroup,
+  type TechDocVersion,
 } from "../../lib/tech-doc";
 import TechDocEditor from "./TechDocEditor";
 import { downloadTechDocExcel } from "../../lib/tech-doc-excel";
 import { printHtml } from "../../lib/enquiry-print";
-import { getEnquiryDocument, saveEnquiryDocumentConfig } from "../../services/enquiryDocumentService";
+import {
+  getEnquiryDocument,
+  listTechDocVersions,
+  saveEnquiryDocumentConfig,
+  sendTechDocToClient,
+} from "../../services/enquiryDocumentService";
 
 export interface EnquiryDocumentSource {
   projectId: string;
@@ -50,6 +56,21 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
   const [showPicker, setShowPicker] = useState(false);
   const [saveState, setSaveState] = useState<"" | "saving" | "saved" | "error">("");
   const [printing, setPrinting] = useState(false);
+  // Client versions (sent sheets) of every group; one may be open read-only.
+  const [versions, setVersions] = useState<TechDocVersion[] | null>(null);
+  const [viewing, setViewing] = useState<TechDocVersion | null>(null);
+  const [sendNote, setSendNote] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    listTechDocVersions(source.projectId)
+      .then((v) => !cancelled && setVersions(v))
+      .catch(() => !cancelled && setVersions([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [source.projectId]);
   // Pending save per group, so switching tabs never drops another group's edit.
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
@@ -104,10 +125,28 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
     () => (data && group ? techDocSheet({ ...data, configs }, group) : null),
     [data, configs, group],
   );
+  // What is shown / printed / exported: the open sent version, else the live sheet.
+  const shown = viewing ? viewing.sheet : doc;
   const html = useMemo(
-    () => (doc ? buildTechDocHtml(doc, typeof window !== "undefined" ? `${window.location.origin}/logo.png` : "/logo.png") : ""),
-    [doc],
+    () => (shown ? buildTechDocHtml(shown, typeof window !== "undefined" ? `${window.location.origin}/logo.png` : "/logo.png") : ""),
+    [shown],
   );
+  const groupVersions = (versions ?? []).filter((v) => v.group === group);
+  const sendToClient = async () => {
+    if (!group || sending) return;
+    setSending(true);
+    setSendError("");
+    try {
+      const list = await sendTechDocToClient(source.projectId, group, sendNote.trim());
+      setVersions(list);
+      setSendNote("");
+    } catch (e) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setSendError(msg || "Couldn't send — try again.");
+    } finally {
+      setSending(false);
+    }
+  };
   const isLoading = data === null && error === null;
   const hasTags = (doc?.tags.length ?? 0) > 0;
 
@@ -168,7 +207,10 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
                         type="button"
                         role="tab"
                         aria-selected={g === group}
-                        onClick={() => setActiveGroup(g)}
+                        onClick={() => {
+                          setActiveGroup(g);
+                          setViewing(null);
+                        }}
                         className={`rounded-lg border px-3 py-1.5 text-[12.5px] font-semibold ${
                           g === group ? "border-accent bg-accent-soft text-accent" : "border-line bg-paper text-fg-2 hover:border-accent"
                         }`}
@@ -181,7 +223,65 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
                   })}
                 </div>
               )}
-              <div className="flex flex-wrap items-center gap-2">
+              {/* Client versions of this sheet + Send to client */}
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-sunk px-3 py-2 text-[12.5px]">
+                <span className="font-semibold text-fg-2">Client versions:</span>
+                {versions === null ? (
+                  <span className="text-fg-3">Loading…</span>
+                ) : groupVersions.length === 0 ? (
+                  <span className="text-fg-3">Not sent yet</span>
+                ) : (
+                  groupVersions.map((v) => (
+                    <button
+                      key={v.id}
+                      type="button"
+                      onClick={() => setViewing(viewing?.id === v.id ? null : v)}
+                      title={[v.createdByName && `Sent by ${v.createdByName}`, v.note].filter(Boolean).join(" — ") || undefined}
+                      className={`rounded-full border px-2.5 py-0.5 font-semibold ${
+                        viewing?.id === v.id ? "border-accent bg-accent text-white" : "border-line bg-paper text-fg-2 hover:border-accent"
+                      }`}
+                    >
+                      V{v.version} · {v.createdAt ? new Date(v.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : ""}
+                    </button>
+                  ))
+                )}
+                <span className="ml-auto flex flex-wrap items-center gap-1.5">
+                  <input
+                    className="w-[200px] rounded-md border border-line bg-paper px-2 py-1 text-[12.5px] text-fg outline-none focus:border-accent"
+                    placeholder="Note (optional)"
+                    value={sendNote}
+                    maxLength={1000}
+                    onChange={(e) => setSendNote(e.target.value)}
+                    aria-label="Note for this version"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void sendToClient()}
+                    disabled={sending || saveState === "saving" || !hasTags}
+                    className="rounded-md bg-accent px-3 py-1 font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                    title="Freeze this sheet as it is now as the next client version"
+                  >
+                    {sending ? "Sending…" : `Send to client → V${groupVersions.length ? Math.max(...groupVersions.map((v) => v.version)) + 1 : 0}`}
+                  </button>
+                </span>
+                {sendError && <span className="w-full text-neg">{sendError}</span>}
+              </div>
+
+              {viewing && (
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-accent bg-accent-soft px-3 py-2 text-[12.5px] text-fg">
+                  <span>
+                    Viewing <b>Client V{viewing.version}</b> as sent
+                    {viewing.createdAt ? ` on ${new Date(viewing.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}` : ""}
+                    {viewing.createdByName ? ` by ${viewing.createdByName}` : ""} — read-only.
+                    {viewing.note ? <span className="text-fg-2"> Note: {viewing.note}</span> : null}
+                  </span>
+                  <button type="button" className="ml-auto font-semibold text-accent hover:underline" onClick={() => setViewing(null)}>
+                    Back to current sheet
+                  </button>
+                </div>
+              )}
+
+              <div className={`flex flex-wrap items-center gap-2 ${viewing ? "hidden" : ""}`}>
                 <div className="inline-flex rounded-lg border border-line bg-sunk p-0.5" role="tablist">
                   {(["preview", "edit"] as const).map((m) => (
                     <button
@@ -232,7 +332,7 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
                 </span>
               </div>
 
-              {showPicker && (
+              {showPicker && !viewing && (
                 <div className="grid grid-cols-1 gap-4 rounded-lg border border-line bg-sunk p-3 sm:grid-cols-2 lg:grid-cols-3">
                   {TECH_DOC_SECTIONS.map((section) => {
                     const fields = techDocExtrasFor(doc?.tags ?? []).filter((f) => f.section === section);
@@ -261,7 +361,7 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
                 </div>
               )}
 
-              {mode === "edit" && doc ? (
+              {mode === "edit" && doc && !viewing ? (
                 <div className="max-h-[68vh] overflow-y-auto pr-1">
                   <TechDocEditor
                     tags={doc.tags}
@@ -288,7 +388,7 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
           <button className="summary-download-btn" onClick={handlePrint} disabled={printing || !hasTags}>
             {printing ? "Preparing…" : "Print / Save as PDF"}
           </button>
-          <button className="summary-modal-close-btn" onClick={() => doc && downloadTechDocExcel(doc)} disabled={!hasTags}>
+          <button className="summary-modal-close-btn" onClick={() => shown && downloadTechDocExcel(shown)} disabled={!hasTags}>
             Download Excel
           </button>
           <button className="summary-modal-close-btn" onClick={onClose}>

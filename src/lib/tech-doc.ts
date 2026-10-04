@@ -58,6 +58,9 @@ export interface TechDocHeader {
   enquiry: string;
   /** "RIL/QT/SV/26-27/PCP/····, Dt. 24.09.2026", or "" without a quotation. */
   quotation: string;
+  /** "RIL/QT/SV/26-27/PCP/1234" — the quotation's ERP number, when entered
+   *  (Commercial Offer only); shown under the quotation number. */
+  erp?: string;
 }
 
 /** ONE printable sheet: one drive group's tags, its quotation, its edits. */
@@ -643,7 +646,9 @@ export function sheetHtml(opts: {
     <tr class="meta"><td colspan="${cols}">Client Name: ${esc(data.header.clientName)}</td></tr>
     <tr class="meta">
       <td colspan="${leftSpan}">Enquiry No. &amp; Date: ${esc(data.header.enquiry)}</td>
-      <td colspan="${rightSpan}">Quotation No. &amp; Date: ${esc(data.header.quotation || "-")}</td>
+      <td colspan="${rightSpan}">Quotation No. &amp; Date: ${esc(data.header.quotation || "-")}${
+        data.header.erp ? `<br>Quotation No. (ERP): ${esc(data.header.erp)}` : ""
+      }</td>
     </tr>
     ${body}
   </tbody></table>
@@ -665,4 +670,18 @@ export function sheetFileStem(
   return [title, slug(data.header.clientName), slug(data.projectCode), data.group ?? "", suffix ? slug(suffix) : "", new Date().toISOString().slice(0, 10)]
     .filter(Boolean)
     .join("_");
+}
+
+// --- Client versions ------------------------------------------------------------
+
+/** A sent version of one drive group's sheet (tech_doc_version). */
+export interface TechDocVersion {
+  id: string;
+  group: TechDocGroup;
+  version: number;
+  note: string | null;
+  createdAt: string | null;
+  createdByName: string | null;
+  /** The sheet exactly as it was sent. */
+  sheet: TechDocSheet;
 }

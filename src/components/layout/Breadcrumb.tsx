@@ -13,6 +13,7 @@ const LABELS: Record<string, string> = {
   "/selection-summary": "Reports",
   "/head-calculator": "Head Calculator",
   "/commercial": "Commercial Summary",
+  "/client-prices": "Client Quoted Prices",
   "/my-bug-reports": "My Bug Reports",
   "/admin/pump-model-master": "Pump Model Master",
   "/admin/pulley-master": "Pulley Master",

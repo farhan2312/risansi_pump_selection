@@ -15,7 +15,7 @@ const SEARCH_DEBOUNCE_MS = 300;
 /** A plain SharePoint file link downloads the .xlsx. SharePoint's own "open in
  *  the browser" form — "/:x:/r/<path>?web=1" (x = Excel) — opens it in Excel
  *  for the web in the tab instead. The stored link is kept as-is. */
-const browserViewUrl = (url: string): string => {
+export const browserViewUrl = (url: string): string => {
   try {
     const u = new URL(url);
     if (u.hostname.endsWith(".sharepoint.com") && /\.xls[xmb]?$/i.test(u.pathname) && !u.pathname.startsWith("/:")) {

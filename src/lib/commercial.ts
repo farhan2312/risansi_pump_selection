@@ -19,6 +19,7 @@ export const BOI_ITEMS = [
   { key: "motorPrice", label: "Motor" },
   { key: "gearboxPrice", label: "Gearbox" },
   { key: "vfdPrice", label: "VFD" },
+  { key: "mechSealPrice", label: "Mechanical Seal" },
   { key: "strainerPrice", label: "Strainer" },
   { key: "prvPrice", label: "PRV" },
   { key: "drpPrice", label: "DRP" },
@@ -50,6 +51,9 @@ export type CommercialPrices = {
   /** The BOI Master DRP kit used for drpPrice ("RTD probe 50 mm + RTD panel"),
    *  if any. Missing on older quotation snapshots. */
   drpModel: string | null;
+  /** The BOI Master mechanical seal used for mechSealPrice, if any. Missing
+   *  on older quotation snapshots. */
+  mechSealModel?: string | null;
   /** What a used L1–L4 P&A suggestion was based on, or null (typed by hand).
    *  Missing on older quotation snapshots. */
   paBasis?: string | null;
@@ -90,6 +94,8 @@ export type CommercialTag = {
   /** What the pump selection says (model, size, rubber, sealing) — prefills
    *  the code builder. */
   codeHints: CodeHints;
+  /** Liquid / pump type / pump speed / motor kW, as on the Technical Data Sheet. */
+  tech: TagTech;
   /** For the P&A price suggestion (lib/pa-price.ts): base plate material and
    *  the model's standard vs entered suction / delivery size. */
   paHints: { basePlate: string | null; recommendedSize: string | null; dischargeSize: string | null };
@@ -105,10 +111,18 @@ export type CommercialTag = {
    *  reason in drpNote. */
   drpOption: DrpOption | null;
   drpNote: string | null;
+  /** BOI Master mechanical seal for the Sealing step's choice and the pump's
+   *  shaft dia, or null with the reason in mechSealNote. */
+  mechSealOption: MechSealOption | null;
+  mechSealNote: string | null;
   prices: CommercialPrices;
   updatedAt: string | null;
   updatedByName: string | null;
 };
+
+/** Technical lines the Commercial Offer repeats from the Technical Data
+ *  Sheet (same values): liquid, pump type, pump speed, motor rating. */
+export type TagTech = { liquid: string; pumpType: string; pumpSpeed: string; motorKw: string };
 
 export type CommercialSummary = {
   project: {
@@ -117,6 +131,8 @@ export type CommercialSummary = {
     name: string;
     customerName: string | null;
     clientCode: string | null;
+    /** The one remarks note for the whole Commercial Summary. */
+    remarks: string;
   };
   tags: CommercialTag[];
 };
@@ -128,6 +144,8 @@ export const emptyPrices = (): CommercialPrices => ({
   motorPrice: null,
   gearboxPrice: null,
   vfdPrice: null,
+  mechSealPrice: null,
+  mechSealModel: null,
   vfdModel: null,
   drpModel: null,
   paBasis: null,
@@ -283,6 +301,68 @@ export function otherNet(p: CommercialPrices, o: CommercialOther): number | null
   return netPrice(o.price, o.discountPct ?? 0, o.markupPct ?? DEFAULT_MARKUP_PCT);
 }
 
+// --- Mechanical seal (BOI Master, Mech Seal tab) ------------------------------
+// Sealing step: Mechanical Seal + type (SCG / DCG / MSA / MSK), make, MOC, face.
+// ACME list only, SiC vs SiC faces, SS304 / SS316 (user, 2026-10-04). Row =
+// the series for the type at the pump's shaft dia (pump_shaft_dia); auger
+// pumps take SCG's "AUGAR" row when there is one.
+
+export type MechSealRow = {
+  make: string;
+  series: string;
+  drawingNo: string;
+  shaftSizeMm: number;
+  type: string | null;
+  material304: string | null;
+  price304: number | null;
+  material316: string | null;
+  price316: number | null;
+};
+
+export type MechSealOption = {
+  drawingNo: string;
+  series: string;
+  shaftSizeMm: number;
+  material: string;
+  price: number;
+  /** Saved as commercial_tag_price.mech_seal_model when used. */
+  label: string;
+};
+
+/** Wizard seal type → ACME series. */
+export const MECH_SEAL_SERIES: Record<string, string> = { SCG: "SCG", DCG: "DCG", MSA: "N SERIES", MSK: "K SERIES" };
+
+export function mechSealOptionFor(
+  seal: { sealingType: string | null; type: string | null; make: string | null; moc: string | null; face: string | null },
+  shaftDia: number | null,
+  auger: boolean,
+  rows: MechSealRow[],
+): { option: MechSealOption | null; note: string | null } {
+  const none = (note: string) => ({ option: null, note });
+  if (seal.sealingType !== "Mechanical Seal") return none(seal.sealingType ? `${seal.sealingType} — no mechanical seal` : "No sealing chosen yet");
+  if (!seal.type) return none("Seal type not picked on the Sealing step");
+  const series = MECH_SEAL_SERIES[seal.type];
+  if (!series) return none(`No price list for seal type ${seal.type}`);
+  const make = (seal.make ?? "").trim();
+  const listed = rows.filter((r) => r.series === series && r.make.toUpperCase() === make.toUpperCase());
+  if (!listed.length) return none(make ? `No ${make} price list — only ACME is loaded` : "Seal make not picked on the Sealing step");
+  if (!/sic/i.test(seal.face ?? "")) return none(`${seal.face || "Face"} not priced — the list is SiC vs SiC only`);
+  const moc = (seal.moc ?? "").toUpperCase().replace(/\s+/g, "");
+  const grade = moc === "SS304" ? "304" : moc === "SS316" ? "316" : null;
+  if (!grade) return none(`${seal.moc || "Seal MOC"} not priced — the list is SS304 / SS316 only`);
+  if (shaftDia === null) return none("No shaft dia for this pump model in the BOI Master Shaft Dia tab");
+  const atShaft = listed.filter((r) => Math.abs(r.shaftSizeMm - shaftDia) < 0.01);
+  const row = (auger ? atShaft.find((r) => /AUG/i.test(r.type ?? "")) : undefined) ?? atShaft.find((r) => !/AUG/i.test(r.type ?? ""));
+  if (!row) return none(`No ${series} seal for a ${shaftDia} mm shaft`);
+  const price = grade === "304" ? row.price304 : row.price316;
+  const material = (grade === "304" ? row.material304 : row.material316) ?? `SiC / ${grade}`;
+  if (price === null) return none(`${row.drawingNo} has no ${grade} price`);
+  return {
+    option: { drawingNo: row.drawingNo, series, shaftSizeMm: row.shaftSizeMm, material, price, label: `${row.make} ${row.drawingNo} · ${material}` },
+    note: null,
+  };
+}
+
 /** Sum of the BOI items only (fixed rows + Others, quoted prices), per unit. */
 export function boiTotal(p: CommercialPrices): number {
   const fixed = BOI_ITEMS.reduce((s, it) => s + (boiNet(p, it.key) ?? 0), 0);
@@ -358,6 +438,8 @@ export type QuotationSnapshot = {
     productCode: string | null;
     model: string | null;
     quantity: number | null;
+    /** Missing on snapshots made before 2026-10-05. */
+    tech?: TagTech;
     prices: CommercialPrices;
     unit: number;
     sub: number;
@@ -366,6 +448,8 @@ export type QuotationSnapshot = {
   /** The Commercial Offer sheet edits for this drive group when the version
    *  was made (lib/commercial-offer). Missing on older snapshots = defaults. */
   offer?: OfferConfig;
+  /** The Commercial Summary's remarks when the version was made. */
+  remarks?: string;
 };
 
 export type QuotationVersionInfo = {
@@ -396,6 +480,10 @@ export type QuotationInfo = {
   quoteDate: string;
   finYear: string;
   serial: number | null;
+  /** ERP serial typed in by hand, or null. */
+  erpSerial: string | null;
+  /** "RIL/QT/SV/26-27/PCP/<ERP serial>[/GM]", or null without an ERP serial. */
+  erpNumber: string | null;
   regionCode: string | null;
   tsmRepId: number | null;
   tsmName: string | null;
@@ -434,6 +522,26 @@ export function quotationNumber(
   const parts: (string | number)[] = ["RIL", "QT", q.regionCode || "—", fy, q.productType, q.serial ?? "····"];
   if (mixed && q.driveGroup) parts.push(q.driveGroup);
   return parts.join("/");
+}
+
+/** The ERP quotation number: the portal number's prefix with the ERP serial. */
+export function erpQuotationNumber(
+  q: Parameters<typeof quotationNumber>[0] & { erpSerial: string | null },
+  mixed = false,
+): string | null {
+  if (!q.erpSerial) return null;
+  const fy = /^\d{4}$/.test(q.finYear) ? `${q.finYear.slice(0, 2)}-${q.finYear.slice(2)}` : q.finYear;
+  const parts: string[] = ["RIL", "QT", q.regionCode || "—", fy, q.productType, q.erpSerial];
+  if (mixed && q.driveGroup) parts.push(q.driveGroup);
+  return parts.join("/");
+}
+
+/** An ERP serial as typed: letters, digits, "-" and "/", up to 30; "" → null;
+ *  undefined when invalid. */
+export function parseErpSerial(raw: unknown): string | null | undefined {
+  const v = String(raw ?? "").trim().toUpperCase();
+  if (!v) return null;
+  return /^[A-Z0-9][A-Z0-9/-]{0,29}$/.test(v) ? v : undefined;
 }
 
 /** "V0" / "V3"; "Not sent" for a client track that has no version yet. */

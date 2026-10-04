@@ -5,13 +5,16 @@
  *   letterhead · "Risansi Industries Limited - Commercial Offer"
  *   Client Name · Enquiry No. & Date | Quotation No. & Date
  *   Commercial Offer band:
- *     Drive Motor · Gear Box (geared groups) · [VFD · Strainer · PRV] · DRP with
- *     Panel · [Other items] · Pump with Accessories · P&A + Motor (+ Gear Box)
- *     Unit Price · … Qty. Price
+ *     Drive Motor · Gear Box (geared groups) · [VFD] · Mechanical Seal ·
+ *     [Strainer · PRV] · DRP with Panel · one row per Other BOI item (by name)
+ *     · Pump with Accessories · Unit Price INR (as per scope of supply) ·
+ *     Sub-Total Price INR (as per scope of supply)
  *   Scope of supply :- …   (red)
  *   Out Of Scope :- …
  *
- * VFD / Strainer / PRV / Other rows show only when some tag has that price.
+ * Every BOI row (motor, gear box, VFD, mechanical seal, strainer, PRV, DRP,
+ * each named Other item) shows only when some tag on the sheet has a price
+ * for it (user, 2026-10-05).
  * Optional rows (Quantity, BOI total, total of all tags) are ticked per sheet.
  * Edits (projects.commercial_offer_config, per drive group) change the
  * document only — never the saved prices. Each quotation version freezes its
@@ -19,7 +22,7 @@
  *
  * Client-safe (no DB / DOM): the modal, print and Excel all build from here.
  */
-import { boiNet, boiTotal, otherNet, type CommercialPrices, type DriveGroup } from "./commercial";
+import { boiNet, boiTotal, otherNet, type CommercialPrices, type DriveGroup, type TagTech } from "./commercial";
 import { esc, sheetHtml, type TechDocHeader, type TechDocRow } from "./tech-doc";
 
 export const OFFER_TITLE = "Commercial Offer";
@@ -53,6 +56,8 @@ export interface OfferTag {
   tagName: string;
   prices: CommercialPrices;
   quantity: number | null;
+  /** Liquid / pump type / pump speed / motor kW (as on the Technical Data Sheet). */
+  tech?: TagTech;
   /** Unit price (P&A + all BOI). */
   unit: number;
   /** unit × quantity. */
@@ -85,6 +90,8 @@ export interface CommercialOfferData {
   mixed: boolean;
   /** Drive group → "RIL/QT/…/PCP/6000[/GM], Dt. …" (groups with a quotation). */
   quotations: Record<string, string>;
+  /** Drive group → the quotation's ERP number (only when an ERP serial is entered). */
+  erpNumbers: Record<string, string>;
   configs: Record<string, OfferConfig>;
 }
 
@@ -107,23 +114,47 @@ interface OfferField {
   value: (t: OfferTag) => string;
   /** span rows: the sheet value from all tags. */
   sheetValue?: (tags: OfferTag[]) => string;
+  /** Expands into one row per named Other BOI item. */
+  perOther?: boolean;
 }
 
 // BOI rows show the QUOTED price (after vendor discount and markup).
-const otherSum = (p: CommercialPrices): number | null =>
-  (p.others ?? []).some((o) => o.price !== null) ? (p.others ?? []).reduce((s, o) => s + (otherNet(p, o) ?? 0), 0) : null;
 
-const withGb = (geared: boolean) => (geared ? "Pump With Accessories + Motor + Gear Box" : "Pump With Accessories + Motor");
+/** Row key for a named Other BOI item ("Coupling guard" → "o_coupling_guard"). */
+const otherKey = (name: string) =>
+  `o_${name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40) || "item"}`;
+
+/** One row per named Other BOI item across the sheet's tags (first-seen
+ *  order); each tag's cell is its quoted price for that item, blank if none. */
+function otherItemRows(tags: OfferTag[]): { key: string; name: string; values: string[] }[] {
+  const names = new Map<string, string>();
+  for (const t of tags) for (const o of t.prices.others ?? []) if (o.name.trim() && !names.has(otherKey(o.name))) names.set(otherKey(o.name), o.name.trim());
+  return [...names].map(([key, name]) => ({
+    key,
+    name,
+    values: tags.map((t) => {
+      const items = (t.prices.others ?? []).filter((o) => otherKey(o.name) === key && o.price !== null);
+      return items.length ? money(items.reduce((sum, o) => sum + (otherNet(t.prices, o) ?? 0), 0)) : "";
+    }),
+  }));
+}
 
 /** In sheet order (the format's rows, with the optional ones in place). */
 export const OFFER_FIELDS: OfferField[] = [
-  { key: "motor", label: () => "Drive Motor Price In Unit (INR)", value: (t) => money(boiNet(t.prices, "motorPrice")) },
-  { key: "gearbox", label: () => "Gear Box Price In Unit (INR)", gearedOnly: true, value: (t) => money(boiNet(t.prices, "gearboxPrice")) },
+  // Technical lines, right after the tag row (user, 2026-10-05).
+  { key: "t_liquid", label: () => "Liquid / Application", value: (t) => t.tech?.liquid ?? "" },
+  { key: "t_pumpType", label: () => "Type of Pump", value: (t) => t.tech?.pumpType ?? "" },
+  { key: "t_pumpSpeed", label: () => "Pump Speed", value: (t) => t.tech?.pumpSpeed ?? "" },
+  { key: "t_motorKw", label: () => "Motor Rating (kW)", value: (t) => t.tech?.motorKw ?? "" },
+  { key: "motor", label: () => "Drive Motor Price In Unit (INR)", whenPriced: true, value: (t) => money(boiNet(t.prices, "motorPrice")) },
+  { key: "gearbox", label: () => "Gear Box Price In Unit (INR)", gearedOnly: true, whenPriced: true, value: (t) => money(boiNet(t.prices, "gearboxPrice")) },
   { key: "vfd", label: () => "VFD Price In Unit (INR)", whenPriced: true, value: (t) => money(boiNet(t.prices, "vfdPrice")) },
+  { key: "mechSeal", label: () => "Mechanical Seal Price In Unit (INR)", whenPriced: true, value: (t) => money(boiNet(t.prices, "mechSealPrice")) },
   { key: "strainer", label: () => "Strainer Price In Unit (INR)", whenPriced: true, value: (t) => money(boiNet(t.prices, "strainerPrice")) },
   { key: "prv", label: () => "PRV Price In Unit (INR)", whenPriced: true, value: (t) => money(boiNet(t.prices, "prvPrice")) },
-  { key: "drp", label: () => "DRP with Panel (Probe type) IN unit Price", value: (t) => money(boiNet(t.prices, "drpPrice")) },
-  { key: "others", label: () => "Other Items Price In Unit (INR)", whenPriced: true, value: (t) => money(otherSum(t.prices)) },
+  { key: "drp", label: () => "DRP with Panel (Probe type) IN unit Price", whenPriced: true, value: (t) => money(boiNet(t.prices, "drpPrice")) },
+  // One row per Other BOI item, by its name ("Coupling guard Price In Unit (INR)").
+  { key: "others", label: () => "Other Items", perOther: true, value: () => "" },
   {
     key: "x_boi",
     label: () => "BOI Items Total In Unit (INR)",
@@ -131,9 +162,9 @@ export const OFFER_FIELDS: OfferField[] = [
     value: (t) => money(boiTotal({ ...t.prices, others: t.prices.others ?? [] })),
   },
   { key: "pa", label: () => "Pump with Accessories Unit Price (INR)", value: (t) => money(t.prices.paPrice) },
-  { key: "unit", label: (g) => `${withGb(g)} Unit Price (INR)`, value: (t) => money(t.unit) },
+  { key: "unit", label: () => "Unit Price INR (as per scope of supply)", value: (t) => money(t.unit) },
   { key: "x_qty", label: () => "Quantity (Nos.)", extra: true, value: (t) => (t.quantity === null ? "" : String(t.quantity)) },
-  { key: "qtyPrice", label: (g) => `${withGb(g)} Qty. Price (INR)`, value: (t) => money(t.sub) },
+  { key: "qtyPrice", label: () => "Sub-Total Price INR (as per scope of supply)", value: (t) => money(t.sub) },
   {
     key: "x_total",
     label: () => "Total Price (INR)",
@@ -202,7 +233,9 @@ export function normalizeOfferConfig(raw: unknown): OfferConfig {
     }))
     .filter((c) => c.id && c.label)
     .slice(0, 30);
-  const validKeys = new Set([...OFFER_FIELDS.map((f) => f.key), ...custom.map((c) => offerCustomKey(c.id))]);
+  const fixedKeys = new Set([...OFFER_FIELDS.map((f) => f.key), ...custom.map((c) => offerCustomKey(c.id))]);
+  // Other-item rows are keyed by name (o_…), so any such key is valid.
+  const validKeys = { has: (k: string) => fixedKeys.has(k) || /^o_[a-z0-9_]{1,40}$/.test(k) };
   const keyList = (v: unknown) => [...new Set((Array.isArray(v) ? v : []).map(String).filter((k) => validKeys.has(k)))];
   const labels: Record<string, string> = {};
   for (const [k, v] of Object.entries(isObj(r.labels) ? r.labels : {})) if (validKeys.has(k) && text(v)) labels[k] = text(v);
@@ -273,6 +306,11 @@ export function buildOffer(
     });
   };
   for (const f of OFFER_FIELDS) {
+    if (f.perOther) {
+      // Only items some tag has a price for.
+      for (const o of otherItemRows(tags)) if (o.values.some(Boolean)) finish(o.key, "fixed", `${o.name} Price In Unit (INR)`, o.values);
+      continue;
+    }
     if (f.extra && !picked.has(f.key)) continue;
     if (f.gearedOnly && !geared) continue;
     const auto = f.span ? [f.sheetValue?.(tags) ?? ""] : tags.map(f.value);

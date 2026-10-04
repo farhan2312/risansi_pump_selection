@@ -88,6 +88,7 @@ export const MAIN_LINKS: NavLink[] = [
   { href: "/pump-selection", label: "Pump Selection", shortLabel: "Select", icon: "pump" },
   { href: "/selection-summary", label: "Reports", icon: "reports" },
   { href: "/head-calculator", label: "Head Calculator", shortLabel: "Calc", icon: "calculator" },
+  { href: "/client-prices", label: "Client Quoted Prices", shortLabel: "Prices", icon: "reports" },
 ];
 
 /** Master-data pages — admin and system_admin alike. */

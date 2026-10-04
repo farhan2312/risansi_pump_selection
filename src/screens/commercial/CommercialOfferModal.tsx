@@ -118,7 +118,12 @@ export default function CommercialOfferModal({
     const q = data.quotations[group] ?? "";
     return {
       projectCode: data.projectCode,
-      header: { clientName: data.clientName, enquiry: data.enquiry, quotation: q && version ? `${q} (${version.label})` : q },
+      header: {
+        clientName: data.clientName,
+        enquiry: data.enquiry,
+        quotation: q && version ? `${q} (${version.label})` : q,
+        erp: data.erpNumbers?.[group] || undefined,
+      },
       tags,
       config,
       geared,

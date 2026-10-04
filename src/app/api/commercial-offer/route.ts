@@ -1,7 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
-import { DRIVE_GROUPS, isDriveGroup, quotationNumber } from "@/lib/commercial";
+import { DRIVE_GROUPS, erpQuotationNumber, isDriveGroup, quotationNumber } from "@/lib/commercial";
 import { normalizeOfferConfig, normalizeOfferConfigs, type CommercialOfferData } from "@/lib/commercial-offer";
 import { projectDriveGroups } from "@/lib/commercial-server";
 import { db } from "@/lib/db";
@@ -35,6 +35,12 @@ export async function GET(req: Request) {
     enquiry: [p.code, p.enquiryDate ? `Dt. ${dotDate(p.enquiryDate)}` : ""].filter(Boolean).join(", "),
     mixed,
     quotations: Object.fromEntries(quotes.map((q) => [q.driveGroup, `${quotationNumber(q, mixed)}, Dt. ${dotDate(q.quoteDate)}`])),
+    erpNumbers: Object.fromEntries(
+      quotes.flatMap((q) => {
+        const erp = erpQuotationNumber(q, mixed);
+        return erp ? [[q.driveGroup, erp]] : [];
+      }),
+    ),
     configs: normalizeOfferConfigs(p.config, [...DRIVE_GROUPS]),
   };
   return json(data);

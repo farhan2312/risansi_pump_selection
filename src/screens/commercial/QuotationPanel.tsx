@@ -21,6 +21,7 @@ import {
 import {
   changeQuotationTsm,
   createQuotation,
+  setQuotationErpSerial,
   getQuotation,
   listTsmOptions,
   newInternalVersion,
@@ -75,6 +76,9 @@ export default function QuotationPanel({
   const [optionsError, setOptionsError] = useState(false);
   const [tsmId, setTsmId] = useState<string>("");
   const [busy, setBusy] = useState(false);
+  // ERP serial box (create form + existing quotation); follows the saved value.
+  const [erpDraft, setErpDraft] = useState("");
+  useEffect(() => setErpDraft(quotation?.erpSerial ?? ""), [quotation?.erpSerial]);
   const [actionError, setActionError] = useState("");
   const [confirm, setConfirm] = useState<null | "tsm" | "send" | "internal">(null);
   const [viewing, setViewing] = useState<QuotationVersionInfo | null>(null);
@@ -199,12 +203,26 @@ export default function QuotationPanel({
           </p>
           <div className="flex flex-wrap items-center gap-3">
             {tsmField}
+            <label className="flex items-center gap-2 text-[12.5px] text-fg-2">
+              Quotation No. (ERP) serial
+              <input
+                className="w-[130px] rounded-lg border border-line bg-paper px-2.5 py-1.5 font-mono text-[13px] text-fg uppercase outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                value={erpDraft}
+                maxLength={30}
+                placeholder="optional"
+                onChange={(e) => setErpDraft(e.target.value)}
+              />
+            </label>
             <button
               type="button"
               className={btnPrimarySm}
               disabled={busy || !picked}
               onClick={() =>
-                picked && run(() => createQuotation(projectId, group, clientTsm ? undefined : picked.id), "Couldn't create the quotation.")
+                picked &&
+                run(
+                  () => createQuotation(projectId, group, clientTsm ? undefined : picked.id, erpDraft.trim() || undefined),
+                  "Couldn't create the quotation.",
+                )
               }
             >
               {busy ? "Creating…" : "Create Quotation"}
@@ -268,6 +286,30 @@ export default function QuotationPanel({
       </header>
 
       <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="text-[11px] font-semibold tracking-[0.08em] text-fg-3 uppercase">Quotation No. (ERP)</span>
+          <span className="flex flex-wrap items-center gap-1.5">
+            <input
+              className="w-[120px] rounded-md border border-line bg-paper px-2 py-1 font-mono text-[12.5px] text-fg uppercase outline-none focus:border-accent"
+              value={erpDraft}
+              maxLength={30}
+              placeholder="ERP serial"
+              aria-label="ERP serial"
+              onChange={(e) => setErpDraft(e.target.value)}
+            />
+            {erpDraft.trim().toUpperCase() !== (quotation.erpSerial ?? "") && (
+              <button
+                type="button"
+                className={btnSm}
+                disabled={busy}
+                onClick={() => run(() => setQuotationErpSerial(quotation.id, erpDraft.trim()), "Couldn't save the ERP serial.")}
+              >
+                Save
+              </button>
+            )}
+          </span>
+          <span className="font-mono text-[11.5px] break-all text-fg-2">{quotation.erpNumber ?? "—"}</span>
+        </div>
         <Info label="Date" value={new Date(quotation.quoteDate).toLocaleDateString("en-IN", { dateStyle: "medium" })} />
         <Info label="Client" value={[quotation.clientName, quotation.clientCode].filter(Boolean).join(" · ") || "—"} />
         <Info label="Region (TSM initials)" value={quotation.regionCode ?? "—"} />
@@ -538,6 +580,7 @@ function SnapshotModal({
             tags={version.snapshot.tags.map((t) => ({
               tagId: t.tagId ?? t.tagName,
               tagName: t.tagName,
+              tech: t.tech,
               prices: t.prices,
               quantity: t.quantity,
               unit: t.unit,
@@ -581,6 +624,11 @@ function SnapshotModal({
 
           {/* Each tag's price build-up, as saved in this version. */}
           <div className="flex flex-col gap-3 border-t border-line bg-sunk p-4">
+            {s.remarks && (
+              <p className="rounded-lg border border-line bg-paper px-3 py-2 text-[12.5px] whitespace-pre-line text-fg-2">
+                <span className="font-semibold">Remarks:</span> {s.remarks}
+              </p>
+            )}
             <h4 className="text-[11.5px] font-semibold tracking-[0.09em] text-fg-3 uppercase">Details by tag</h4>
             {s.tags.map((t, i) => (
               <TagBreakdown key={i} tag={t} />
@@ -597,6 +645,7 @@ type SnapshotTag = QuotationSnapshot["tags"][number];
 /** Labels saved beside a BOI price (the BOI Master VFD / DRP kit picked). */
 const BOI_NOTE: Partial<Record<string, (p: SnapshotTag["prices"]) => string | null | undefined>> = {
   vfdPrice: (p) => p.vfdModel,
+  mechSealPrice: (p) => p.mechSealModel,
   drpPrice: (p) => p.drpModel,
 };
 

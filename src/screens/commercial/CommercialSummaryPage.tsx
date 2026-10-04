@@ -46,7 +46,7 @@ import {
   type VfdOption,
   type DrpOption,
 } from "../../lib/commercial";
-import { getCommercialSummary, saveCommercialPrices } from "../../services/commercialService";
+import { getCommercialSummary, saveCommercialPrices, saveCommercialRemarks } from "../../services/commercialService";
 
 // Commercial Summary (pricing v1, manual). Every tag of one enquiry on one
 // page: Pump & Accessories + BOI items typed in per unit, quantity pulled from
@@ -66,6 +66,8 @@ type Draft = {
   vfdModel: string;
   /** Used BOI Master DRP kit ("" = none). */
   drpModel: string;
+  /** Used BOI Master mechanical seal ("" = none). */
+  mechSealModel: string;
   /** Basis of a used L1–L4 P&A suggestion ("" = typed by hand). */
   paBasis: string;
   others: OtherDraft[];
@@ -91,6 +93,8 @@ const toDraft = (p: CommercialPrices): Draft => ({
   motorPrice: priceText(p.motorPrice),
   gearboxPrice: priceText(p.gearboxPrice),
   vfdPrice: priceText(p.vfdPrice),
+  mechSealPrice: priceText(p.mechSealPrice),
+  mechSealModel: p.mechSealModel ?? "",
   vfdModel: p.vfdModel ?? "",
   drpModel: p.drpModel ?? "",
   paBasis: p.paBasis ?? "",
@@ -116,6 +120,8 @@ const parseDraft = (d: Draft): CommercialPrices => {
     motorPrice: val(d.motorPrice),
     gearboxPrice: val(d.gearboxPrice),
     vfdPrice,
+    mechSealPrice: val(d.mechSealPrice),
+    mechSealModel: val(d.mechSealPrice) !== null && d.mechSealModel ? d.mechSealModel : null,
     // A picked model only means something alongside a VFD price (the API
     // applies the same rule).
     vfdModel: vfdPrice !== null && d.vfdModel ? d.vfdModel : null,
@@ -184,6 +190,15 @@ export default function CommercialSummaryPage() {
   const [saveError, setSaveError] = useState<Record<string, string>>({});
   const [showErrors, setShowErrors] = useState<Record<string, boolean>>({});
   const [justSaved, setJustSaved] = useState<Record<string, boolean>>({});
+  // Tag cards folded to their one-line summary (per tag; Collapse/Expand all).
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const toggleTag = (id: string) =>
+    setCollapsed((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   // Bumped after each price save so the quotation's live version refreshes.
   const [pricesVersion, setPricesVersion] = useState(0);
   // "Client Price Ref" viewer (the client's old price sheets on SharePoint).
@@ -337,6 +352,7 @@ export default function CommercialSummaryPage() {
           return {
             tagId: t.tagId,
             tagName: t.tagName,
+            tech: t.tech,
             prices,
             quantity: t.quantity,
             unit: unitTotal(prices),
@@ -527,6 +543,16 @@ export default function CommercialSummaryPage() {
             )
           )}
 
+          <RemarksCard
+            projectId={projectId}
+            saved={data.project.remarks}
+            onSaved={(remarks) => {
+              setData((d) => (d ? { ...d, project: { ...d.project, remarks } } : d));
+              // The quotation's live version carries the remarks.
+              setPricesVersion((n) => n + 1);
+            }}
+          />
+
           {tab && tab !== "NONE" && (
             <section className="rounded-xl border border-line bg-paper">
               <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
@@ -639,10 +665,33 @@ export default function CommercialSummaryPage() {
             )}
           </section>
 
+          {groupRows.length > 1 && (
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                className={btnSm}
+                onClick={() => setCollapsed((cur) => new Set([...cur, ...groupRows.map((r) => r.tag.tagId)]))}
+              >
+                Collapse all
+              </button>
+              <button
+                type="button"
+                className={btnSm}
+                onClick={() =>
+                  setCollapsed((cur) => new Set([...cur].filter((id) => !groupRows.some((r) => r.tag.tagId === id))))
+                }
+              >
+                Expand all
+              </button>
+            </div>
+          )}
+
           {groupRows.map(({ tag, prices, unit, sub }) => (
             <TagCard
               key={tag.tagId}
               tag={tag}
+              collapsed={collapsed.has(tag.tagId)}
+              onToggle={() => toggleTag(tag.tagId)}
               paData={paData}
               draft={drafts[tag.tagId]}
               prices={prices}
@@ -688,6 +737,8 @@ export default function CommercialSummaryPage() {
 
 function TagCard({
   tag,
+  collapsed,
+  onToggle,
   paData,
   draft,
   prices,
@@ -703,6 +754,9 @@ function TagCard({
   onReset,
 }: {
   tag: CommercialTag;
+  /** Folded to the header's one-line summary. */
+  collapsed: boolean;
+  onToggle: () => void;
   paData: PaPriceData | "error" | null;
   draft: Draft;
   prices: CommercialPrices;
@@ -726,18 +780,40 @@ function TagCard({
 
   return (
     <section id={`tag-${tag.tagId}`} className="scroll-mt-4 rounded-xl border border-line bg-paper">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
-        <div className="min-w-0">
-          <h2 className="text-[15px] font-semibold text-fg">
-            {tag.tagName}
-            <span className="ml-2 text-[13px] font-normal text-fg-3">{tag.model ?? "No pump selected"}</span>
-          </h2>
-          <p className="mt-0.5 text-[12px] text-fg-3">
-            {[tag.media, tag.driveSystem, tag.status].filter(Boolean).join(" · ")}
-            {tag.model && !tag.modelConfirmed && <span className="ml-1 text-warn">· model not confirmed</span>}
-          </p>
-        </div>
+      <header
+        className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 ${collapsed ? "" : "border-b border-line"}`}
+      >
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={!collapsed}
+          className="flex min-w-0 flex-1 items-start gap-2.5 text-left"
+          title={collapsed ? "Expand this tag" : "Collapse this tag"}
+        >
+          <span className="mt-0.5 shrink-0 text-[13px] text-fg-3" aria-hidden="true">
+            {collapsed ? "▸" : "▾"}
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[15px] font-semibold text-fg">
+              {tag.tagName}
+              <span className="ml-2 text-[13px] font-normal text-fg-3">{tag.model ?? "No pump selected"}</span>
+            </span>
+            {collapsed ? (
+              <span className="mt-0.5 block text-[12px] text-fg-3">
+                {tag.productCode ?? "No product code"} · Unit <b className="font-mono text-fg-2">{formatInr(unit)}</b> ·{" "}
+                {tag.quantity === null ? <span className="text-warn">qty not set</span> : `× ${tag.quantity}`} · Sub-total{" "}
+                <b className="font-mono text-fg">{formatInr(sub)}</b>
+              </span>
+            ) : (
+              <span className="mt-0.5 block text-[12px] text-fg-3">
+                {[tag.media, tag.driveSystem, tag.status].filter(Boolean).join(" · ")}
+                {tag.model && !tag.modelConfirmed && <span className="ml-1 text-warn">· model not confirmed</span>}
+              </span>
+            )}
+          </span>
+        </button>
         <div className="flex items-center gap-2">
+          {dirty && collapsed && <span className="text-[12px] font-medium text-warn">Unsaved changes</span>}
           {justSaved && !dirty && <span className="text-[12px] font-medium text-pos">Saved</span>}
           {dirty && (
             <button type="button" className={btnSm} onClick={onReset} disabled={saving}>
@@ -750,7 +826,7 @@ function TagCard({
         </div>
       </header>
 
-      <div className="grid grid-cols-1 gap-5 p-4 lg:grid-cols-[1fr_280px]">
+      <div className={`grid grid-cols-1 gap-5 p-4 lg:grid-cols-[1fr_280px] ${collapsed ? "hidden" : ""}`}>
         <div className="flex min-w-0 flex-col gap-4">
           {/* Pump & Accessories */}
           <div>
@@ -807,6 +883,20 @@ function TagCard({
                           picked={draft.vfdModel}
                           onPick={(o) => onChange({ vfdModel: o.driveDescription, vfdPrice: String(o.netPrice ?? "") })}
                           onClear={() => onChange({ vfdModel: "" })}
+                        />
+                      ) : item.key === "mechSealPrice" ? (
+                        <BoiOptionPicker
+                          option={
+                            tag.mechSealOption && {
+                              text: `${tag.mechSealOption.drawingNo} · ${tag.mechSealOption.material} · ${tag.mechSealOption.shaftSizeMm} mm shaft`,
+                              label: tag.mechSealOption.label,
+                              price: tag.mechSealOption.price,
+                            }
+                          }
+                          note={tag.mechSealNote}
+                          used={draft.mechSealModel}
+                          onUse={(label, price) => onChange({ mechSealModel: label, mechSealPrice: String(price) })}
+                          onClear={() => onChange({ mechSealModel: "" })}
                         />
                       ) : item.key === "drpPrice" ? (
                         <DrpPicker
@@ -899,17 +989,6 @@ function TagCard({
             </div>
           </div>
 
-          <label className="flex flex-col gap-1.5">
-            <span className="text-[11.5px] font-semibold tracking-[0.09em] text-fg-3 uppercase">Remarks</span>
-            <textarea
-              className={`${inputCls} min-h-[64px] resize-y`}
-              value={draft.remarks}
-              maxLength={2000}
-              placeholder="Optional notes on these prices"
-              onChange={(e) => onChange({ remarks: e.target.value })}
-            />
-          </label>
-
           {error && <p className="text-[12.5px] text-neg">{error}</p>}
           {tag.updatedAt && (
             <p className="text-[11.5px] text-fg-4">
@@ -936,6 +1015,60 @@ function TagCard({
         </aside>
       </div>
     </section>
+  );
+}
+
+/** A BOI row's single BOI Master suggestion (mechanical seal): "Use ₹…"
+ *  fills the base price and records the item; or the reason there is none. */
+function BoiOptionPicker({
+  option,
+  note,
+  used,
+  onUse,
+  onClear,
+}: {
+  option: { text: string; label: string; price: number } | null;
+  note: string | null;
+  used: string;
+  onUse: (label: string, price: number) => void;
+  onClear: () => void;
+}) {
+  const usedLine = used && (
+    <span className="flex flex-wrap items-center gap-x-2">
+      <span className="text-fg-2">Used: {used}</span>
+      <button type="button" className="text-[11.5px] font-semibold text-fg-3 hover:text-neg" onClick={onClear}>
+        Clear
+      </button>
+    </span>
+  );
+  if (!option) {
+    return (
+      <span className="flex flex-col gap-1 pt-1">
+        {usedLine}
+        <span className="text-warn">{note}</span>
+      </span>
+    );
+  }
+  const active = used === option.label;
+  return (
+    <div className="flex flex-col gap-1">
+      <div
+        className={`flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border px-2 py-1 ${
+          active ? "border-accent bg-accent-soft" : "border-line"
+        }`}
+      >
+        <span className="text-fg-2">{option.text}</span>
+        <button
+          type="button"
+          className="ml-auto rounded-md border border-line bg-paper px-1.5 py-0.5 font-mono text-[11.5px] text-accent hover:border-accent"
+          onClick={() => onUse(option.label, option.price)}
+          title="Copy the BOI Master price into this row's base price"
+        >
+          {active ? "Used" : "Use"} {formatInr(option.price)}
+        </button>
+      </div>
+      {used && !active && usedLine}
+    </div>
   );
 }
 
@@ -1243,6 +1376,60 @@ function PriceCluster({
       </div>
       {error && <span className="text-[11.5px] text-neg">{error}</span>}
     </div>
+  );
+}
+
+/** One remarks note for the whole Commercial Summary (all tags and groups). */
+function RemarksCard({
+  projectId,
+  saved,
+  onSaved,
+}: {
+  projectId: string;
+  saved: string;
+  onSaved: (remarks: string) => void;
+}) {
+  const [text, setText] = useState(saved);
+  const [state, setState] = useState<"" | "saving" | "saved" | "error">("");
+  useEffect(() => setText(saved), [saved]);
+  const dirty = text.trim() !== saved;
+  const save = async () => {
+    setState("saving");
+    try {
+      await saveCommercialRemarks(projectId, text.trim());
+      onSaved(text.trim());
+      setState("saved");
+    } catch {
+      setState("error");
+    }
+  };
+  return (
+    <section className="rounded-xl border border-line bg-paper">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
+        <h2 className="text-[14px] font-semibold text-fg">Remarks</h2>
+        <div className="flex items-center gap-2">
+          <span className="text-[12px] text-fg-3">
+            {state === "saving" ? "Saving…" : state === "error" ? "Couldn't save — try again" : state === "saved" && !dirty ? "Saved" : "One note for the whole enquiry"}
+          </span>
+          <button type="button" className={btnPrimarySm} onClick={() => void save()} disabled={!dirty || state === "saving"}>
+            Save
+          </button>
+        </div>
+      </header>
+      <div className="p-4">
+        <textarea
+          className={`${inputCls} min-h-[72px] resize-y`}
+          value={text}
+          maxLength={2000}
+          placeholder="Optional notes on these prices"
+          onChange={(e) => {
+            setText(e.target.value);
+            if (state === "saved") setState("");
+          }}
+          aria-label="Commercial Summary remarks"
+        />
+      </div>
+    </section>
   );
 }
 

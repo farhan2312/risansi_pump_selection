@@ -585,6 +585,10 @@ never auto-filled from the AI result.
   with old → new per changed price). Any signed-in user can edit for now.
 - The wizard's motor / gearbox pick (uplifted price) is shown next to those
   rows with a "Use ₹x" button — a reference only, never auto-applied.
+- **Remarks** (user, 2026-10-05): ONE note per enquiry, `projects.commercial_remarks`
+  (RemarksCard on the Summary step; PUT /api/commercial/remarks, audited
+  commercial.remarks); frozen into version snapshots as `snapshot.remarks`. The
+  per-tag commercial_tag_price.remarks box was removed (column kept, unused).
 - **BOI vendor discount + markup** (user, 2026-10-03): every BOI row (fixed
   rows and each Other) has Base price · Disc % · Markup % · Price. Quoted row
   price = base × (1 − disc%) × (1 + markup%); markup auto-filled 25 %
@@ -595,6 +599,18 @@ never auto-filled from the AI result.
   `otherNet` / `boiTotal` in lib/commercial.ts give quoted prices (totals,
   Commercial Offer rows, version breakdown). `prices.adjust` undefined =
   snapshot from before this change → prices used as-is (no markup).
+- **Mechanical Seal** BOI row (2026-10-04; after VFD): `mech_seal_price` +
+  `mech_seal_model`. Suggestion (server, `mechSealOptionFor` in
+  lib/commercial.ts) from the Sealing step: Mechanical Seal + type → ACME
+  series (SCG→SCG, DCG→DCG, MSA→N SERIES, MSK→K SERIES — user), make must
+  match the list (only ACME loaded), face SiC only, MOC SS304 → /304 column,
+  SS316 → /316 (others not priced — user); row = the pump model's shaft dia
+  (pump_shaft_dia, ±0.01 mm; the list's PUMP MODEL NO column is not
+  stored — user); auger pumps (code sub-category AG/BAG) take SCG's "AUGAR" row.
+  Table `boi_mech_seal` mirrors docs/BOI "ACME PRICE LIST NEW 25-03-26.pdf"
+  (DCG/SCG/K/N, 37 rows; MMP left out — user); BOI Master "Mech Seal" tab
+  (generic boi-tables key "mech-seal"). Shown via BoiOptionPicker ("Use ₹…"
+  fills the BASE price; markup applies). On the Commercial Offer when priced.
 - **VFD** BOI row (2026-09-30), order Motor, Gearbox, VFD, Strainer, PRV, DRP.
   Columns `vfd_price` + `vfd_model` (the picked BOI Master drive; the API
   drops it when there is no VFD price). For EVERY tag with a motor kW — NOT
@@ -645,6 +661,10 @@ never auto-filled from the AI result.
   on create (POST /api/quotations, under a per-enquiry advisory lock); all
   drive-group quotations of one enquiry SHARE the serial (unique index on
   serial + drive_group). The first two quotations were backfilled 6000/6001.
+  **Quotation No. (ERP)** (user, 2026-10-05): `quotation.erp_serial`, typed by
+  hand (optional on create, editable later via PATCH {erpSerial}, audited
+  quotation.erp_serial); shown as erpNumber = same prefix + ERP serial
+  (+ /GM… when mixed), `erpQuotationNumber` in lib/commercial.ts.
   Independent of the sales portal: Market Intell is only READ (miQuery).
   **TSM is LOCKED to the client's rep** (user decision 2026-09-26): the sales
   client's primary_rep_id, found by projects.client_code. Create ignores any
@@ -691,6 +711,20 @@ never auto-filled from the AI result.
   saved in `commercial_tag_price.pa_basis` (shown in version breakdowns).
 - Not built yet: admin page for the L1–L4 lists, client price-sheet uploads,
   PDF output.
+
+## Client Quoted Prices page (sidebar, /client-prices — 2026-10-05)
+- Search a client (name or code, every word; GET /api/client-quotes/search
+  merges quotation.client_code/name with client_price_ref by code). Picking
+  one: GET /api/client-quotes?clientCode= (or clientName= when no code) →
+  every portal quotation of the client (loadQuotation: all versions, frozen
+  per-tag prices; live internal at current prices) + its SharePoint price
+  files. Page screens/client-prices/ClientPricesPage.tsx: version rows
+  (Client Vn sent / Internal Vn live) expand to Tag · product code · qty ·
+  P&A · BOI · unit · sub-total; "Sent to client only" filter; link to the
+  enquiry's Commercial Summary. Types in lib/client-quotes.ts. Read-only, any
+  signed-in user. (Same change added /commercial, /client-prices and
+  /my-bug-reports to the middleware matcher — they were in
+  PROTECTED_PREFIXES but not matched.)
 
 ## Client Price Reference files (Commercial Summary → "Client Price Ref")
 - Table `client_price_ref` (2026-09-30): 1,549 client pump price reference
@@ -757,6 +791,17 @@ never auto-filled from the AI result.
   Document only — the wizard data is never changed. (tech_doc_extras was
   replaced by this column the same day.)
 
+- **Client versions** (user, 2026-10-05; own track, NOT tied to quotation
+  sends): `tech_doc_version` (project, drive_group incl. NONE, version 0,1,…,
+  note, snapshot = the TechDocSheet, created_by/at). POST
+  /api/enquiry-document/versions {projectId, group, note} builds the sheet on
+  the SERVER (lib/tech-doc-server.ts `loadTechDocData`, also used by GET
+  /api/enquiry-document) and freezes it (advisory lock per enquiry+group;
+  audited tech_doc.send); GET lists all. EnquiryDocumentModal: "Client
+  versions" strip per group (chips V0 · date, note box, "Send to client → Vn");
+  clicking a chip shows that sent sheet read-only (editor/picker off; Print /
+  Excel act on it).
+
 ## Commercial Offer sheet (Commercial Summary + quotation versions)
 - User format (photo 2026-10-01): same letterhead/header as the Technical Data
   Sheet ("<company> - Commercial Offer", client, enquiry, quotation), blue
@@ -776,6 +821,12 @@ never auto-filled from the AI result.
   sheets). Printed as "A, B & C" (scope) and "A + B" (out of scope). Config
   scope/outOfScope are string[] | null (null = default); an older free-text
   value is kept as one item.
+  Since 2026-10-05: EVERY BOI row (motor, gear box, VFD, mechanical seal,
+  strainer, PRV, DRP, others) shows only when some tag on the sheet has a
+  price for it (user); Mechanical Seal sits after VFD, and each
+  Other BOI item gets its OWN row "<name> Price In Unit (INR)" (keyed
+  o_<name slug>, names merged case-insensitively; normalizeOfferConfig
+  accepts o_ keys so renames/edits/removals stick) instead of one total.
   Optional rows: BOI total, Quantity, Total Price (one value across all tags,
   a `span` row keyed "all").
 - `src/lib/commercial-offer.ts` (client-safe): OFFER_FIELDS, OfferConfig

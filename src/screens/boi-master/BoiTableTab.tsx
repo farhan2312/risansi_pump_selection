@@ -47,7 +47,7 @@ export default function BoiTableTab({ tab, intro }: { tab: TabKey; intro: ReactN
 const cellText = (def: TableDef, key: string, v: string | number | null) => {
   if (v === null || v === "") return "—";
   const field = def.fields.find((f) => f.key === key);
-  if (key === "ratePerNos") return formatInr(Number(v));
+  if (key === "ratePerNos" || /^price\d/.test(key)) return formatInr(Number(v));
   if (field?.kind === "number") return String(Number(v));
   return String(v);
 };

@@ -5,7 +5,7 @@ import { logAudit } from "@/lib/audit";
 import { tryDecodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { projects, quotation, quotationVersion } from "@/lib/db/schema";
-import { finYearOf, isDriveGroup, quotationNumber } from "@/lib/commercial";
+import { finYearOf, isDriveGroup, parseErpSerial, quotationNumber } from "@/lib/commercial";
 import { projectDriveGroups } from "@/lib/commercial-server";
 import { buildSnapshot, loadQuotation, suggestedTsm, tsmById } from "@/lib/quotation-server";
 
@@ -56,6 +56,8 @@ export async function POST(req: Request) {
   const group = String(body.group ?? "");
   if (!UUID.test(projectId)) return error("'projectId' is required", 400);
   if (!isDriveGroup(group)) return error("'group' must be GM, GB, VB or DD", 400);
+  const erpSerial = parseErpSerial(body.erpSerial);
+  if (erpSerial === undefined) return error("ERP serial: letters, digits, - or / only (max 30).", 400);
 
   const [p] = await db
     .select({ code: projects.projectCode, name: projects.name, clientCode: projects.clientCode })
@@ -109,6 +111,7 @@ export async function POST(req: Request) {
           quoteDate,
           finYear: finYearOf(quoteDate),
           serial,
+          erpSerial,
           regionCode: tsm.initials,
           tsmRepId: tsm.id,
           tsmName: tsm.name,
