@@ -58,6 +58,8 @@ export interface OfferTag {
   quantity: number | null;
   /** Liquid / pump type / pump speed / motor kW (as on the Technical Data Sheet). */
   tech?: TagTech;
+  /** The product code (else the pump model) — the "Pump Model" row. */
+  pumpModel?: string | null;
   /** Unit price (P&A + all BOI). */
   unit: number;
   /** unit × quantity. */
@@ -143,9 +145,9 @@ function otherItemRows(tags: OfferTag[]): { key: string; name: string; values: s
 export const OFFER_FIELDS: OfferField[] = [
   // Technical lines, right after the tag row (user, 2026-10-05).
   { key: "t_liquid", label: () => "Liquid / Application", value: (t) => t.tech?.liquid ?? "" },
-  { key: "t_pumpType", label: () => "Type of Pump", value: (t) => t.tech?.pumpType ?? "" },
-  { key: "t_pumpSpeed", label: () => "Pump Speed", value: (t) => t.tech?.pumpSpeed ?? "" },
-  { key: "t_motorKw", label: () => "Motor Rating (kW)", value: (t) => t.tech?.motorKw ?? "" },
+  { key: "t_qty", label: () => "Quantity", value: (t) => (t.quantity === null ? "" : String(t.quantity)) },
+  { key: "t_pumpModel", label: () => "Pump Model", value: (t) => t.pumpModel ?? "" },
+  { key: "t_motorKw", label: () => "Drive Motor Rating", value: (t) => t.tech?.motorKw ?? "" },
   { key: "motor", label: () => "Drive Motor Price In Unit (INR)", whenPriced: true, value: (t) => money(boiNet(t.prices, "motorPrice")) },
   { key: "gearbox", label: () => "Gear Box Price In Unit (INR)", gearedOnly: true, whenPriced: true, value: (t) => money(boiNet(t.prices, "gearboxPrice")) },
   { key: "vfd", label: () => "VFD Price In Unit (INR)", whenPriced: true, value: (t) => money(boiNet(t.prices, "vfdPrice")) },
@@ -163,7 +165,6 @@ export const OFFER_FIELDS: OfferField[] = [
   },
   { key: "pa", label: () => "Pump with Accessories Unit Price (INR)", value: (t) => money(t.prices.paPrice) },
   { key: "unit", label: () => "Unit Price INR (as per scope of supply)", value: (t) => money(t.unit) },
-  { key: "x_qty", label: () => "Quantity (Nos.)", extra: true, value: (t) => (t.quantity === null ? "" : String(t.quantity)) },
   { key: "qtyPrice", label: () => "Sub-Total Price INR (as per scope of supply)", value: (t) => money(t.sub) },
   {
     key: "x_total",

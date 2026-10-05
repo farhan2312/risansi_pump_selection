@@ -353,6 +353,7 @@ export default function CommercialSummaryPage() {
             tagId: t.tagId,
             tagName: t.tagName,
             tech: t.tech,
+            pumpModel: t.productCode ?? t.model,
             prices,
             quantity: t.quantity,
             unit: unitTotal(prices),
@@ -647,9 +648,22 @@ export default function CommercialSummaryPage() {
                   ))}
                 </tbody>
                 <tfoot>
+                  {/* Column sums: P&A, BOI and unit price as listed (per unit), qty, sub-total. */}
                   <tr className="border-t-2 border-line-strong bg-sunk">
-                    <td colSpan={6} className="px-4 py-3 text-right text-[13px] font-semibold text-fg">
+                    <td colSpan={2} className="px-4 py-3 text-[13px] font-semibold text-fg">
                       Grand Total
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-[13px] font-semibold text-fg">
+                      {formatInr(groupRows.reduce((s, r) => s + (r.prices.paPrice ?? 0), 0))}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-[13px] font-semibold text-fg">
+                      {formatInr(groupRows.reduce((s, r) => s + boiTotal(r.prices), 0))}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-[13px] font-semibold text-fg">
+                      {formatInr(groupRows.reduce((s, r) => s + r.unit, 0))}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-[13px] font-semibold text-fg">
+                      {groupRows.reduce((s, r) => s + (r.tag.quantity ?? 0), 0)}
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-[15px] font-bold text-fg">{formatInr(grand)}</td>
                   </tr>

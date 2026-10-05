@@ -6,7 +6,7 @@
 import { downloadXlsx, type XlsxCell } from "./xlsx";
 import { LETTERHEAD, buildTechDoc, techDocFileStem, type TechDocHeader, type TechDocSheet } from "./tech-doc";
 
-export const BAND: Partial<XlsxCell> = { fill: "2B2B2B", color: "FFFFFF", bold: true, align: "center" };
+export const BAND: Partial<XlsxCell> = { fill: "365F91", color: "FFFFFF", bold: true, align: "center" };
 
 /** The letterhead, "<company> - <title>" band and client / enquiry /
  *  quotation rows shared by the Risansi sheets' Excel exports. */

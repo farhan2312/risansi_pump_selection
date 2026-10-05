@@ -97,7 +97,7 @@ export default function TechDocEditor<C extends EditableDocConfig>({
       </p>
       {blocks.map((block) => (
         <section key={block.title} className="overflow-hidden rounded-lg border border-line">
-          <h4 className="bg-[#2b2b2b] px-3 py-1.5 text-center text-[12.5px] font-semibold text-white">{block.title}</h4>
+          <h4 className="bg-[#365f91] px-3 py-1.5 text-center text-[12.5px] font-semibold text-white">{block.title}</h4>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] border-collapse text-[12.5px]">
               <thead>

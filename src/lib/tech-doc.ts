@@ -616,7 +616,7 @@ export function sheetHtml(opts: {
   body { margin: 0; padding: 12px; background: #fff; font-family: Arial, Helvetica, sans-serif; color: #111; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   @media print { body { padding: 0; } }
   .sheet { max-width: 1100px; margin: 0 auto; }
-  .lh { display: flex; align-items: stretch; background: #2b2b2b; color: #fff; }
+  .lh { display: flex; align-items: stretch; background: #365f91; color: #fff; }
   .lh .logo { background: #fff; display: flex; align-items: center; padding: 8px 18px; min-width: 190px; }
   .lh .logo img { height: 46px; }
   .lh .info { flex: 1; padding: 8px 16px; font-size: 9.5pt; line-height: 1.55; text-align: right; }
@@ -626,9 +626,9 @@ export function sheetHtml(opts: {
   th, td { border: 1px solid #444; padding: 3px 6px; vertical-align: middle; word-wrap: break-word; }
   th[scope="row"] { text-align: left; font-weight: bold; background: #fff; }
   td { text-align: center; }
-  tr.title td { background: #2b2b2b; color: #fff; font-weight: bold; text-align: center; font-size: 9.5pt; padding: 5px; }
+  tr.title td { background: #365f91; color: #fff; font-weight: bold; text-align: center; font-size: 9.5pt; padding: 5px; }
   tr.meta td { text-align: left; font-size: 9pt; padding: 5px 6px; }
-  tr.band td { background: #2b2b2b; color: #fff; font-weight: bold; text-align: center; padding: 4px; }
+  tr.band td { background: #365f91; color: #fff; font-weight: bold; text-align: center; padding: 4px; }
   tr { page-break-inside: avoid; break-inside: avoid; }
   ${opts.css ?? ""}
 </style></head>

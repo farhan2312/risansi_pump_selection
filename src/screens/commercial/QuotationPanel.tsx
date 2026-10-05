@@ -581,6 +581,7 @@ function SnapshotModal({
               tagId: t.tagId ?? t.tagName,
               tagName: t.tagName,
               tech: t.tech,
+              pumpModel: t.productCode ?? t.model,
               prices: t.prices,
               quantity: t.quantity,
               unit: t.unit,
