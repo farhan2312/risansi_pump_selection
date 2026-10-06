@@ -6,7 +6,11 @@
 import { downloadXlsx, type XlsxCell } from "./xlsx";
 import { LETTERHEAD, buildTechDoc, techDocFileStem, type TechDocHeader, type TechDocSheet } from "./tech-doc";
 
-export const BAND: Partial<XlsxCell> = { fill: "365F91", color: "FFFFFF", bold: true, align: "center" };
+/** Sheet colours (as the printed sheet): navy title bar, light-blue section
+ *  bands with navy text, faint-blue row labels. */
+export const TITLE_BAND: Partial<XlsxCell> = { fill: "06408C", color: "FFFFFF", bold: true, align: "center" };
+export const BAND: Partial<XlsxCell> = { fill: "DCEBFB", color: "0B3D7E", bold: true, align: "center" };
+export const ROW_LABEL: Partial<XlsxCell> = { fill: "F4F8FD", bold: true };
 
 /** The letterhead, "<company> - <title>" band and client / enquiry /
  *  quotation rows shared by the Risansi sheets' Excel exports. */
@@ -19,7 +23,7 @@ export function sheetHeaderRows(title: string, header: TechDocHeader, tagCount: 
     [{ value: `${L.company.toUpperCase()}`, bold: true, colSpan: width }],
     [{ value: `GST: ${L.gst}  |  CIN: ${L.cin}`, colSpan: width }],
     [{ value: `${L.email}  |  ${L.website}  |  ${L.phone}  |  ${L.address}`, colSpan: width }],
-    [{ value: `${L.company} - ${title}`, colSpan: width, ...BAND }],
+    [{ value: `${L.company} - ${title}`, colSpan: width, ...TITLE_BAND }],
     [{ value: `Client Name: ${header.clientName}`, colSpan: width, wrap: true }],
     [
       { value: `Enquiry No. & Date: ${header.enquiry}`, colSpan: leftSpan, wrap: true },
@@ -43,7 +47,7 @@ export function downloadTechDocExcel(data: TechDocSheet): string {
     rows.push([{ value: block.title, colSpan: width, ...BAND }]);
     for (const r of block.rows) {
       rows.push([
-        { value: r.label, bold: true },
+        { value: r.label, ...ROW_LABEL },
         ...r.values.map((v) => ({ value: v || "-", align: "center", wrap: true }) as XlsxCell),
       ]);
     }

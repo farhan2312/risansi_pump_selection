@@ -1,10 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-// Global stylesheet carrying the summary-modal-* classes this modal's frame
-// renders with. Imported here rather than by each page so the styles travel
-// with the component — it's used from both Reports and Enquiries.
-import "../../screens/selection-summary/SelectionSummaryPage.css";
 import EmptyState from "../ui/EmptyState";
 import Spinner from "../ui/Spinner";
 import {
@@ -46,6 +42,12 @@ export interface EnquiryDocumentSource {
  *
  * Shown from both the Reports page and the Enquiries page.
  */
+// Same buttons as the Commercial Offer popup.
+const frameBtn =
+  "inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-[12.5px] font-semibold text-fg-2 hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";
+const framePrimary =
+  "inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-[12.5px] font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50";
+
 const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSource; onClose: () => void }) => {
   const [data, setData] = useState<TechDocData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -89,6 +91,11 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
   }, [source.projectId]);
 
   useEffect(() => () => Object.values(saveTimers.current).forEach(clearTimeout), []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   const groups = data ? techDocGroups(data) : [];
   const group: TechDocGroup | null = activeGroup && groups.includes(activeGroup) ? activeGroup : (groups[0] ?? null);
@@ -161,31 +168,35 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
   };
 
   return (
-    <div className="summary-modal-overlay" onClick={onClose}>
-      <div className="summary-modal summary-modal-wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-        <div className="summary-modal-header">
-          <div>
-            <h3>
-              {source.projectCode} <span className="summary-modal-tag">· Technical Data Sheet</span>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" onClick={onClose}>
+      <div
+        className="flex max-h-[94vh] w-full max-w-[1100px] flex-col overflow-hidden rounded-xl border border-line bg-paper"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
+          <div className="min-w-0">
+            <h3 className="text-[15px] font-semibold text-fg">
+              Technical Data Sheet
+              <span className="ml-2 text-[13px] font-normal text-fg-3">{source.projectCode}</span>
             </h3>
-            <p>
+            <p className="text-[12.5px] text-fg-3">
               {source.projectName || "—"}
               {data ? ` · ${data.tags.length} confirmed tag${data.tags.length === 1 ? "" : "s"}` : ""}
               {groups.length > 1 ? ` · ${groups.length} drive groups, one sheet each` : ""}
             </p>
           </div>
-          <button className="summary-modal-close" onClick={onClose} aria-label="Close">
-            ✕
+          <button type="button" className={frameBtn} onClick={onClose}>
+            Close
           </button>
-        </div>
+        </header>
 
-        <div className="summary-modal-body">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
           {isLoading && (
-            <div style={{ padding: "24px 0", textAlign: "center" }}>
+            <div className="py-6 text-center">
               <Spinner caption="Loading document…" />
             </div>
           )}
-          {error && <p className="error-message">{error}</p>}
+          {error && <p className="text-[13px] text-neg">{error}</p>}
           {!isLoading && !error && !hasTags && (
             <EmptyState
               compact
@@ -375,26 +386,23 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
                 <iframe
                   title="Technical Data Sheet"
                   srcDoc={html}
-                  className="h-[68vh] w-full rounded-lg border border-line bg-white"
+                  className="min-h-[62vh] w-full flex-1 rounded-lg border border-line bg-white"
                 />
               )}
             </div>
           )}
         </div>
 
-        <div className="summary-modal-footer">
+        <footer className="flex flex-wrap justify-end gap-2 border-t border-line px-4 py-3">
           {/* Native print dialog - the user picks paper size, orientation,
               page range and "Save as PDF". */}
-          <button className="summary-download-btn" onClick={handlePrint} disabled={printing || !hasTags}>
+          <button type="button" className={framePrimary} onClick={handlePrint} disabled={printing || !hasTags}>
             {printing ? "Preparing…" : "Print / Save as PDF"}
           </button>
-          <button className="summary-modal-close-btn" onClick={() => shown && downloadTechDocExcel(shown)} disabled={!hasTags}>
+          <button type="button" className={frameBtn} onClick={() => shown && downloadTechDocExcel(shown)} disabled={!hasTags}>
             Download Excel
           </button>
-          <button className="summary-modal-close-btn" onClick={onClose}>
-            Close
-          </button>
-        </div>
+        </footer>
       </div>
     </div>
   );

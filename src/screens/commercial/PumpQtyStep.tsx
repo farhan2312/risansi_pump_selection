@@ -17,7 +17,8 @@ import {
   type CodeParts,
   type CodeSegmentKey,
 } from "../../lib/pump-code";
-import { addProductPump, listProductPumps } from "../../services/productPumpService";
+import EnquiryDocumentModal from "../../components/reports/EnquiryDocumentModal";
+import { listProductPumps } from "../../services/productPumpService";
 import { addPumpCodeOption, listPumpCodeOptions } from "../../services/pumpCodeService";
 import { saveWizardInput } from "../../services/wizardInputService";
 
@@ -59,11 +60,16 @@ const selectCls =
 
 export default function PumpQtyStep({
   projectId,
+  projectCode,
+  projectName,
   tags,
   onSaved,
   onNext,
 }: {
   projectId: string;
+  /** For the Technical Data Sheet button. */
+  projectCode: string;
+  projectName: string | null;
   tags: CommercialTag[];
   /** A tag's saved code, quantity and parts, so the page's data follows. */
   onSaved: (tagId: string, productCode: string, quantity: number, codeParts: CodeParts | null) => void;
@@ -91,12 +97,12 @@ export default function PumpQtyStep({
   if (!options) return <p className="rounded-xl border border-line bg-paper p-5 text-center text-[13px] text-fg-3">Loading…</p>;
   return (
     <Editor
+      techSource={{ projectId, projectCode, projectName }}
       projectId={projectId}
       tags={tags}
       options={options}
       known={known}
       onOptionAdded={(o) => setOptions((list) => [...(list ?? []), o])}
-      onCodeAdded={(code) => setKnown((s) => new Set(s).add(code.toUpperCase()))}
       onSaved={onSaved}
       onNext={onNext}
     />
@@ -104,21 +110,21 @@ export default function PumpQtyStep({
 }
 
 function Editor({
+  techSource,
   projectId,
   tags,
   options,
   known,
   onOptionAdded,
-  onCodeAdded,
   onSaved,
   onNext,
 }: {
+  techSource: { projectId: string; projectCode: string; projectName: string | null };
   projectId: string;
   tags: CommercialTag[];
   options: CodeOption[];
   known: Set<string>;
   onOptionAdded: (o: CodeOption) => void;
-  onCodeAdded: (code: string) => void;
   onSaved: (tagId: string, productCode: string, quantity: number, codeParts: CodeParts | null) => void;
   onNext: () => void;
 }) {
@@ -144,6 +150,7 @@ function Editor({
   const [rowState, setRows] = useState<Record<string, Row>>(() => Object.fromEntries(tags.map((t) => [t.tagId, startRow(t)])));
   const rows: Record<string, Row> = Object.fromEntries(tags.map((t) => [t.tagId, rowState[t.tagId] ?? startRow(t)]));
   const [showErrors, setShowErrors] = useState(false);
+  const [showTech, setShowTech] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [savedOnce, setSavedOnce] = useState(false);
@@ -183,12 +190,9 @@ function Editor({
     try {
       for (const id of toSave) {
         const r = rows[id];
-        let code = codeOf(r);
-        // A built code new to the product master is added to it first.
-        if (r.mode === "build" && !known.has(code.toUpperCase())) {
-          code = (await addProductPump(code)).productCode;
-          onCodeAdded(code);
-        }
+        // A built code is saved on the tag only — never added to the product
+        // code list (that list is for picking existing codes; user 2026-10-07).
+        const code = codeOf(r);
         const parts = r.mode === "build" ? r.parts : null;
         const quantity = r.quantity.trim();
         await saveWizardInput(
@@ -226,6 +230,7 @@ function Editor({
 
   return (
     <section className="rounded-xl border border-line bg-paper">
+      {showTech && <EnquiryDocumentModal source={techSource} onClose={() => setShowTech(false)} />}
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
         <div className="min-w-0">
           <h2 className="text-[14px] font-semibold text-fg">Pump &amp; Qty</h2>
@@ -235,6 +240,14 @@ function Editor({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className={btn}
+            onClick={() => setShowTech(true)}
+            title="View this enquiry's Technical Data Sheet"
+          >
+            Technical
+          </button>
           {savedOnce && dirtyIds.length === 0 && <span className="text-[12px] font-medium text-pos">Saved</span>}
           <button type="button" className={btn} onClick={() => void save()} disabled={saving || dirtyIds.length === 0}>
             {saving ? "Saving…" : "Save"}
@@ -375,7 +388,7 @@ function Editor({
                     {!err.code &&
                       (isNew ? (
                         <span className="rounded-full bg-[var(--warn-soft)] px-2 py-0.5 text-[11px] font-semibold text-warn">
-                          New — added to the product master on save
+                          New code (not in the product code list)
                         </span>
                       ) : (
                         <span className="rounded-full bg-[var(--pos-soft)] px-2 py-0.5 text-[11px] font-semibold text-pos">

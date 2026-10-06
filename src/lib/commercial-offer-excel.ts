@@ -5,10 +5,8 @@
  */
 import { downloadXlsx, type XlsxCell } from "./xlsx";
 import { sheetFileStem } from "./tech-doc";
-import { sheetHeaderRows } from "./tech-doc-excel";
+import { BAND as OFFER_BAND, ROW_LABEL, sheetHeaderRows } from "./tech-doc-excel";
 import { OFFER_TITLE, buildOffer, offerOutOfScope, offerScope, type OfferSheet } from "./commercial-offer";
-
-const OFFER_BAND: Partial<XlsxCell> = { fill: "365F91", color: "FFFFFF", bold: true, align: "center" };
 
 export function downloadOfferExcel(sheet: OfferSheet): string {
   const n = Math.max(sheet.tags.length, 1);
@@ -16,15 +14,15 @@ export function downloadOfferExcel(sheet: OfferSheet): string {
   const rows: XlsxCell[][] = sheetHeaderRows(OFFER_TITLE, sheet.header, sheet.tags.length);
   rows.push([{ value: OFFER_TITLE, colSpan: width, ...OFFER_BAND }]);
   rows.push([
-    { value: "Tag No.", bold: true },
+    { value: "Tag No.", ...ROW_LABEL },
     ...sheet.tags.map((t) => ({ value: t.tagName, bold: true, align: "center" }) as XlsxCell),
   ]);
   const [block] = buildOffer(sheet.tags, sheet.config, sheet.geared);
   for (const r of block.rows) {
     rows.push(
       r.span
-        ? [{ value: r.label, bold: true }, { value: r.values[0] || "-", bold: true, align: "center", colSpan: n }]
-        : [{ value: r.label, bold: true, wrap: true }, ...r.values.map((v) => ({ value: v || "-", align: "center" }) as XlsxCell)],
+        ? [{ value: r.label, ...ROW_LABEL }, { value: r.values[0] || "-", bold: true, align: "center", colSpan: n }]
+        : [{ value: r.label, ...ROW_LABEL, wrap: true }, ...r.values.map((v) => ({ value: v || "-", align: "center" }) as XlsxCell)],
     );
   }
   const scope = offerScope(sheet.config, sheet.geared);

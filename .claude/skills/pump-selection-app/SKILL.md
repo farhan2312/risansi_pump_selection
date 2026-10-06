@@ -566,8 +566,10 @@ never auto-filled from the AI result.
   (audited pump_code_option.add). Prefill from the wizard: model + stage
   (2H48 → 2, 48), size = suction size, rubber from stator rubber, sealing +
   sub-type; MOC NOT prefilled (wizard stores free-text materials, no code).
-  Parts saved in pump_model_qty_input.code_* (null when picked from list); a
-  built code not in product_pump is added via POST /api/product-pumps on save.
+  Parts saved in pump_model_qty_input.code_* (null when picked from list). A
+  built code is NOT added to product_pump (user, 2026-10-07 — that list is only
+  for picking existing codes); the badge just says Existing / New code. A
+  "Technical" button on the step opens the Technical Data Sheet modal.
   The old V6OF/V5OF part of existing codes is intentionally not built.
 - **Two steps on the page** (user, 2026-10-01): **1 · Pump & Qty**
   (`PumpQtyStep.tsx`, one row per tag: selected model, ERP product code via
@@ -698,6 +700,9 @@ never auto-filled from the AI result.
   "2H-50/2H-48/2H-52"; l1_abbn … l4_cccn — L2/L4 have no ACCN; Sr 14 / H-80
   is missing in the sheet; the 2H-120 row repeats some 2H-110 values — kept
   as-is), `pa_rubber_addon` (Viton/HNBR ₹ per family, "H-48/52", "H-80/85").
+  Combined rows were SPLIT one row per model on 2026-10-07 (user): H-48/50/52
+  → H-48, H-50, H-52 (same prices), 2H-50/48/52, 4H-50/48/52; add-ons H-48/52 →
+  H-48, H-52 and H-80/85 → H-80, H-85; H-50 add-on ₹30,000 added (user) — 56 price rows, 16 add-ons.
   GET /api/pa-price-list. `lib/pa-price.ts`: model → row via aliases
   (H40L6 → "H-40L" fallback), MOC → column (ABB/AAB → ABBN per MOC chart,
   BBB, CCC, ACC; others none), the sheet's notes as tick-box adjustments

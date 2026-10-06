@@ -486,6 +486,8 @@ export default function CommercialSummaryPage() {
       {data && data.tags.length > 0 && stage === "pump" && (
         <PumpQtyStep
           projectId={projectId}
+          projectCode={data.project.code}
+          projectName={data.project.name}
           tags={data.tags}
           onSaved={(tagId, productCode, quantity, codeParts) => {
             setData((d) =>
@@ -543,16 +545,6 @@ export default function CommercialSummaryPage() {
               />
             )
           )}
-
-          <RemarksCard
-            projectId={projectId}
-            saved={data.project.remarks}
-            onSaved={(remarks) => {
-              setData((d) => (d ? { ...d, project: { ...d.project, remarks } } : d));
-              // The quotation's live version carries the remarks.
-              setPricesVersion((n) => n + 1);
-            }}
-          />
 
           {tab && tab !== "NONE" && (
             <section className="rounded-xl border border-line bg-paper">
@@ -724,6 +716,17 @@ export default function CommercialSummaryPage() {
               }}
             />
           ))}
+
+          {/* One remarks note for the whole enquiry — last on the page. */}
+          <RemarksCard
+            projectId={projectId}
+            saved={data.project.remarks}
+            onSaved={(remarks) => {
+              setData((d) => (d ? { ...d, project: { ...d.project, remarks } } : d));
+              // The quotation's live version carries the remarks.
+              setPricesVersion((n) => n + 1);
+            }}
+          />
         </>
       )}
       {showOffer && tab && tab !== "NONE" && (

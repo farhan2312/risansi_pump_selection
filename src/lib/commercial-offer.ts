@@ -370,7 +370,7 @@ export function buildOfferHtml(sheet: OfferSheet, logoUrl = "/logo.png"): string
     body,
     logoUrl,
     css: `
-  tr.offer-band td { background: #365f91; color: #fff; font-weight: bold; text-align: center; font-size: 10.5pt; padding: 6px; }
+  tr.offer-band td { background: #dcebfb; color: #0b3d7e; font-weight: bold; text-align: center; font-size: 10.5pt; padding: 6px; }
   tr.tags td { font-weight: bold; }
   tr.scope td { color: #c00000; font-weight: bold; font-style: italic; text-align: center; font-size: 9.5pt; padding: 6px; }
   tr.oos td { font-style: italic; text-align: center; font-size: 9pt; padding: 6px; }`,

@@ -579,6 +579,16 @@ export function buildTechDocHtml(data: TechDocSheet, logoUrl = "/logo.png"): str
   });
 }
 
+/** Letterhead icons — inline SVG so they print without any font or network. */
+const LH_ICON = {
+  doc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>',
+  mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>',
+  globe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>',
+  phone:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>',
+  pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
+};
+
 /** The shared printable shell of the Risansi sheets (Technical Data Sheet,
  *  Commercial Offer): letterhead, "<company> - <title>" band, client /
  *  enquiry / quotation rows, then `body` (table rows, label column + one
@@ -616,29 +626,46 @@ export function sheetHtml(opts: {
   body { margin: 0; padding: 12px; background: #fff; font-family: Arial, Helvetica, sans-serif; color: #111; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   @media print { body { padding: 0; } }
   .sheet { max-width: 1100px; margin: 0 auto; }
-  .lh { display: flex; align-items: stretch; background: #365f91; color: #fff; }
-  .lh .logo { background: #fff; display: flex; align-items: center; padding: 8px 18px; min-width: 190px; }
-  .lh .logo img { height: 46px; }
-  .lh .info { flex: 1; padding: 8px 16px; font-size: 9.5pt; line-height: 1.55; text-align: right; }
-  .lh .info b { font-weight: 600; letter-spacing: .02em; }
+  /* Letterhead: the original logo on white, a light-blue swoosh, then the
+     deep-blue bar with the company details (user's design, 2026-10-07). */
+  .lh { display: flex; align-items: stretch; height: 84px; border: 1.5px solid #1e6fd0; overflow: hidden;
+        background: linear-gradient(180deg, #0b4ea2 0%, #06408c 55%, #032d66 100%); color: #fff; }
+  .lh-logo { background: #fff; display: flex; align-items: center; padding: 0 0 0 18px; flex-shrink: 0; }
+  .lh-logo img { height: 56px; display: block; }
+  .lh-swoosh { width: 70px; height: 100%; flex-shrink: 0; display: block; }
+  .lh-info { flex: 1; display: grid; grid-template-columns: auto auto auto; justify-content: end; align-content: center;
+             column-gap: 12px; row-gap: 4px; padding: 0 16px 0 8px; font-size: 8.8pt; white-space: nowrap; }
+  .lh-info .it { display: flex; align-items: center; gap: 6px; }
+  .lh-info .sep { color: #9fc8f2; }
+  .lh-info svg { width: 13px; height: 13px; flex-shrink: 0; color: #8fd0ff; }
+  .lh-info b { font-weight: 700; }
   table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8.5pt; }
   col.lbl { width: 22%; }
-  th, td { border: 1px solid #444; padding: 3px 6px; vertical-align: middle; word-wrap: break-word; }
-  th[scope="row"] { text-align: left; font-weight: bold; background: #fff; }
+  th, td { border: 1px solid #9fb3c8; padding: 3px 6px; vertical-align: middle; word-wrap: break-word; }
+  th[scope="row"] { text-align: left; font-weight: bold; background: #f4f8fd; }
   td { text-align: center; }
-  tr.title td { background: #365f91; color: #fff; font-weight: bold; text-align: center; font-size: 9.5pt; padding: 5px; }
+  tr.title td { background: #06408c; color: #fff; font-weight: bold; text-align: center; font-size: 9.5pt; padding: 5px; }
   tr.meta td { text-align: left; font-size: 9pt; padding: 5px 6px; }
-  tr.band td { background: #365f91; color: #fff; font-weight: bold; text-align: center; padding: 4px; }
+  tr.band td { background: #dcebfb; color: #0b3d7e; font-weight: bold; text-align: center; padding: 4px; }
   tr { page-break-inside: avoid; break-inside: avoid; }
   ${opts.css ?? ""}
 </style></head>
 <body><div class="sheet">
   <div class="lh">
-    <div class="logo"><img src="${esc(logoUrl)}" alt="Risansi Industries Ltd" onerror="this.replaceWith(document.createTextNode('Risansi Industries Ltd'))"></div>
-    <div class="info">
-      <b>GST: ${esc(L.gst)}</b> &nbsp;|&nbsp; <b>CIN: ${esc(L.cin)}</b><br>
-      &#9993; ${esc(L.email)} &nbsp;&nbsp; &#127760; ${esc(L.website)}<br>
-      &#9742; ${esc(L.phone)} &nbsp;&nbsp; &#9906; ${esc(L.address)}
+    <div class="lh-logo"><img src="${esc(logoUrl)}" alt="Risansi Industries Ltd" onerror="this.replaceWith(document.createTextNode('Risansi Industries Ltd'))"></div>
+    <svg class="lh-swoosh" viewBox="0 0 70 100" preserveAspectRatio="none" aria-hidden="true">
+      <rect width="70" height="100" fill="none"/>
+      <path d="M0,0 H58 C48,38 36,72 8,100 H0 Z" fill="#bfe3fb"/>
+      <path d="M0,0 H47 C38,38 26,72 0,100 Z" fill="#ffffff"/>
+      <path d="M58,0 C48,38 36,72 8,100" fill="none" stroke="#2a8be6" stroke-width="3"/>
+    </svg>
+    <div class="lh-info">
+      <span class="it">${LH_ICON.doc}<span><b>GST:</b> ${esc(L.gst)}</span></span><span class="sep">|</span>
+      <span class="it">${LH_ICON.doc}<span><b>CIN:</b> ${esc(L.cin)}</span></span>
+      <span class="it">${LH_ICON.mail}<span>${esc(L.email)}</span></span><span class="sep">|</span>
+      <span class="it">${LH_ICON.globe}<span>${esc(L.website)}</span></span>
+      <span class="it">${LH_ICON.phone}<span>${esc(L.phone)}</span></span><span class="sep">|</span>
+      <span class="it">${LH_ICON.pin}<span>${esc(L.address)}</span></span>
     </div>
   </div>
   <table>${colgroup}<tbody>
