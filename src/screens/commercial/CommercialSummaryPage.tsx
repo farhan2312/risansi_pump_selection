@@ -869,7 +869,7 @@ function TagCard({
               data={paData}
               used={draft.paBasis}
               onUse={(price, basis) => onChange({ paPrice: String(price), paBasis: basis })}
-              onClear={() => onChange({ paBasis: "" })}
+              onClear={() => onChange({ paBasis: "", paPrice: "" })}
             />
           </div>
 
@@ -899,7 +899,7 @@ function TagCard({
                           tag={tag}
                           picked={draft.vfdModel}
                           onPick={(o) => onChange({ vfdModel: o.driveDescription, vfdPrice: String(o.netPrice ?? "") })}
-                          onClear={() => onChange({ vfdModel: "" })}
+                          onClear={() => onChange({ vfdModel: "", vfdPrice: "" })}
                         />
                       ) : item.key === "mechSealPrice" ? (
                         <BoiOptionPicker
@@ -913,29 +913,36 @@ function TagCard({
                           note={tag.mechSealNote}
                           used={draft.mechSealModel}
                           onUse={(label, price) => onChange({ mechSealModel: label, mechSealPrice: String(price) })}
-                          onClear={() => onChange({ mechSealModel: "" })}
+                          onClear={() => onChange({ mechSealModel: "", mechSealPrice: "" })}
                         />
                       ) : item.key === "drpPrice" ? (
                         <DrpPicker
                           tag={tag}
                           used={draft.drpModel}
                           onUse={(o) => onChange({ drpModel: o.label, drpPrice: String(o.total) })}
-                          onClear={() => onChange({ drpModel: "" })}
+                          onClear={() => onChange({ drpModel: "", drpPrice: "" })}
                         />
                       ) : ref ? (
                         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                           <span className="text-fg-2">{ref.label}</span>
                           {!ref.confirmed && <span className="text-warn">(not confirmed)</span>}
-                          {ref.price !== null && (
-                            <button
-                              type="button"
-                              className="rounded-md border border-line px-1.5 py-0.5 font-mono text-[11.5px] text-accent hover:border-accent"
-                              onClick={() => onChange({ [item.key]: String(ref.price) } as Partial<Draft>)}
-                              title="Copy the master price from the wizard into this field"
-                            >
-                              Use {formatInr(ref.price)}
-                            </button>
-                          )}
+                          {ref.price !== null &&
+                            (() => {
+                              const active = draft[item.key] === String(ref.price);
+                              return (
+                                <button
+                                  type="button"
+                                  className={`rounded-md border px-1.5 py-0.5 font-mono text-[11.5px] text-accent hover:border-accent ${
+                                    active ? "border-accent bg-accent-soft" : "border-line"
+                                  }`}
+                                  onClick={() => onChange({ [item.key]: active ? "" : String(ref.price) } as Partial<Draft>)}
+                                  title={active ? "Click to clear this price" : "Copy the master price from the wizard into this field"}
+                                >
+                                  {active ? "Used" : "Use"} {formatInr(ref.price)}
+                                  {active && " ✕"}
+                                </button>
+                              );
+                            })()}
                         </span>
                       ) : item.key === "motorPrice" || item.key === "gearboxPrice" ? (
                         <span className="pt-1 inline-block">Not selected in the wizard</span>
@@ -1078,10 +1085,10 @@ function BoiOptionPicker({
         <button
           type="button"
           className="ml-auto rounded-md border border-line bg-paper px-1.5 py-0.5 font-mono text-[11.5px] text-accent hover:border-accent"
-          onClick={() => onUse(option.label, option.price)}
-          title="Copy the BOI Master price into this row's base price"
+          onClick={() => (active ? onClear() : onUse(option.label, option.price))}
+          title={active ? "Click to clear this price" : "Copy the BOI Master price into this row's base price"}
         >
-          {active ? "Used" : "Use"} {formatInr(option.price)}
+          {active ? "Used" : "Use"} {formatInr(option.price)}{active && " ✕"}
         </button>
       </div>
       {used && !active && usedLine}
@@ -1135,10 +1142,10 @@ function DrpPicker({
         <button
           type="button"
           className="ml-auto rounded-md border border-line bg-paper px-1.5 py-0.5 font-mono text-[11.5px] text-accent hover:border-accent"
-          onClick={() => onUse(o)}
-          title="Copy the BOI Master DRP price (probe + panel) into this field"
+          onClick={() => (active ? onClear() : onUse(o))}
+          title={active ? "Click to clear this price" : "Copy the BOI Master DRP price (probe + panel) into this field"}
         >
-          {active ? "Used" : "Use"} {formatInr(o.total)}
+          {active ? "Used" : "Use"} {formatInr(o.total)}{active && " ✕"}
         </button>
       </div>
       {used && !active && usedLine}
@@ -1261,10 +1268,10 @@ function PaSuggestionPanel({
                       <button
                         type="button"
                         className="rounded-md border border-line bg-paper px-1.5 py-0.5 font-mono text-[11.5px] text-accent hover:border-accent"
-                        onClick={() => onUse(price, basis)}
-                        title={basis}
+                        onClick={() => (active ? onClear() : onUse(price, basis))}
+                        title={active ? "Click to clear this price" : basis}
                       >
-                        {active ? "Used" : "Use"} {formatInr(price)}
+                        {active ? "Used" : "Use"} {formatInr(price)}{active && " ✕"}
                       </button>
                     </>
                   )}
@@ -1332,10 +1339,14 @@ function VfdPicker({
               <button
                 type="button"
                 className="ml-auto rounded-md border border-line bg-paper px-1.5 py-0.5 font-mono text-[11.5px] text-accent hover:border-accent"
-                onClick={() => onPick(o)}
-                title={`List ${formatInr(o.listPrice)} less ${o.discountPct ?? 0}% + BOP ${formatInr(o.bopExtra ?? 0)}`}
+                onClick={() => (active ? onClear() : onPick(o))}
+                title={
+                  active
+                    ? "Click to clear this price"
+                    : `List ${formatInr(o.listPrice)} less ${o.discountPct ?? 0}% + BOP ${formatInr(o.bopExtra ?? 0)}`
+                }
               >
-                {active ? "Picked" : "Use"} {formatInr(o.netPrice)}
+                {active ? "Picked" : "Use"} {formatInr(o.netPrice)}{active && " ✕"}
               </button>
             )}
           </div>
