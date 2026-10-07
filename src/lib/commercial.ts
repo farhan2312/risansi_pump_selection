@@ -15,6 +15,9 @@ import type { OfferConfig } from "./commercial-offer";
 import type { CodeHints, CodeParts } from "./pump-code";
 
 /** The fixed BOI rows, in display order. `key` is the API/DB field. */
+/** Commercial prices are always whole rupees. */
+export const rupees = (n: number): number => Math.round(n);
+
 export const BOI_ITEMS = [
   { key: "motorPrice", label: "Motor" },
   { key: "gearboxPrice", label: "Gearbox" },
@@ -204,7 +207,7 @@ export const vfdNetPrice = (
 ): number | null =>
   listPrice === null
     ? null
-    : Math.round((listPrice * (1 - (discountPct ?? 0) / 100) + (bopExtra ?? 0)) * 100) / 100;
+    : rupees(listPrice * (1 - (discountPct ?? 0) / 100) + (bopExtra ?? 0));
 
 /** Per duty, the smallest drive whose rating for that duty is ≥ the motor kW
  *  (the cheaper one on a tie); drives picked by more than one duty merge into
@@ -274,7 +277,7 @@ export function drpOptionFor(
       probeSizeMm: probe.sizeMm,
       probeRate: probe.ratePerNos,
       panelRate,
-      total: Math.round(((probe.ratePerNos ?? 0) + (panelRate ?? 0)) * 100) / 100,
+      total: rupees((probe.ratePerNos ?? 0) + (panelRate ?? 0)),
       label: `RTD probe ${probe.sizeMm} mm${panel ? " + RTD panel" : ""}`,
     },
     note: null,
@@ -283,21 +286,21 @@ export function drpOptionFor(
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-/** base × (1 − disc%) × (1 + markup%); null base stays null. */
+/** base × (1 − disc%) × (1 + markup%), in whole rupees; null base stays null. */
 export const netPrice = (base: number | null, discountPct: number | null, markupPct: number | null): number | null =>
-  base === null ? null : round2(base * (1 - (discountPct ?? 0) / 100) * (1 + (markupPct ?? DEFAULT_MARKUP_PCT) / 100));
+  base === null ? null : rupees(base * (1 - (discountPct ?? 0) / 100) * (1 + (markupPct ?? DEFAULT_MARKUP_PCT) / 100));
 
 /** A fixed BOI row's quoted price (after vendor discount and markup). */
 export function boiNet(p: CommercialPrices, key: BoiKey): number | null {
   const base = p[key] ?? null;
-  if (!p.adjust) return base; // snapshot from before discount/markup: final already
+  if (!p.adjust) return base === null ? null : rupees(base); // snapshot from before discount/markup: final already
   const a = p.adjust[key];
   return netPrice(base, a?.discountPct ?? 0, a?.markupPct ?? DEFAULT_MARKUP_PCT);
 }
 
 /** An Other line's quoted price (after vendor discount and markup). */
 export function otherNet(p: CommercialPrices, o: CommercialOther): number | null {
-  if (!p.adjust) return o.price;
+  if (!p.adjust) return o.price === null ? null : rupees(o.price);
   return netPrice(o.price, o.discountPct ?? 0, o.markupPct ?? DEFAULT_MARKUP_PCT);
 }
 
@@ -358,7 +361,7 @@ export function mechSealOptionFor(
   const material = (grade === "304" ? row.material304 : row.material316) ?? `SiC / ${grade}`;
   if (price === null) return none(`${row.drawingNo} has no ${grade} price`);
   return {
-    option: { drawingNo: row.drawingNo, series, shaftSizeMm: row.shaftSizeMm, material, price, label: `${row.make} ${row.drawingNo} · ${material}` },
+    option: { drawingNo: row.drawingNo, series, shaftSizeMm: row.shaftSizeMm, material, price: rupees(price), label: `${row.make} ${row.drawingNo} · ${material}` },
     note: null,
   };
 }
@@ -382,7 +385,7 @@ export const MAX_DISCOUNT_PCT = 100;
 export const MAX_MARKUP_PCT = 1000;
 
 /** P&A + all BOI, per unit. */
-export const unitTotal = (p: CommercialPrices): number => (p.paPrice ?? 0) + boiTotal(p);
+export const unitTotal = (p: CommercialPrices): number => rupees(p.paPrice ?? 0) + boiTotal(p);
 
 /** Unit total × quantity. A missing quantity counts as 0 so an unfinished tag
  *  never inflates the grand total; the page flags it instead. */
@@ -404,10 +407,10 @@ export function parsePrice(raw: unknown): number | null | undefined {
   if (raw === null || raw === "" || raw === undefined) return null;
   const n = typeof raw === "number" ? raw : Number(String(raw).replace(/,/g, "").trim());
   if (!Number.isFinite(n) || n < 0 || n >= 1e12) return undefined;
-  return Math.round(n * 100) / 100;
+  return rupees(n);
 }
 
-const INR = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
+const INR = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
 
 /** "₹1,50,000" (Indian grouping); "—" for null. */
 export const formatInr = (n: number | null | undefined): string =>

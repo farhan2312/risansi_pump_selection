@@ -38,6 +38,7 @@ import {
   boiTotal,
   formatInr,
   parsePrice,
+  rupees,
   subTotal,
   unitTotal,
   DRIVE_GROUP_LABEL,
@@ -86,7 +87,7 @@ const pctDraft = (discountPct: number | null | undefined, markupPct: number | nu
 });
 const newOther = (): OtherDraft => ({ name: "", price: "", ...pctDraft(null, null) });
 
-const priceText = (n: number | null) => (n === null ? "" : String(n));
+const priceText = (n: number | null) => (n === null ? "" : String(rupees(n)));
 
 const toDraft = (p: CommercialPrices): Draft => ({
   paPrice: priceText(p.paPrice),
@@ -868,7 +869,7 @@ function TagCard({
               tag={tag}
               data={paData}
               used={draft.paBasis}
-              onUse={(price, basis) => onChange({ paPrice: String(price), paBasis: basis })}
+              onUse={(price, basis) => onChange({ paPrice: priceText(price), paBasis: basis })}
               onClear={() => onChange({ paBasis: "", paPrice: "" })}
             />
           </div>
@@ -898,7 +899,7 @@ function TagCard({
                         <VfdPicker
                           tag={tag}
                           picked={draft.vfdModel}
-                          onPick={(o) => onChange({ vfdModel: o.driveDescription, vfdPrice: String(o.netPrice ?? "") })}
+                          onPick={(o) => onChange({ vfdModel: o.driveDescription, vfdPrice: priceText(o.netPrice) })}
                           onClear={() => onChange({ vfdModel: "", vfdPrice: "" })}
                         />
                       ) : item.key === "mechSealPrice" ? (
@@ -912,14 +913,14 @@ function TagCard({
                           }
                           note={tag.mechSealNote}
                           used={draft.mechSealModel}
-                          onUse={(label, price) => onChange({ mechSealModel: label, mechSealPrice: String(price) })}
+                          onUse={(label, price) => onChange({ mechSealModel: label, mechSealPrice: priceText(price) })}
                           onClear={() => onChange({ mechSealModel: "", mechSealPrice: "" })}
                         />
                       ) : item.key === "drpPrice" ? (
                         <DrpPicker
                           tag={tag}
                           used={draft.drpModel}
-                          onUse={(o) => onChange({ drpModel: o.label, drpPrice: String(o.total) })}
+                          onUse={(o) => onChange({ drpModel: o.label, drpPrice: priceText(o.total) })}
                           onClear={() => onChange({ drpModel: "", drpPrice: "" })}
                         />
                       ) : ref ? (
@@ -928,14 +929,14 @@ function TagCard({
                           {!ref.confirmed && <span className="text-warn">(not confirmed)</span>}
                           {ref.price !== null &&
                             (() => {
-                              const active = draft[item.key] === String(ref.price);
+                              const active = draft[item.key] === priceText(ref.price);
                               return (
                                 <button
                                   type="button"
                                   className={`rounded-md border px-1.5 py-0.5 font-mono text-[11.5px] text-accent hover:border-accent ${
                                     active ? "border-accent bg-accent-soft" : "border-line"
                                   }`}
-                                  onClick={() => onChange({ [item.key]: active ? "" : String(ref.price) } as Partial<Draft>)}
+                                  onClick={() => onChange({ [item.key]: active ? "" : priceText(ref.price) } as Partial<Draft>)}
                                   title={active ? "Click to clear this price" : "Copy the master price from the wizard into this field"}
                                 >
                                   {active ? "Used" : "Use"} {formatInr(ref.price)}
@@ -1478,12 +1479,12 @@ function MoneyInput({
         <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-[13px] text-fg-3">₹</span>
         <input
           className={`${moneyCls} pl-7 ${error ? "border-neg" : ""}`}
-          inputMode="decimal"
+          inputMode="numeric"
           placeholder="0"
           value={value}
           aria-label={label}
           aria-invalid={!!error}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => onChange(e.target.value.replace(/\.\d*/g, "").replace(/[^\d,]/g, ""))}
         />
       </div>
       {error && <span className="text-[11.5px] text-neg">{error}</span>}

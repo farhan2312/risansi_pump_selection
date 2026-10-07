@@ -99,7 +99,7 @@ export interface CommercialOfferData {
 
 // --- Rows -------------------------------------------------------------------
 
-const INR = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
+const INR = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
 const money = (n: number | null | undefined): string => (n === null || n === undefined ? "" : INR.format(n));
 
 interface OfferField {
