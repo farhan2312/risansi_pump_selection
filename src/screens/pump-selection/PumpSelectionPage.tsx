@@ -389,7 +389,7 @@ const PumpSelectionPage = () => {
     driveMotorPriceUplifted: "",
     driveMotorConfirmed: false, // motor card picked, then explicitly confirmed
     driveStarterType: "",
-    drivePowerSupply: "",
+    drivePowerSupply: "Three Phase", // the usual supply; Single Phase on request
     // VFD: off unless asked for; the Hz boxes get their usual defaults when
     // it's switched on (see DriveDetailsStep).
     vfdRequired: "",
@@ -427,6 +427,8 @@ const PumpSelectionPage = () => {
         });
         // A tag saved before a unit was ever picked still opens on cP.
         if (!merged.viscosityUnit) merged.viscosityUnit = "cP";
+        // Power supply not chosen yet defaults to Three Phase.
+        if (!merged.drivePowerSupply) merged.drivePowerSupply = "Three Phase";
         setFormData((f: typeof formData) => ({ ...f, ...merged }));
         // Reopen the wizard exactly where the user left off.
         merged.wizardMaxStep = clampStep(merged.wizardMaxStep);

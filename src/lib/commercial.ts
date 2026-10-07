@@ -101,7 +101,16 @@ export type CommercialTag = {
   tech: TagTech;
   /** For the P&A price suggestion (lib/pa-price.ts): base plate material and
    *  the model's standard vs entered suction / delivery size. */
-  paHints: { basePlate: string | null; recommendedSize: string | null; dischargeSize: string | null };
+  paHints: {
+    basePlate: string | null;
+    recommendedSize: string | null;
+    dischargeSize: string | null;
+    /** Operating Conditions pump type, e.g. "Vertical". */
+    pumpType?: string | null;
+    /** Negative suction depth as entered (when Negative Suction = Yes) + unit "mt" / "feet". */
+    negativeDepth?: string | null;
+    negativeDepthUnit?: string | null;
+  };
   motorRef: CommercialReference | null;
   gearboxRef: CommercialReference | null;
   /** Drive step answer "VFD Required" = Yes. */

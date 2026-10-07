@@ -16,6 +16,8 @@
  *   Suction / delivery size     +3 % larger / −3 % smaller than standard (27-03-2026)
  *   CI casing, SS304 internals  BBBN price − 10 % (22-01-2026; off by default)
  *   MOC chart (22-07-2026)      AABN price = ABBN
+ *   Vertical (VM), by negative depth:  × 1.2 (H15–H60) / × 1.3 (H70–H120);
+ *                               5 m depth × 1.5 · 7 m depth × 1.6
  * Percentages multiply; the Viton/HNBR amount is added last.
  *
  * Client-safe (no DB).
@@ -65,6 +67,10 @@ export interface PaInputs {
   recommendedSize: string | null;
   suctionSize: string | null;
   dischargeSize: string | null;
+  /** Vertical pump (Operating Conditions pump type). */
+  vertical: boolean;
+  /** Negative suction depth in metres (null when none / not entered). */
+  negativeDepthM: number | null;
   /** "product code" (built or parsed) or "pump selection". */
   source: Partial<Record<"model" | "moc" | "rubber" | "subCategory", string>>;
 }
@@ -142,6 +148,32 @@ function sizeChange(i: PaInputs): "up" | "down" | null {
   if (sizes.some((s) => s > rec)) return "up";
   if (sizes.some((s) => s < rec)) return "down";
   return null;
+}
+
+/** The model's size number: "2H48" → 48, "H40L6" → 40. */
+const modelSize = (model: string): number | null => {
+  const m = norm(model).match(/H(\d+)/);
+  return m ? Number(m[1]) : null;
+};
+
+/** Vertical (VM) multiplier — only the one the negative depth calls for:
+ *  under 5 m the standard × 1.2 (H15–H60) / × 1.3 (H70–H120), 5 to under
+ *  7 m × 1.5, 7 m and over × 1.6. */
+function verticalAdjustments(i: PaInputs, notes: string[]): PaAdjustment[] {
+  if (!i.vertical || !i.model) return [];
+  const d = i.negativeDepthM;
+  const depth = d === null ? "no negative depth entered" : `negative depth ${+d.toFixed(2)} m`;
+  if (d !== null && d >= 7)
+    return [{ key: "vm_7", label: `Vertical (VM), ${depth} × 1.6`, short: "VM 7m ×1.6", pct: 60, defaultOn: true }];
+  if (d !== null && d >= 5)
+    return [{ key: "vm_5", label: `Vertical (VM), ${depth} × 1.5`, short: "VM 5m ×1.5", pct: 50, defaultOn: true }];
+  const size = modelSize(i.model);
+  const std = size === null ? null : size >= 15 && size <= 60 ? 1.2 : size >= 70 && size <= 120 ? 1.3 : null;
+  if (std === null) {
+    notes.push(`Vertical (VM): no factor listed for ${i.model} (H15–H60 × 1.2, H70–H120 × 1.3) — add by hand`);
+    return [];
+  }
+  return [{ key: "vm_std", label: `Vertical (VM), ${depth} × ${std}`, short: `VM ×${std}`, pct: Math.round((std - 1) * 100), defaultOn: true }];
 }
 
 export interface PaSuggestion {
@@ -226,6 +258,7 @@ export function paSuggestion(data: PaPriceData, i: PaInputs): PaSuggestion {
       fromBbbn: true,
       defaultOn: false,
     });
+  adj.push(...verticalAdjustments(i, notes));
   return { problem: null, row: found.row, col, notes, adjustments: adj };
 }
 
@@ -269,6 +302,13 @@ export function partsFromProductCode(code: string | null): { moc?: string; rubbe
   return { moc: last?.[1], rubber: last?.[2], subCategory: sub };
 }
 
+/** "6" mt → 6; "20" feet → 6.1; blank / not a number → null. */
+function depthMetres(size: string | null | undefined, unit: string | null | undefined): number | null {
+  const n = parseFloat(size ?? "");
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return /f/i.test(unit ?? "") ? n * 0.3048 : n;
+}
+
 /** A Commercial Summary tag's inputs: the built product code's parts first,
  *  then what a picked code spells out, then the pump selection. */
 export function paInputsFor(t: CommercialTag): PaInputs {
@@ -308,6 +348,8 @@ export function paInputsFor(t: CommercialTag): PaInputs {
     recommendedSize: t.paHints.recommendedSize,
     suctionSize: t.codeHints.suctionSize,
     dischargeSize: t.paHints.dischargeSize,
+    vertical: /vertical/i.test(t.paHints.pumpType ?? ""),
+    negativeDepthM: depthMetres(t.paHints.negativeDepth, t.paHints.negativeDepthUnit),
     source,
   };
 }
