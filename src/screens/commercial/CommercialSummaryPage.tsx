@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
@@ -11,7 +11,7 @@ import CommercialOfferModal from "./CommercialOfferModal";
 import ScopeControls, { ScopeLines } from "./ScopeControls";
 import { EMPTY_OFFER_CONFIG, isGearedGroup, type OfferConfig } from "../../lib/commercial-offer";
 import { getCommercialOffer, saveCommercialOfferConfig } from "../../services/commercialOfferService";
-import PumpQtyStep from "./PumpQtyStep";
+import PumpQtyStep, { loadPumpQtyLists } from "./PumpQtyStep";
 import {
   paBasisText,
   paInputsFor,
@@ -207,6 +207,8 @@ export default function CommercialSummaryPage() {
   // L1–L4 P&A price lists for the P&A suggestion (null while loading).
   const [paData, setPaData] = useState<PaPriceData | "error" | null>(null);
   useEffect(() => {
+    // Start the Pump & Qty lists now rather than after the summary arrives.
+    loadPumpQtyLists().catch(() => {});
     let cancelled = false;
     getPaPriceList()
       .then((d) => !cancelled && setPaData(d))
@@ -795,6 +797,122 @@ function TagCard({
   };
   const setOther = (i: number, patch: Partial<OtherDraft>) =>
     onChange({ others: draft.others.map((o, j) => (j === i ? { ...o, ...patch } : o)) });
+  // Mechanical seal row opened by "Price anyway" on a non-mechanical sealing.
+  const [sealOpen, setSealOpen] = useState(false);
+
+  /** A fixed BOI line's reference (wizard pick / BOI Master suggestion), the
+   *  master price it's checked against, and a sub-label under the item name. */
+  const boiReference = (key: BoiKey): { node: ReactNode; master: number | null; sub?: string } => {
+    switch (key) {
+      case "motorPrice":
+      case "gearboxPrice": {
+        const ref = refs[key];
+        if (!ref) return { master: null, node: <span className="text-fg-3">Not selected in the wizard</span> };
+        const price = ref.price;
+        const active = price !== null && draft[key] === priceText(price);
+        return {
+          master: price,
+          node: (
+            <RefLine text={ref.label} warn={ref.confirmed ? undefined : "not confirmed"}>
+              {price !== null && (
+                <UseChip
+                  price={price}
+                  active={active}
+                  onClick={() => onChange({ [key]: active ? "" : priceText(price) } as Partial<Draft>)}
+                  title="Copy the master price from the wizard into this field"
+                />
+              )}
+            </RefLine>
+          ),
+        };
+      }
+      case "vfdPrice": {
+        const picked = tag.vfdOptions.find((o) => o.driveDescription === draft.vfdModel);
+        return {
+          master: picked?.netPrice ?? null,
+          sub: tag.motorKw !== null ? `Motor ${tag.motorKw} kW${tag.vfdRequired ? " · required" : ""}` : undefined,
+          node: (
+            <VfdOptions
+              tag={tag}
+              picked={draft.vfdModel}
+              onPick={(o) => onChange({ vfdModel: o.driveDescription, vfdPrice: priceText(o.netPrice) })}
+              onClear={() => onChange({ vfdModel: "", vfdPrice: "" })}
+            />
+          ),
+        };
+      }
+      case "mechSealPrice": {
+        const o = tag.mechSealOption;
+        const clear = () => onChange({ mechSealModel: "", mechSealPrice: "" });
+        const active = !!o && draft.mechSealModel === o.label;
+        const stale = draft.mechSealModel && !active && <UsedLine value={draft.mechSealModel} onClear={clear} />;
+        if (!o)
+          return {
+            master: null,
+            node: (
+              <div className="flex flex-col items-start gap-1">
+                {stale}
+                <span className="text-warn">{tag.mechSealNote}</span>
+              </div>
+            ),
+          };
+        return {
+          master: o.price,
+          node: (
+            <RefLine text={`${o.drawingNo} · ${o.material} · ${o.shaftSizeMm} mm shaft`}>
+              <UseChip
+                price={o.price}
+                active={active}
+                onClick={() => (active ? clear() : onChange({ mechSealModel: o.label, mechSealPrice: priceText(o.price) }))}
+                title="Copy the BOI Master price into this line's base price"
+              />
+              {stale}
+            </RefLine>
+          ),
+        };
+      }
+      case "drpPrice": {
+        const o = tag.drpOption;
+        const clear = () => onChange({ drpModel: "", drpPrice: "" });
+        const active = !!o && draft.drpModel === o.label;
+        const stale = draft.drpModel && !active && <UsedLine value={draft.drpModel} onClear={clear} />;
+        if (!o)
+          return {
+            master: null,
+            node: (
+              <div className="flex flex-col items-start gap-1">
+                {stale}
+                <span className="text-warn">{tag.drpNote}</span>
+              </div>
+            ),
+          };
+        return {
+          master: o.total,
+          node: (
+            <RefLine
+              text={
+                <>
+                  {tag.model} · shaft {o.shaftDia} mm → probe {o.probeSizeMm} mm {formatInr(o.probeRate)}
+                  {o.panelRate !== null && <> + panel {formatInr(o.panelRate)}</>}
+                </>
+              }
+              warn={tag.modelConfirmed ? undefined : "model not confirmed"}
+            >
+              <UseChip
+                price={o.total}
+                active={active}
+                onClick={() => (active ? clear() : onChange({ drpModel: o.label, drpPrice: priceText(o.total) }))}
+                title="Copy the BOI Master DRP price (probe + panel) into this field"
+              />
+              {stale}
+            </RefLine>
+          ),
+        };
+      }
+      default:
+        return { master: null, node: <span className="text-fg-3">Manual entry</span> };
+    }
+  };
 
   return (
     <section id={`tag-${tag.tagId}`} className="scroll-mt-4 rounded-xl border border-line bg-paper">
@@ -863,6 +981,7 @@ function TagCard({
                 error={errors.paPrice}
                 onChange={(v) => onChange({ paPrice: v })}
                 label="Pump & Accessories price per unit"
+                strong
               />
             </div>
             <PaSuggestionPanel
@@ -874,134 +993,122 @@ function TagCard({
             />
           </div>
 
-          {/* BOI items */}
+          {/* BOI items — one line per item: the wizard / BOI Master suggestion,
+              base price, disc %, markup % and the quoted price. The left edge
+              shows the line's state (priced / differs from master / not priced). */}
           <div>
-            <h3 className="mb-2 text-[11.5px] font-semibold tracking-[0.09em] text-fg-3 uppercase">
-              BOI Items (bought-out)
-            </h3>
-            <div className="flex flex-col divide-y divide-line rounded-lg border border-line">
-              <div className="hidden justify-end gap-1.5 bg-sunk px-3 py-1.5 text-[11px] font-semibold tracking-[0.04em] text-fg-3 uppercase sm:flex">
-                <span className="w-[150px] text-right">Base price</span>
-                <span className="w-[68px] text-right">Disc %</span>
-                <span className="w-[68px] text-right">Markup %</span>
-                <span className="w-[112px] text-right">Price</span>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-[11.5px] font-semibold tracking-[0.09em] text-fg-3 uppercase">BOI Items (bought-out)</h3>
+              <span className="hidden items-center gap-3.5 text-[11.5px] font-medium text-fg-3 sm:flex">
+                {(["ok", "diff", "empty"] as const).map((s) => (
+                  <span key={s} className="inline-flex items-center gap-1.5">
+                    <i className={`inline-block h-2 w-2 rounded-full ${BOI_DOT[s]}`} />
+                    {BOI_STATE_LABEL[s]}
+                  </span>
+                ))}
+              </span>
+            </div>
+            <div className="overflow-hidden rounded-lg border border-line">
+              <div
+                className={`hidden border-b border-line bg-sunk py-2 pr-3 pl-[15px] text-[11px] font-semibold tracking-[0.04em] text-fg-3 uppercase sm:grid sm:gap-x-2.5 ${BOI_GRID}`}
+              >
+                <span>Item</span>
+                <span>Reference / suggestion</span>
+                <span>Base price</span>
+                <span className="text-right">Disc %</span>
+                <span className="text-right">Markup %</span>
+                <span className="text-right">Price</span>
               </div>
+
               {BOI_ITEMS.map((item) => {
-                const ref = refs[item.key];
+                const key = item.key;
+                // Mechanical seal on a non-mechanical sealing: one muted line
+                // until "Price anyway" (or a price is already there).
+                const sealing = tag.codeHints.sealingType;
+                if (
+                  key === "mechSealPrice" &&
+                  sealing &&
+                  sealing !== "Mechanical Seal" &&
+                  !draft.mechSealPrice &&
+                  !draft.mechSealModel &&
+                  !sealOpen
+                ) {
+                  return (
+                    <div
+                      key={key}
+                      className={`grid grid-cols-1 gap-1 border-b border-l-[3px] border-line border-l-[color:var(--fg-4)] bg-sunk px-3 py-2 text-fg-4 sm:items-center sm:gap-x-2.5 ${BOI_GRID}`}
+                    >
+                      <span className="text-[13px] font-semibold">{item.label}</span>
+                      <span className="text-[12px] sm:col-span-4">
+                        <span className="mr-2 rounded bg-paper px-1.5 py-px text-[11px] font-semibold text-fg-3">N/A</span>
+                        {tag.mechSealNote ?? `${sealing} — no mechanical seal`}
+                        <button
+                          type="button"
+                          className="ml-2 text-[12px] font-semibold text-accent hover:underline"
+                          onClick={() => setSealOpen(true)}
+                        >
+                          Price anyway
+                        </button>
+                      </span>
+                      <span className="hidden text-right sm:block">—</span>
+                    </div>
+                  );
+                }
+                const r = boiReference(key);
                 return (
-                  <div
-                    key={item.key}
-                    className="grid grid-cols-1 items-start gap-2 px-3 py-2.5 sm:grid-cols-[110px_1fr]"
-                  >
-                    <span className="pt-2 text-[13px] font-semibold text-fg">{item.label}</span>
-                    <div className="min-w-0 pt-1 text-[12px] text-fg-3">
-                      {item.key === "vfdPrice" ? (
-                        <VfdPicker
-                          tag={tag}
-                          picked={draft.vfdModel}
-                          onPick={(o) => onChange({ vfdModel: o.driveDescription, vfdPrice: priceText(o.netPrice) })}
-                          onClear={() => onChange({ vfdModel: "", vfdPrice: "" })}
-                        />
-                      ) : item.key === "mechSealPrice" ? (
-                        <BoiOptionPicker
-                          option={
-                            tag.mechSealOption && {
-                              text: `${tag.mechSealOption.drawingNo} · ${tag.mechSealOption.material} · ${tag.mechSealOption.shaftSizeMm} mm shaft`,
-                              label: tag.mechSealOption.label,
-                              price: tag.mechSealOption.price,
-                            }
-                          }
-                          note={tag.mechSealNote}
-                          used={draft.mechSealModel}
-                          onUse={(label, price) => onChange({ mechSealModel: label, mechSealPrice: priceText(price) })}
-                          onClear={() => onChange({ mechSealModel: "", mechSealPrice: "" })}
-                        />
-                      ) : item.key === "drpPrice" ? (
-                        <DrpPicker
-                          tag={tag}
-                          used={draft.drpModel}
-                          onUse={(o) => onChange({ drpModel: o.label, drpPrice: priceText(o.total) })}
-                          onClear={() => onChange({ drpModel: "", drpPrice: "" })}
-                        />
-                      ) : ref ? (
-                        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <span className="text-fg-2">{ref.label}</span>
-                          {!ref.confirmed && <span className="text-warn">(not confirmed)</span>}
-                          {ref.price !== null &&
-                            (() => {
-                              const active = draft[item.key] === priceText(ref.price);
-                              return (
-                                <button
-                                  type="button"
-                                  className={`rounded-md border px-1.5 py-0.5 font-mono text-[11.5px] text-accent hover:border-accent ${
-                                    active ? "border-accent bg-accent-soft" : "border-line"
-                                  }`}
-                                  onClick={() => onChange({ [item.key]: active ? "" : priceText(ref.price) } as Partial<Draft>)}
-                                  title={active ? "Click to clear this price" : "Copy the master price from the wizard into this field"}
-                                >
-                                  {active ? "Used" : "Use"} {formatInr(ref.price)}
-                                  {active && " ✕"}
-                                </button>
-                              );
-                            })()}
-                        </span>
-                      ) : item.key === "motorPrice" || item.key === "gearboxPrice" ? (
-                        <span className="pt-1 inline-block">Not selected in the wizard</span>
-                      ) : null}
-                    </div>
-                    <div className="sm:col-span-2">
-                      <PriceCluster
-                        label={item.label}
-                        base={draft[item.key]}
-                        pct={draft.adjust[item.key]}
-                        net={boiNet(prices, item.key)}
-                        error={errors[item.key] || errors[`${item.key}-pct`]}
-                        onBase={(v) => onChange({ [item.key]: v } as Partial<Draft>)}
-                        onPct={(patch) =>
-                          onChange({ adjust: { ...draft.adjust, [item.key]: { ...draft.adjust[item.key], ...patch } } })
-                        }
-                      />
-                    </div>
-                  </div>
+                  <BoiRow
+                    key={key}
+                    label={item.label}
+                    sub={r.sub}
+                    state={boiState(draft[key], r.master)}
+                    reference={r.node}
+                    base={draft[key]}
+                    master={r.master}
+                    pct={draft.adjust[key]}
+                    net={boiNet(prices, key)}
+                    error={errors[key] || errors[`${key}-pct`]}
+                    onBase={(v) => onChange({ [key]: v } as Partial<Draft>)}
+                    onPct={(patch) => onChange({ adjust: { ...draft.adjust, [key]: { ...draft.adjust[key], ...patch } } })}
+                  />
                 );
               })}
 
               {draft.others.map((o, i) => (
-                <div key={i} className="grid grid-cols-1 items-start gap-2 px-3 py-2.5 sm:grid-cols-[110px_1fr]">
-                  <span className="pt-2 text-[13px] font-semibold text-fg">Other</span>
-                  <div className="flex items-center gap-2">
-                    <input
-                      className={inputCls}
-                      placeholder="Item name, e.g. Coupling guard"
-                      value={o.name}
-                      maxLength={100}
-                      onChange={(e) => setOther(i, { name: e.target.value })}
-                      aria-label="Other item name"
-                    />
-                    <button
-                      type="button"
-                      className="shrink-0 rounded-md px-2 py-1.5 text-[12px] font-semibold text-neg hover:bg-[var(--neg-soft)]"
-                      onClick={() => onChange({ others: draft.others.filter((_, j) => j !== i) })}
-                      aria-label="Remove this item"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <PriceCluster
-                      label={o.name || "Other item"}
-                      base={o.price}
-                      pct={o}
-                      net={prices.others[i] ? otherNet(prices, prices.others[i]) : null}
-                      error={errors[`other-${i}`] || errors[`other-${i}-pct`]}
-                      onBase={(v) => setOther(i, { price: v })}
-                      onPct={(patch) => setOther(i, patch)}
-                    />
-                  </div>
-                </div>
+                <BoiRow
+                  key={`other-${i}`}
+                  label="Other"
+                  state={boiState(o.price, null)}
+                  reference={
+                    <div className="flex items-center gap-2">
+                      <input
+                        className={`${inputCls} py-1.5`}
+                        placeholder="Item name, e.g. Coupling guard"
+                        value={o.name}
+                        maxLength={100}
+                        onChange={(e) => setOther(i, { name: e.target.value })}
+                        aria-label="Other item name"
+                      />
+                      <button
+                        type="button"
+                        className="shrink-0 rounded-md px-2 py-1.5 text-[12px] font-semibold text-neg hover:bg-[var(--neg-soft)]"
+                        onClick={() => onChange({ others: draft.others.filter((_, j) => j !== i) })}
+                        aria-label="Remove this item"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  }
+                  base={o.price}
+                  master={null}
+                  pct={o}
+                  net={prices.others[i] ? otherNet(prices, prices.others[i]) : null}
+                  error={errors[`other-${i}`] || errors[`other-${i}-pct`]}
+                  onBase={(v) => setOther(i, { price: v })}
+                  onPct={(patch) => setOther(i, patch)}
+                />
               ))}
 
-              <div className="px-3 py-2">
+              <div className="border-l-[3px] border-l-transparent px-3 py-2">
                 <button
                   type="button"
                   className="text-[12.5px] font-semibold text-accent hover:underline disabled:cursor-not-allowed disabled:text-fg-4 disabled:no-underline"
@@ -1043,113 +1150,219 @@ function TagCard({
   );
 }
 
-/** A BOI row's single BOI Master suggestion (mechanical seal): "Use ₹…"
- *  fills the base price and records the item; or the reason there is none. */
-function BoiOptionPicker({
-  option,
-  note,
-  used,
-  onUse,
-  onClear,
+// --- BOI table ------------------------------------------------------------------
+
+type BoiState = "ok" | "diff" | "empty";
+const BOI_GRID = "sm:grid-cols-[112px_minmax(0,1fr)_132px_68px_68px_96px]";
+const BOI_EDGE: Record<BoiState, string> = {
+  ok: "border-l-[color:var(--pos)]",
+  diff: "border-l-[color:#f59e0b]",
+  empty: "border-l-[color:var(--fg-4)]",
+};
+const BOI_DOT: Record<BoiState, string> = { ok: "bg-[var(--pos)]", diff: "bg-[#f59e0b]", empty: "bg-[var(--fg-4)]" };
+const BOI_STATE_LABEL: Record<BoiState, string> = { ok: "Priced", diff: "Differs from master", empty: "Not priced" };
+
+/** Not priced (blank or invalid), priced, or priced but not the master price. */
+function boiState(base: string, master: number | null): BoiState {
+  const n = parsePrice(base);
+  if (n === null || n === undefined) return "empty";
+  return master !== null && rupees(master) !== n ? "diff" : "ok";
+}
+
+/** "Use ₹…" pill; once used it turns green ("✓ Used ₹…  ×") and a click clears it. */
+function UseChip({
+  price,
+  active,
+  onClick,
+  title,
+  verb = "Used",
 }: {
-  option: { text: string; label: string; price: number } | null;
-  note: string | null;
-  used: string;
-  onUse: (label: string, price: number) => void;
-  onClear: () => void;
+  price: number;
+  active: boolean;
+  onClick: () => void;
+  title: string;
+  verb?: string;
 }) {
-  const usedLine = used && (
-    <span className="flex flex-wrap items-center gap-x-2">
-      <span className="text-fg-2">Used: {used}</span>
-      <button type="button" className="text-[11.5px] font-semibold text-fg-3 hover:text-neg" onClick={onClear}>
-        Clear
-      </button>
-    </span>
-  );
-  if (!option) {
-    return (
-      <span className="flex flex-col gap-1 pt-1">
-        {usedLine}
-        <span className="text-warn">{note}</span>
-      </span>
-    );
-  }
-  const active = used === option.label;
   return (
-    <div className="flex flex-col gap-1">
-      <div
-        className={`flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border px-2 py-1 ${
-          active ? "border-accent bg-accent-soft" : "border-line"
-        }`}
-      >
-        <span className="text-fg-2">{option.text}</span>
-        <button
-          type="button"
-          className="ml-auto rounded-md border border-line bg-paper px-1.5 py-0.5 font-mono text-[11.5px] text-accent hover:border-accent"
-          onClick={() => (active ? onClear() : onUse(option.label, option.price))}
-          title={active ? "Click to clear this price" : "Copy the BOI Master price into this row's base price"}
-        >
-          {active ? "Used" : "Use"} {formatInr(option.price)}{active && " ✕"}
-        </button>
-      </div>
-      {used && !active && usedLine}
+    <button
+      type="button"
+      onClick={onClick}
+      title={active ? "Click to clear this price" : title}
+      className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-px font-mono text-[11.5px] font-semibold whitespace-nowrap transition-colors ${
+        active
+          ? "border-[color:var(--pos)] bg-[var(--pos-soft)] text-pos"
+          : "border-[color:var(--accent-line)] bg-paper text-accent hover:bg-accent-soft"
+      }`}
+    >
+      {active ? `✓ ${verb} ${formatInr(price)}` : `Use ${formatInr(price)}`}
+      {active && (
+        <span aria-hidden className="font-sans opacity-70">
+          ×
+        </span>
+      )}
+    </button>
+  );
+}
+
+/** A BOI line's reference text with its warning and the Use pill below. */
+function RefLine({ text, warn, children }: { text: ReactNode; warn?: string; children?: ReactNode }) {
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <span>
+        {text}
+        {warn && <span className="ml-1 text-warn">({warn})</span>}
+      </span>
+      {children}
     </div>
   );
 }
 
-/** The DRP row's reference: the BOI Master RTD probe (smallest size ≥ the
- *  model's shaft dia) + RTD panel. Shown for every tag. */
-function DrpPicker({
-  tag,
-  used,
-  onUse,
-  onClear,
-}: {
-  tag: CommercialTag;
-  used: string;
-  onUse: (o: DrpOption) => void;
-  onClear: () => void;
-}) {
-  const o = tag.drpOption;
-  const usedLine = used && (
-    <span className="flex flex-wrap items-center gap-x-2">
-      <span className="text-fg-2">Used: {used}</span>
-      <button type="button" className="text-[11.5px] font-semibold text-fg-3 hover:text-neg" onClick={onClear}>
+/** A used BOI Master item that no longer matches today's suggestion. */
+function UsedLine({ label = "Used", value, onClear }: { label?: string; value: string; onClear: () => void }) {
+  return (
+    <span className="flex flex-wrap items-center gap-x-2 text-[11.5px]">
+      <span className="text-fg-2">
+        {label}: {value}
+      </span>
+      <button type="button" className="font-semibold text-fg-3 hover:text-neg" onClick={onClear}>
         Clear
       </button>
     </span>
   );
-  if (!o) {
+}
+
+const DUTY_SHORT = { Nominal: "N", "Light Duty": "LD", "Heavy Duty": "HD" } as const;
+
+/** The VFD line's reference: the BOI Master drives covering the motor kW (one
+ *  per duty), each with its net price (list less discount, plus BOP extra). */
+function VfdOptions({
+  tag,
+  picked,
+  onPick,
+  onClear,
+}: {
+  tag: CommercialTag;
+  picked: string;
+  onPick: (o: VfdOption) => void;
+  onClear: () => void;
+}) {
+  const stale = picked && !tag.vfdOptions.some((o) => o.driveDescription === picked) && (
+    <UsedLine label="Picked" value={picked} onClear={onClear} />
+  );
+  if (tag.motorKw === null || tag.vfdOptions.length === 0)
     return (
-      <span className="flex flex-col gap-1 pt-1">
-        {usedLine}
-        <span className="text-warn">{tag.drpNote}</span>
-      </span>
+      <div className="flex flex-col items-start gap-1">
+        {stale}
+        <span className="text-warn">
+          {tag.motorKw === null
+            ? "No motor kW on the Motor Rating step to match a drive"
+            : `No drive in the BOI Master covers ${tag.motorKw} kW`}
+        </span>
+      </div>
     );
-  }
-  const active = used === o.label;
   return (
     <div className="flex flex-col gap-1">
-      <div
-        className={`flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border px-2 py-1 ${
-          active ? "border-accent bg-accent-soft" : "border-line"
-        }`}
-      >
-        <span className="text-fg-2">
-          {tag.model} · shaft {o.shaftDia} mm → probe {o.probeSizeMm} mm {formatInr(o.probeRate)}
-          {o.panelRate !== null && <> + panel {formatInr(o.panelRate)}</>}
-        </span>
-        {!tag.modelConfirmed && <span className="text-warn">(model not confirmed)</span>}
-        <button
-          type="button"
-          className="ml-auto rounded-md border border-line bg-paper px-1.5 py-0.5 font-mono text-[11.5px] text-accent hover:border-accent"
-          onClick={() => (active ? onClear() : onUse(o))}
-          title={active ? "Click to clear this price" : "Copy the BOI Master DRP price (probe + panel) into this field"}
-        >
-          {active ? "Used" : "Use"} {formatInr(o.total)}{active && " ✕"}
-        </button>
+      {tag.vfdOptions.map((o) => {
+        const active = o.driveDescription === picked;
+        return (
+          <div key={o.driveDescription} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px]">
+            {o.netPrice !== null ? (
+              <UseChip
+                price={o.netPrice}
+                active={active}
+                verb="Picked"
+                onClick={() => (active ? onClear() : onPick(o))}
+                title={`List ${formatInr(o.listPrice)} less ${o.discountPct ?? 0}% + BOP ${formatInr(o.bopExtra ?? 0)}`}
+              />
+            ) : (
+              <span className="text-fg-4">no price</span>
+            )}
+            <span className="font-mono font-semibold text-fg">{o.driveDescription}</span>
+            <span className="text-fg-3" title="N = Nominal use · LD = Light duty · HD = Heavy duty">
+              {[o.make, o.frame, o.duties.map((d) => `${DUTY_SHORT[d.duty]} ${d.kw} kW`).join(" / ")].filter(Boolean).join(" · ")}
+            </span>
+          </div>
+        );
+      })}
+      {stale}
+    </div>
+  );
+}
+
+function PctInput({ value, label, onChange }: { value: string; label: string; onChange: (v: string) => void }) {
+  return (
+    <div className="relative w-[68px] shrink-0">
+      <input
+        className={`${moneyCls} pr-6`}
+        inputMode="decimal"
+        placeholder="0"
+        value={value}
+        aria-label={label}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <span className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-[12px] text-fg-3">%</span>
+    </div>
+  );
+}
+
+/** One BOI line: item, reference, base price, disc %, markup % and the quoted
+ *  price (base × (1 − disc %) × (1 + markup %)). */
+function BoiRow({
+  label,
+  sub,
+  state,
+  reference,
+  base,
+  master,
+  pct,
+  net,
+  error,
+  onBase,
+  onPct,
+}: {
+  label: string;
+  sub?: string;
+  state: BoiState;
+  reference: ReactNode;
+  base: string;
+  master: number | null;
+  pct: PctDraft;
+  net: number | null;
+  error?: string;
+  onBase: (v: string) => void;
+  onPct: (patch: Partial<PctDraft>) => void;
+}) {
+  return (
+    <div
+      className={`grid grid-cols-1 gap-2 border-b border-l-[3px] border-line px-3 py-2.5 sm:items-center sm:gap-x-2.5 ${BOI_GRID} ${BOI_EDGE[state]}`}
+    >
+      <div className="text-[13px] font-semibold text-fg">
+        {label}
+        {sub && <span className="mt-px block text-[11px] font-normal text-fg-3">{sub}</span>}
       </div>
-      {used && !active && usedLine}
+      <div className="min-w-0 text-[12px] text-fg-2">{reference}</div>
+      <div className="flex items-center gap-2 sm:contents">
+        <div className="min-w-0 flex-1 sm:flex-none">
+          <MoneyInput
+            grouped
+            value={base}
+            onChange={onBase}
+            label={`${label} base price per unit`}
+            invalid={!!error}
+            warn={state === "diff"}
+            title={state === "diff" && master !== null ? `Master price ${formatInr(master)}` : undefined}
+          />
+        </div>
+        <PctInput value={pct.discountPct} label={`${label} vendor discount %`} onChange={(v) => onPct({ discountPct: v })} />
+        <PctInput value={pct.markupPct} label={`${label} markup %`} onChange={(v) => onPct({ markupPct: v })} />
+        <span
+          className={`w-[96px] shrink-0 text-right font-mono text-[13.5px] ${net === null ? "text-fg-4" : "font-bold text-fg"}`}
+          title="Base × (1 − disc %) × (1 + markup %)"
+        >
+          {formatInr(net)}
+        </span>
+      </div>
+      {error && <span className="text-[11.5px] text-neg sm:col-span-6 sm:text-right">{error}</span>}
     </div>
   );
 }
@@ -1286,128 +1499,6 @@ function PaSuggestionPanel({
   );
 }
 
-const DUTY_SHORT = { Nominal: "N", "Light Duty": "LD", "Heavy Duty": "HD" } as const;
-
-/** The VFD row's reference: the BOI Master drives covering the motor kW (one
- *  per duty — Nominal / Light Duty / Heavy Duty) when VFD Required = Yes.
- *  Picking one copies its net price in and records the model. */
-function VfdPicker({
-  tag,
-  picked,
-  onPick,
-  onClear,
-}: {
-  tag: CommercialTag;
-  picked: string;
-  onPick: (o: VfdOption) => void;
-  onClear: () => void;
-}) {
-  const pickedLine = picked && (
-    <span className="flex flex-wrap items-center gap-x-2">
-      <span className="text-fg-2">
-        Picked: <span className="font-mono">{picked}</span>
-      </span>
-      <button type="button" className="text-[11.5px] font-semibold text-fg-3 hover:text-neg" onClick={onClear}>
-        Clear
-      </button>
-    </span>
-  );
-  const note = (text: string, warn = false) => (
-    <span className="flex flex-col gap-1 pt-1">
-      {pickedLine}
-      <span className={warn ? "text-warn" : undefined}>{text}</span>
-    </span>
-  );
-  if (tag.motorKw === null) return note("No motor kW on the Motor Rating step to match a drive", true);
-  if (tag.vfdOptions.length === 0) return note(`No drive in the BOI Master covers ${tag.motorKw} kW`, true);
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span>Motor {tag.motorKw} kW{tag.vfdRequired ? " · VFD required on the Drive step" : ""} · pick a drive (BOI Master: list less discount, plus BOP extra):</span>
-      {tag.vfdOptions.map((o) => {
-        const active = o.driveDescription === picked;
-        return (
-          <div
-            key={o.driveDescription}
-            className={`flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border px-2 py-1 ${
-              active ? "border-accent bg-accent-soft" : "border-line"
-            }`}
-          >
-            <span className="font-mono text-fg-2">{o.driveDescription}</span>
-            <span>{[o.make, o.frame && `Frame ${o.frame}`].filter(Boolean).join(" · ")}</span>
-            <span>{o.duties.map((d) => `${DUTY_SHORT[d.duty]} ${d.kw} kW`).join(" / ")}</span>
-            {o.netPrice !== null && (
-              <button
-                type="button"
-                className="ml-auto rounded-md border border-line bg-paper px-1.5 py-0.5 font-mono text-[11.5px] text-accent hover:border-accent"
-                onClick={() => (active ? onClear() : onPick(o))}
-                title={
-                  active
-                    ? "Click to clear this price"
-                    : `List ${formatInr(o.listPrice)} less ${o.discountPct ?? 0}% + BOP ${formatInr(o.bopExtra ?? 0)}`
-                }
-              >
-                {active ? "Picked" : "Use"} {formatInr(o.netPrice)}{active && " ✕"}
-              </button>
-            )}
-          </div>
-        );
-      })}
-      {picked && !tag.vfdOptions.some((o) => o.driveDescription === picked) && pickedLine}
-      <span className="text-[11px] text-fg-4">N = Nominal use · LD = Light duty · HD = Heavy duty</span>
-    </div>
-  );
-}
-
-/** One BOI line's price: base (vendor) price, vendor discount %, markup %
- *  (pre-filled 25 %) and the resulting quoted price. */
-function PriceCluster({
-  label,
-  base,
-  pct,
-  net,
-  error,
-  onBase,
-  onPct,
-}: {
-  label: string;
-  base: string;
-  pct: PctDraft;
-  net: number | null;
-  error?: string;
-  onBase: (v: string) => void;
-  onPct: (patch: Partial<PctDraft>) => void;
-}) {
-  const pctInput = (key: keyof PctDraft, aria: string, placeholder: string) => (
-    <div className="relative w-[68px] shrink-0">
-      <input
-        className={`${moneyCls} pr-6`}
-        inputMode="decimal"
-        placeholder={placeholder}
-        value={pct[key]}
-        aria-label={`${label} ${aria}`}
-        onChange={(e) => onPct({ [key]: e.target.value })}
-      />
-      <span className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-[12px] text-fg-3">%</span>
-    </div>
-  );
-  return (
-    <div className="flex flex-col items-end gap-1">
-      <div className="flex flex-wrap items-center justify-end gap-1.5">
-        <div className="w-[150px] shrink-0">
-          <MoneyInput value={base} onChange={onBase} label={`${label} base price per unit`} />
-        </div>
-        {pctInput("discountPct", "vendor discount %", "0")}
-        {pctInput("markupPct", "markup %", "0")}
-        <span className="w-[112px] shrink-0 text-right font-mono text-[13px] font-semibold text-fg" title="Base × (1 − disc %) × (1 + markup %)">
-          {formatInr(net)}
-        </span>
-      </div>
-      {error && <span className="text-[11.5px] text-neg">{error}</span>}
-    </div>
-  );
-}
-
 /** One remarks note for the whole Commercial Summary (all tags and groups). */
 function RemarksCard({
   projectId,
@@ -1467,24 +1558,50 @@ function MoneyInput({
   error,
   onChange,
   label,
+  grouped,
+  invalid,
+  warn,
+  title,
+  strong,
 }: {
   value: string;
   error?: string;
   onChange: (v: string) => void;
   label: string;
+  /** Show 24,457 while not editing; keeps plain digits as the value. */
+  grouped?: boolean;
+  /** Red border without the message (the row shows it). */
+  invalid?: boolean;
+  /** Amber box — the price isn't the master price. */
+  warn?: boolean;
+  title?: string;
+  /** Bold, larger figure (the P&A price). */
+  strong?: boolean;
 }) {
+  const [focused, setFocused] = useState(false);
+  const shown = grouped && !focused && /^\d+$/.test(value) ? Number(value).toLocaleString("en-IN") : value;
   return (
     <div className="flex flex-col gap-1">
       <div className="relative">
         <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-[13px] text-fg-3">₹</span>
         <input
-          className={`${moneyCls} pl-7 ${error ? "border-neg" : ""}`}
+          className={`${moneyCls} pl-7 ${error || invalid ? "border-neg" : ""}`}
+          style={{
+            ...(strong ? { fontSize: 15, fontWeight: 700 } : {}),
+            ...(warn && !error && !invalid ? { background: "var(--warn-soft)", borderColor: "#f5b84a" } : {}),
+          }}
           inputMode="numeric"
           placeholder="0"
-          value={value}
+          value={shown}
+          title={title}
           aria-label={label}
-          aria-invalid={!!error}
-          onChange={(e) => onChange(e.target.value.replace(/\.\d*/g, "").replace(/[^\d,]/g, ""))}
+          aria-invalid={!!(error || invalid)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          onChange={(e) => {
+            const v = e.target.value.replace(/\.\d*/g, "");
+            onChange(grouped ? v.replace(/\D/g, "") : v.replace(/[^\d,]/g, ""));
+          }}
         />
       </div>
       {error && <span className="text-[11.5px] text-neg">{error}</span>}

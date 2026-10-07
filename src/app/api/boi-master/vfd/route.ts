@@ -6,6 +6,7 @@ import { parseVfdBody, vfdLabel } from "@/lib/boi-vfd";
 import { db } from "@/lib/db";
 import { boiVfd } from "@/lib/db/schema";
 import { auditMasterChange } from "@/lib/master-audit";
+import { forgetBoiMasters } from "@/lib/commercial-server";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,7 @@ export async function POST(req: Request) {
       .insert(boiVfd)
       .values(parsed.values as typeof boiVfd.$inferInsert)
       .returning();
+    forgetBoiMasters();
     await auditMasterChange(req, {
       master: "BOI Master",
       table: getTableName(boiVfd),

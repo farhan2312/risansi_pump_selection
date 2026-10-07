@@ -58,6 +58,21 @@ const btnPrimary =
 const selectCls =
   "w-full rounded-lg border bg-paper px-2.5 py-2 text-[13px] text-fg outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-50";
 
+// The code options + known product codes, shared between an early start (the
+// Commercial page calls loadPumpQtyLists() on open, alongside the summary)
+// and this step's mount. Kept 30 s; dropped on failure or when an option is added.
+let lists: { at: number; p: Promise<[CodeOption[], { productCode: string }[]]> } | null = null;
+export function loadPumpQtyLists() {
+  if (!lists || Date.now() - lists.at > 30_000) {
+    const p = Promise.all([listPumpCodeOptions(), listProductPumps()]);
+    lists = { at: Date.now(), p };
+    p.catch(() => {
+      if (lists?.p === p) lists = null;
+    });
+  }
+  return lists.p;
+}
+
 export default function PumpQtyStep({
   projectId,
   projectCode,
@@ -81,7 +96,7 @@ export default function PumpQtyStep({
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([listPumpCodeOptions(), listProductPumps()])
+    loadPumpQtyLists()
       .then(([opts, pumps]) => {
         if (cancelled) return;
         setOptions(opts);
@@ -102,7 +117,10 @@ export default function PumpQtyStep({
       tags={tags}
       options={options}
       known={known}
-      onOptionAdded={(o) => setOptions((list) => [...(list ?? []), o])}
+      onOptionAdded={(o) => {
+        lists = null;
+        setOptions((list) => [...(list ?? []), o]);
+      }}
       onSaved={onSaved}
       onNext={onNext}
     />

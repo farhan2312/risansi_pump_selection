@@ -6,6 +6,7 @@ import { parseVfdBody, vfdLabel } from "@/lib/boi-vfd";
 import { db } from "@/lib/db";
 import { boiVfd } from "@/lib/db/schema";
 import { auditMasterChange } from "@/lib/master-audit";
+import { forgetBoiMasters } from "@/lib/commercial-server";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       .set({ ...parsed.values, updatedAt: new Date() })
       .where(eq(boiVfd.id, id))
       .returning();
+    forgetBoiMasters();
     await auditMasterChange(req, {
       master: "BOI Master",
       table: getTableName(boiVfd),
@@ -72,6 +74,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
   const [deleted] = await db.delete(boiVfd).where(eq(boiVfd.id, id)).returning();
   if (!deleted) return error("Row not found", 404);
+  forgetBoiMasters();
   await auditMasterChange(req, {
     master: "BOI Master",
     table: getTableName(boiVfd),

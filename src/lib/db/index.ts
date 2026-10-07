@@ -28,7 +28,7 @@ const globalForDb = globalThis as unknown as {
 
 function createPool(): Pool {
   const sslmode = process.env.DB_SSLMODE ?? "require";
-  return new Pool({
+  const pool = new Pool({
     host: required("DB_HOST"),
     port: Number(process.env.DB_PORT ?? 5432),
     database: required("DB_NAME"),
@@ -37,7 +37,17 @@ function createPool(): Pool {
     // Azure Postgres requires SSL; it presents a chain Node doesn't ship a root
     // for, so disable strict verification (matches the Python side's sslmode).
     ssl: sslmode === "disable" ? false : { rejectUnauthorized: false },
+    // Opening a connection to Azure (TCP + TLS + auth) costs ~0.5 s, so keep
+    // idle ones for 3 min instead of pg's default 10 s — otherwise nearly every
+    // page open reconnects. TCP keep-alive stops Azure's network dropping them
+    // while idle.
+    idleTimeoutMillis: 180_000,
+    keepAlive: true,
   });
+  // An idle connection the server closes must not crash the process; the
+  // pool drops it and opens a fresh one on the next query.
+  pool.on("error", (err) => console.error("[db] idle connection error:", err.message));
+  return pool;
 }
 
 function initDb(): NodePgDatabase<typeof schema> {

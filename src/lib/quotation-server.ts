@@ -79,7 +79,10 @@ export async function suggestedTsm(clientCode: string | null): Promise<TsmOption
 /** Frozen copy of one drive group's prices (only that group's tags), stored
  *  with every version of that group's quotation. */
 export async function buildSnapshot(projectId: string, driveGroup: string): Promise<QuotationSnapshot> {
-  const summary = await loadCommercialSummary(projectId);
+  const [summary, [p]] = await Promise.all([
+    loadCommercialSummary(projectId),
+    db.select({ offer: projects.commercialOfferConfig }).from(projects).where(eq(projects.id, projectId)).limit(1),
+  ]);
   const tags = (summary?.tags ?? []).filter((t) => t.driveGroup === driveGroup).map((t) => ({
     tagId: t.tagId,
     tagName: t.tagName,
@@ -93,11 +96,6 @@ export async function buildSnapshot(projectId: string, driveGroup: string): Prom
   }));
   // The Commercial Offer sheet edits travel with the version, so a frozen
   // version keeps the sheet exactly as it was.
-  const [p] = await db
-    .select({ offer: projects.commercialOfferConfig })
-    .from(projects)
-    .where(eq(projects.id, projectId))
-    .limit(1);
   const offer = normalizeOfferConfigs(p?.offer, [driveGroup])[driveGroup];
   return {
     tags,
@@ -116,15 +114,21 @@ export async function loadQuotation(projectId: string, driveGroup: string): Prom
     .where(and(eq(quotation.projectId, projectId), eq(quotation.driveGroup, driveGroup)))
     .limit(1);
   if (!q) return null;
-  const mixed = (await projectDriveGroups(projectId)).length > 1;
-  const versions = await db
-    .select({ v: quotationVersion, createdByName: users.name })
-    .from(quotationVersion)
-    .leftJoin(users, eq(users.id, quotationVersion.createdBy))
-    .where(eq(quotationVersion.quotationId, q.id))
-    .orderBy(asc(quotationVersion.createdAt));
+  // The rest at once: drive groups, versions and the live snapshot (used
+  // only when a version is still live, but built alongside to save a round trip).
+  const [groups, versions, snapshot] = await Promise.all([
+    projectDriveGroups(projectId),
+    db
+      .select({ v: quotationVersion, createdByName: users.name })
+      .from(quotationVersion)
+      .leftJoin(users, eq(users.id, quotationVersion.createdBy))
+      .where(eq(quotationVersion.quotationId, q.id))
+      .orderBy(asc(quotationVersion.createdAt)),
+    buildSnapshot(projectId, driveGroup),
+  ]);
+  const mixed = groups.length > 1;
   // The live internal version shows the current saved prices, not its stored copy.
-  const liveSnapshot = versions.some(({ v }) => v.frozenAt === null) ? await buildSnapshot(projectId, driveGroup) : null;
+  const liveSnapshot = versions.some(({ v }) => v.frozenAt === null) ? snapshot : null;
   return {
     id: q.id,
     driveGroup: q.driveGroup,

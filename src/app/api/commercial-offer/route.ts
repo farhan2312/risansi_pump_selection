@@ -16,19 +16,22 @@ const UUID = /^[0-9a-f-]{36}$/i;
 export async function GET(req: Request) {
   const projectId = new URL(req.url).searchParams.get("projectId") ?? "";
   if (!UUID.test(projectId)) return error("'projectId' query param is required", 400);
-  const [p] = await db
-    .select({
-      code: projects.projectCode,
-      name: projects.name,
-      enquiryDate: projects.enquiryDate,
-      config: projects.commercialOfferConfig,
-    })
-    .from(projects)
-    .where(eq(projects.id, projectId))
-    .limit(1);
+  const [[p], groups, quotes] = await Promise.all([
+    db
+      .select({
+        code: projects.projectCode,
+        name: projects.name,
+        enquiryDate: projects.enquiryDate,
+        config: projects.commercialOfferConfig,
+      })
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .limit(1),
+    projectDriveGroups(projectId),
+    db.select().from(quotation).where(eq(quotation.projectId, projectId)).orderBy(asc(quotation.createdAt)),
+  ]);
   if (!p) return error("Enquiry not found", 404);
-  const mixed = (await projectDriveGroups(projectId)).length > 1;
-  const quotes = await db.select().from(quotation).where(eq(quotation.projectId, projectId)).orderBy(asc(quotation.createdAt));
+  const mixed = groups.length > 1;
   const data: CommercialOfferData = {
     projectCode: p.code,
     clientName: p.name,

@@ -7,6 +7,7 @@ import { boiTable } from "@/lib/boi-tables";
 import { BOI_DB, BOI_ORDER } from "@/lib/boi-tables-server";
 import { db } from "@/lib/db";
 import { auditMasterChange } from "@/lib/master-audit";
+import { forgetBoiMasters } from "@/lib/commercial-server";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +55,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ table: 
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [created] = (await db.insert(t as any).values(parsed.values as any).returning()) as any[];
+    forgetBoiMasters();
     await auditMasterChange(req, {
       master: `BOI Master · ${def.title}`,
       table: getTableName(t),

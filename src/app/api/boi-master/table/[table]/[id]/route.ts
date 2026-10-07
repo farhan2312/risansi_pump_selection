@@ -7,6 +7,7 @@ import { boiTable } from "@/lib/boi-tables";
 import { BOI_DB } from "@/lib/boi-tables-server";
 import { db } from "@/lib/db";
 import { auditMasterChange } from "@/lib/master-audit";
+import { forgetBoiMasters } from "@/lib/commercial-server";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +57,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ table:
       .where(eq(t.id, id))
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .returning()) as any[];
+    forgetBoiMasters();
     await auditMasterChange(req, {
       master: `BOI Master · ${def.title}`,
       table: getTableName(t),
@@ -84,6 +86,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ table
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [deleted] = (await db.delete(t as any).where(eq(t.id, id)).returning()) as any[];
   if (!deleted) return error("Row not found", 404);
+  forgetBoiMasters();
   await auditMasterChange(req, {
     master: `BOI Master · ${def.title}`,
     table: getTableName(t),

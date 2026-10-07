@@ -50,9 +50,43 @@ const num = (v: string | null | undefined): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
+// BOI Master tables the summary matches tags against — small and rarely
+// edited, so kept in memory for a minute (one round trip and connection fewer
+// per page open). Any BOI Master write calls forgetBoiMasters().
+const BOI_MASTER_TTL_MS = 60_000;
+const boiCache = globalThis as unknown as {
+  __pumpBoiMasters?: { at: number; p: Promise<BoiMasters> };
+};
+type BoiMasters = Awaited<ReturnType<typeof readBoiMasters>>;
+// One after another on purpose: they then share one connection, where in
+// parallel each would open its own (~0.5 s apiece to Azure when the pool is cold).
+async function readBoiMasters() {
+  const vfd = await db.select().from(boiVfd);
+  const shafts = await db.select().from(pumpShaftDia);
+  const probes = await db.select().from(boiDrpProbe);
+  const panels = await db.select().from(boiDrpPanel).orderBy(asc(boiDrpPanel.srNo));
+  const seals = await db.select().from(boiMechSeal);
+  return [vfd, shafts, probes, panels, seals] as const;
+}
+function boiMasters(): Promise<BoiMasters> {
+  const c = boiCache.__pumpBoiMasters;
+  if (c && Date.now() - c.at < BOI_MASTER_TTL_MS) return c.p;
+  const p = readBoiMasters();
+  boiCache.__pumpBoiMasters = { at: Date.now(), p };
+  p.catch(() => {
+    if (boiCache.__pumpBoiMasters?.p === p) boiCache.__pumpBoiMasters = undefined;
+  });
+  return p;
+}
+/** Drop the cached BOI Master tables (after a BOI Master add / edit / delete). */
+export function forgetBoiMasters(): void {
+  boiCache.__pumpBoiMasters = undefined;
+}
+
 /** The enquiry's Commercial Summary, or null when the enquiry doesn't exist. */
 export async function loadCommercialSummary(projectId: string): Promise<CommercialSummary | null> {
-  const [project] = await db
+  // Every query at once — each is a round trip to the DB, and none needs another's result.
+  const projectQ = db
     .select({
       id: projects.id,
       code: projects.projectCode,
@@ -64,9 +98,8 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
     .from(projects)
     .where(eq(projects.id, projectId))
     .limit(1);
-  if (!project) return null;
 
-  const rows = await db
+  const rowsQ = db
     .select({
       tagId: enquiryTags.id,
       tagName: enquiryTags.name,
@@ -127,8 +160,15 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
     .where(eq(enquiryTags.projectId, projectId))
     .orderBy(asc(enquiryTags.createdAt));
 
-  // BOI Master VFDs — small table, read once and matched per tag.
-  const vfdRows: VfdMasterRow[] = (await db.select().from(boiVfd)).map((v) => ({
+  // BOI Master tables — small, read once and matched per tag.
+  const [[project], rows, [vfdMaster, drpShafts, drpProbes, drpPanels, sealMaster]] = await Promise.all([
+    projectQ,
+    rowsQ,
+    boiMasters(),
+  ]);
+  if (!project) return null;
+
+  const vfdRows: VfdMasterRow[] = vfdMaster.map((v) => ({
     driveDescription: v.driveDescription,
     make: v.make,
     series: v.series,
@@ -142,16 +182,11 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
   }));
 
   // BOI Master DRP: shaft dia per model, probe sizes, the (single) panel.
-  const [drpShafts, drpProbes, drpPanels] = await Promise.all([
-    db.select().from(pumpShaftDia),
-    db.select().from(boiDrpProbe),
-    db.select().from(boiDrpPanel).orderBy(asc(boiDrpPanel.srNo)),
-  ]);
   const shafts = drpShafts.map((s) => ({ model: s.model, shaftDia: num(s.shaftDia) }));
   const probes = drpProbes.map((p) => ({ description: p.description, sizeMm: Number(p.sizeMm), ratePerNos: num(p.ratePerNos) }));
   const panel = drpPanels[0] ? { description: drpPanels[0].description, ratePerNos: num(drpPanels[0].ratePerNos) } : null;
 
-  const sealRows: MechSealRow[] = (await db.select().from(boiMechSeal)).map((m) => ({
+  const sealRows: MechSealRow[] = sealMaster.map((m) => ({
     make: m.make,
     series: m.series,
     drawingNo: m.drawingNo,

@@ -26,17 +26,18 @@ export async function GET(req: Request) {
   const group = params.get("group") ?? "";
   if (!UUID.test(projectId)) return error("'projectId' query param is required", 400);
   if (!isDriveGroup(group)) return error("'group' must be GM, GB, VB or DD", 400);
-  const [p] = await db
-    .select({ clientCode: projects.clientCode })
-    .from(projects)
-    .where(eq(projects.id, projectId))
-    .limit(1);
-  if (!p) return error("Enquiry not found", 404);
-  const [q, clientTsm] = await Promise.all([
+  // The quotation loads alongside the enquiry → client rep lookup.
+  const [p, q] = await Promise.all([
+    db
+      .select({ clientCode: projects.clientCode })
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .limit(1)
+      .then(async ([row]) => (row ? { clientTsm: await suggestedTsm(row.clientCode).catch(() => null) } : null)),
     loadQuotation(projectId, group),
-    suggestedTsm(p.clientCode).catch(() => null),
   ]);
-  return json({ quotation: q, clientTsm });
+  if (!p) return error("Enquiry not found", 404);
+  return json({ quotation: q, clientTsm: p.clientTsm });
 }
 
 // POST /api/quotations {projectId, group, tsmRepId?} — creates one drive
