@@ -236,7 +236,6 @@ export const TECH_DOC_FIELDS: TechDocField[] = [
     value: (c) => rangeText(s(c.f.viscosityCp), s(c.f.viscosityCpMax), s(c.f.viscosityMode)),
   },
   { key: "sg", label: "Sp. Gravity", section: "Liquid Parameters", value: (c) => s(c.f.sg) },
-  { key: "quantity", label: "Quantity", section: "Liquid Parameters", value: (c) => s(c.f.quantity) },
   { key: "pumpModel", label: "Pump Model", section: "Liquid Parameters", value: (c) => s(c.f.productCode) || s(c.f.selectedModel) },
   { key: "x_model", label: "Pump Model (Technical)", section: "Liquid Parameters", extra: true, value: (c) => s(c.f.selectedModel) },
   { key: "x_ph", label: "pH", section: "Liquid Parameters", extra: true, value: (c) => phDisplay(c.f as never) },
