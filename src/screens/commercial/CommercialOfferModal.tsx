@@ -127,6 +127,7 @@ export default function CommercialOfferModal({
       tags,
       config,
       geared,
+      driveGroup: group,
       group: data.mixed ? group : undefined,
       versionLabel: version?.label,
     };

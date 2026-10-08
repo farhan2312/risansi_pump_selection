@@ -32,8 +32,11 @@ export const OFFER_TITLE = "Commercial Offer";
 // lines; Gear Box is only in the default scope of a geared sheet.
 export const SCOPE_ITEMS = [
   "Pump With Base-Plate",
+  "Pump Pulley",
+  "Motor Pulley",
   "Driven Coupling",
   "Foundation & Grouting Bolts",
+  "V-Belts",
   "Coupling & Motor Guard",
   "Matching Flange",
   "(For Suc. & Delivery) Gasket & Fasteners",
@@ -47,8 +50,16 @@ export const SCOPE_ITEMS = [
   "VPI Treatment",
 ];
 export const DEFAULT_OUT_OF_SCOPE_ITEMS = ["Starter", "VFD", "VFD Panel", "3PTC Thermistor", "VPI Treatment"];
-export const defaultScopeItems = (geared: boolean): string[] =>
-  SCOPE_ITEMS.filter((i) => !DEFAULT_OUT_OF_SCOPE_ITEMS.includes(i) && (geared || i !== "Gear Box"));
+/** V-Belt sheets (user's format, 2026-10-08). */
+export const VBELT_SCOPE_ITEMS = ["Pump With Base-Plate", "Pump Pulley", "Motor Pulley", "Foundation & Grouting Bolts", "V-Belts", "Motor"];
+const VBELT_ONLY = new Set(["Pump Pulley", "Motor Pulley", "V-Belts"]);
+/** The default scope of supply for a drive group's sheet. */
+export const defaultScopeItems = (group: string | null | undefined): string[] =>
+  group === "VB"
+    ? VBELT_SCOPE_ITEMS
+    : SCOPE_ITEMS.filter(
+        (i) => !DEFAULT_OUT_OF_SCOPE_ITEMS.includes(i) && !VBELT_ONLY.has(i) && (isGearedGroup(group) || i !== "Gear Box"),
+      );
 
 /** One tag column: its saved prices and totals. */
 export interface OfferTag {
@@ -74,6 +85,8 @@ export interface OfferSheet {
   config: OfferConfig;
   /** Gear Box rows/labels apply (GM / GB). */
   geared: boolean;
+  /** The sheet's drive group (GM / GB / VB / DD) — picks the default scope. */
+  driveGroup?: string;
   /** Drive group code for the file name when the enquiry mixes drives. */
   group?: string;
   /** e.g. "Internal V2" — for the file name of a version's sheet. */
@@ -323,24 +336,27 @@ export function buildOffer(
 }
 
 /** The selected items of each list (the default when not changed). */
-export const scopeItems = (c: OfferConfig, geared: boolean): string[] => c.scope ?? defaultScopeItems(geared);
+export const scopeItems = (c: OfferConfig, group: string | null | undefined): string[] => c.scope ?? defaultScopeItems(group);
 export const outOfScopeItems = (c: OfferConfig): string[] => c.outOfScope ?? DEFAULT_OUT_OF_SCOPE_ITEMS;
 
 /** Every item that can be picked: the standard pool, items added by hand, and
  *  anything already selected (e.g. an older free-text line). */
-export const scopePool = (c: OfferConfig, geared: boolean): string[] => [
-  ...new Set([...SCOPE_ITEMS, ...c.scopeExtra, ...scopeItems(c, geared), ...outOfScopeItems(c)]),
+export const scopePool = (c: OfferConfig, group: string | null | undefined): string[] => [
+  ...new Set([...SCOPE_ITEMS, ...c.scopeExtra, ...scopeItems(c, group), ...outOfScopeItems(c)]),
 ];
 
 /** "A, B, C & D" — the scope line as the format writes it. */
-export const offerScope = (c: OfferConfig, geared: boolean): string => {
-  const items = scopeItems(c, geared);
+export const offerScope = (c: OfferConfig, group: string | null | undefined): string => {
+  const items = scopeItems(c, group);
   return items.length > 1 ? `${items.slice(0, -1).join(", ")} & ${items[items.length - 1]}` : (items[0] ?? "");
 };
 /** "A + B + C" — the out-of-scope line as the format writes it. */
 export const offerOutOfScope = (c: OfferConfig): string => outOfScopeItems(c).join(" + ");
 
 // --- HTML (preview + print) ---------------------------------------------------
+
+/** The sheet's drive group; older callers only said geared or not. */
+export const sheetGroup = (sheet: OfferSheet): string | null => sheet.driveGroup ?? (sheet.geared ? "GB" : null);
 
 export function buildOfferHtml(sheet: OfferSheet, logoUrl = "/logo.png"): string {
   const n = Math.max(sheet.tags.length, 1);
@@ -354,7 +370,7 @@ export function buildOfferHtml(sheet: OfferSheet, logoUrl = "/logo.png"): string
         : `<tr><th scope="row">${esc(r.label)}</th>${r.values.map((v) => `<td>${esc(v || "-")}</td>`).join("")}</tr>`,
     )
     .join("");
-  const scope = offerScope(sheet.config, sheet.geared);
+  const scope = offerScope(sheet.config, sheetGroup(sheet));
   const out = offerOutOfScope(sheet.config);
   const body =
     `<tr class="offer-band"><td colspan="${cols}">${esc(OFFER_TITLE)}</td></tr>` +

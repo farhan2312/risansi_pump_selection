@@ -572,10 +572,10 @@ export default function CommercialSummaryPage() {
                   <>
                     <ScopeControls
                       config={offerConfigs[tab] ?? EMPTY_OFFER_CONFIG}
-                      geared={isGearedGroup(tab)}
+                      group={tab}
                       onChange={(next) => saveScope(tab, next)}
                     />
-                    <ScopeLines config={offerConfigs[tab] ?? EMPTY_OFFER_CONFIG} geared={isGearedGroup(tab)} />
+                    <ScopeLines config={offerConfigs[tab] ?? EMPTY_OFFER_CONFIG} group={tab} />
                   </>
                 )}
               </div>

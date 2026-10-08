@@ -21,8 +21,8 @@ const btn =
   "inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-[12.5px] font-semibold text-fg-2 hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";
 
 /** The two lines as they will print. */
-export function ScopeLines({ config, geared }: { config: OfferConfig; geared: boolean }) {
-  const scope = offerScope(config, geared);
+export function ScopeLines({ config, group }: { config: OfferConfig; group: string }) {
+  const scope = offerScope(config, group);
   const out = offerOutOfScope(config);
   return (
     <div className="flex flex-col gap-1 text-[12.5px]">
@@ -37,15 +37,16 @@ export function ScopeLines({ config, geared }: { config: OfferConfig; geared: bo
  *  keep the pool's order on the sheet. */
 export default function ScopeControls({
   config,
-  geared,
+  group,
   onChange,
 }: {
   config: OfferConfig;
-  geared: boolean;
+  /** Drive group — picks the default scope (V-Belt has its own). */
+  group: string;
   onChange: (next: OfferConfig) => void;
 }) {
-  const pool = scopePool(config, geared);
-  const inScope = scopeItems(config, geared);
+  const pool = scopePool(config, group);
+  const inScope = scopeItems(config, group);
   const outScope = outOfScopeItems(config);
   const ordered = (set: Set<string>) => pool.filter((i) => set.has(i));
 
@@ -81,7 +82,7 @@ export default function ScopeControls({
   // Back to the format's default for this list; the other list drops anything
   // the default now claims.
   const reset = (list: "scope" | "out") => {
-    const def = new Set(list === "scope" ? defaultScopeItems(geared) : DEFAULT_OUT_OF_SCOPE_ITEMS);
+    const def = new Set(list === "scope" ? defaultScopeItems(group) : DEFAULT_OUT_OF_SCOPE_ITEMS);
     const other = (list === "scope" ? outScope : inScope).filter((i) => !def.has(i));
     onChange(
       list === "scope"
