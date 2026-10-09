@@ -69,8 +69,6 @@ const Note = ({ children }: { children: ReactNode }) => (
   <p className="rounded-lg bg-elev px-3 py-2 text-[11.5px] leading-relaxed text-fg-3 sm:col-span-2">{children}</p>
 );
 
-type CalcMode = "suction" | "discharge";
-
 /**
  * Head Calculator, two modes:
  *  - Suction: NPSH and suction-line losses (lib/head-calculator.ts, ported
@@ -79,34 +77,12 @@ type CalcMode = "suction" | "discharge";
  *    (lib/discharge-calculator.ts, from the discharge-line workbook).
  * Everything recalculates as you type.
  */
+export type CalcMode = "suction" | "discharge";
+
 const HeadCalculatorPage = () => {
   const [mode, setMode] = useState<CalcMode>("suction");
   const [discharge, setDischarge] = useState<DischargeCalcInput>(DEFAULT_DISCHARGE_INPUT);
   const [form, setForm] = useState<HeadCalcInput>(DEFAULT_HEAD_CALC_INPUT);
-  const result = useMemo(() => calculateHead(form), [form]);
-  const style = STATUS_STYLE[result.status];
-
-  const set =
-    (key: keyof HeadCalcInput) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-      setForm((f) => ({ ...f, [key]: e.target.value }));
-
-  const numberInput = (key: keyof HeadCalcInput, step: string, min = "0") => (
-    <input type="number" inputMode="decimal" className={inputCls} value={form[key]} onChange={set(key)} step={step} min={min} />
-  );
-
-  const breakdown = [
-    { label: "Static height × SG", value: result.pressureFromHeight, hint: `${form.verticalHeight || 0} m × ${form.specificGravity || 0}` },
-    {
-      label: "Line friction",
-      value: result.frictionLossLine,
-      hint: `${form.lineSize}" line · ${fmt(result.capacityTph)} TPH · ${form.viscosity || 0} cP · ${fmt(result.totalDistance)} m`,
-    },
-    { label: "Bends", value: result.frictionLossBends, hint: `${form.noBends || 0} × ${result.bendLossPerBend} (${form.bendAngle}°)` },
-    { label: "Suction valves", value: result.frictionLossValves, hint: `${form.valves || 0} × 1.00` },
-    { label: "NRVs", value: result.frictionLossNRV, hint: `${form.nrv || 0} × 1.00` },
-  ];
-  const maxLoss = Math.max(0.0001, ...breakdown.map((b) => b.value));
 
   return (
     <div className="mx-auto max-w-[1600px] px-4 pt-5 pb-10 sm:px-6">
@@ -135,6 +111,37 @@ const HeadCalculatorPage = () => {
         }
       />
 
+      <HeadCalculatorView
+        mode={mode}
+        setMode={setMode}
+        suction={form}
+        setSuction={setForm}
+        discharge={discharge}
+        setDischarge={setDischarge}
+      />
+    </div>
+  );
+};
+
+/** The two calculators with their Suction / Discharge switch — the Head
+ *  Calculator page, and the pop-up on the General Information step. */
+export function HeadCalculatorView({
+  mode,
+  setMode,
+  suction,
+  setSuction,
+  discharge,
+  setDischarge,
+}: {
+  mode: CalcMode;
+  setMode: (m: CalcMode) => void;
+  suction: HeadCalcInput;
+  setSuction: React.Dispatch<React.SetStateAction<HeadCalcInput>>;
+  discharge: DischargeCalcInput;
+  setDischarge: React.Dispatch<React.SetStateAction<DischargeCalcInput>>;
+}) {
+  return (
+    <>
       {/* Suction / Discharge */}
       <div className="mt-4 inline-flex rounded-xl border border-line bg-paper p-1" role="tablist" aria-label="Calculator">
         {(
@@ -161,6 +168,47 @@ const HeadCalculatorPage = () => {
       {mode === "discharge" ? (
         <DischargePanel form={discharge} setForm={setDischarge} />
       ) : (
+        <SuctionPanel form={suction} setForm={setSuction} />
+      )}
+    </>
+  );
+}
+
+/** Suction (NPSH) calculator: inputs on the left, the margin and its make-up on the right. */
+function SuctionPanel({
+  form,
+  setForm,
+}: {
+  form: HeadCalcInput;
+  setForm: React.Dispatch<React.SetStateAction<HeadCalcInput>>;
+}) {
+  const result = useMemo(() => calculateHead(form), [form]);
+  const style = STATUS_STYLE[result.status];
+
+  const set =
+    (key: keyof HeadCalcInput) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+      setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  const numberInput = (key: keyof HeadCalcInput, step: string, min = "0") => (
+    <input type="number" inputMode="decimal" className={inputCls} value={form[key]} onChange={set(key)} step={step} min={min} />
+  );
+
+  const breakdown = [
+    { label: "Static height × SG", value: result.pressureFromHeight, hint: `${form.verticalHeight || 0} m × ${form.specificGravity || 0}` },
+    {
+      label: "Line friction",
+      value: result.frictionLossLine,
+      hint: `${form.lineSize}" line · ${fmt(result.capacityTph)} TPH · ${form.viscosity || 0} cP · ${fmt(result.totalDistance)} m`,
+    },
+    { label: "Bends", value: result.frictionLossBends, hint: `${form.noBends || 0} × ${result.bendLossPerBend} (${form.bendAngle}°)` },
+    { label: "Suction valves", value: result.frictionLossValves, hint: `${form.valves || 0} × 1.00` },
+    { label: "NRVs", value: result.frictionLossNRV, hint: `${form.nrv || 0} × 1.00` },
+  ];
+  const maxLoss = Math.max(0.0001, ...breakdown.map((b) => b.value));
+
+
+  return (
       <div className="mt-4 grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
         {/* Inputs */}
         <div className="space-y-4">
@@ -333,10 +381,8 @@ const HeadCalculatorPage = () => {
           </section>
         </div>
       </div>
-      )}
-    </div>
   );
-};
+}
 
 /** Discharge-line calculator: inputs on the left, the head and its make-up on the right. */
 function DischargePanel({

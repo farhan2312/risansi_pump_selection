@@ -1,11 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
 import StepApprovalBadge from "./approval/StepApprovalBadge";
 import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, hint, label } from "./formStyles";
 import { Err, ErrorBanner, Req, hasErrors } from "./fieldBits";
+import {
+  BUCKET_CONNECTION,
+  ConnectionSelect,
+  END_CONNECTIONS,
+  FlangeStdField,
+  SUCTION_CONNECTIONS,
+  useFlangeStandards,
+} from "./ConnectionFields";
 import {
   PUMP_SUPPORT_LABEL,
   PUMP_SUPPORT_OPTIONS,
@@ -65,6 +73,10 @@ const agBkOptionsFor = (pumpType: string): string[] =>
 const suctionHousingOptionsFor = (pumpType: string): string[] =>
   pumpType ? SUCTION_HOUSINGS_BY_PUMP_TYPE[pumpType] ?? ALL_SUCTION_HOUSINGS : ALL_SUCTION_HOUSINGS;
 
+/** "AG & BK" (bucket with auger): the suction connection is the bucket. */
+const AG_AND_BK = "AG & BK";
+const hasBucket = (agBk: unknown) => agBk === AG_AND_BK;
+
 const OperatingConditionsStep = ({
   onNext,
   onPrevious,
@@ -96,6 +108,7 @@ const OperatingConditionsStep = ({
       pumpType,
       agBk,
       agBkRemarks: agBk === AG_BK_NOT_REQUIRED ? formData.agBkRemarks ?? "" : "",
+      ...suctionConnectionFor(agBk),
       // Negative suction is asked for every pump type now, so the answer and
       // its depth survive a pump-type change.
       suctionHousing: suctionOpts.includes(formData.suctionHousing)
@@ -103,6 +116,23 @@ const OperatingConditionsStep = ({
         : "",
     });
   };
+
+  // With AG & BK the suction connection is the bucket (the only option) and
+  // there is no suction flange std; any other choice clears "Bucket".
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function suctionConnectionFor(agBk: string): Record<string, any> {
+    if (hasBucket(agBk)) return { suctionConnection: BUCKET_CONNECTION, suctionFlangeStd: "" };
+    return formData.suctionConnection === BUCKET_CONNECTION ? { suctionConnection: "" } : {};
+  }
+  const bucket = hasBucket(formData.agBk);
+  // A tag saved before this rule (or before the fields moved here) is brought
+  // in line when the step opens.
+  useEffect(() => {
+    if (bucket && (formData.suctionConnection !== BUCKET_CONNECTION || formData.suctionFlangeStd))
+      setFormData({ ...formData, suctionConnection: BUCKET_CONNECTION, suctionFlangeStd: "" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bucket, formData.suctionConnection, formData.suctionFlangeStd]);
+  const flangeStds = useFlangeStandards();
 
   const agBkOptions = agBkOptionsFor(formData.pumpType);
   const suctionHousingOptions = suctionHousingOptionsFor(formData.pumpType);
@@ -127,6 +157,7 @@ const OperatingConditionsStep = ({
       ...formData,
       agBk,
       agBkRemarks: agBk === AG_BK_NOT_REQUIRED ? formData.agBkRemarks ?? "" : "",
+      ...suctionConnectionFor(agBk),
     });
 
   // Every specification is required - they all feed the MOC component split,
@@ -307,6 +338,38 @@ const OperatingConditionsStep = ({
             </select>
             <Err show={showErrors} msg={errors.jointType} />
           </div>
+
+          {/* Connections + flange standards (moved here from Fluid Properties). */}
+          <ConnectionSelect
+            fieldLabel="Suction Connection"
+            value={formData.suctionConnection ?? ""}
+            options={bucket ? [BUCKET_CONNECTION] : SUCTION_CONNECTIONS}
+            onChange={(v) => setFormData({ ...formData, suctionConnection: v })}
+          />
+          {!bucket && (
+            <FlangeStdField
+              fieldLabel="Suction Flange Std"
+              value={formData.suctionFlangeStd ?? ""}
+              onChange={(v) => setFormData({ ...formData, suctionFlangeStd: v })}
+              options={flangeStds.options}
+              setOptions={flangeStds.setOptions}
+              loadFailed={flangeStds.loadFailed}
+            />
+          )}
+          <ConnectionSelect
+            fieldLabel="End Connection (Discharge)"
+            value={formData.endConnection ?? ""}
+            options={END_CONNECTIONS}
+            onChange={(v) => setFormData({ ...formData, endConnection: v })}
+          />
+          <FlangeStdField
+            fieldLabel="Discharge Flange Std"
+            value={formData.dischargeFlangeStd ?? ""}
+            onChange={(v) => setFormData({ ...formData, dischargeFlangeStd: v })}
+            options={flangeStds.options}
+            setOptions={flangeStds.setOptions}
+            loadFailed={flangeStds.loadFailed}
+          />
 
           {/* Asked for every pump type: does the suction hang below the pump's
               mounting flange, and if so by how much (metres or millimetres). */}

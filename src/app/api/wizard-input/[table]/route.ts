@@ -10,6 +10,7 @@ import {
   approvalStepsForChange,
 } from "@/lib/approval";
 import { resetApprovals } from "@/lib/approval-server";
+import { normalizeHeadCalc } from "@/lib/head-calc-store";
 import {
   enquiryTags,
   generalInfoInput,
@@ -56,6 +57,7 @@ const FIELDS: Record<TableKey, readonly string[]> = {
     "capacity", "capacityUnit", "head", "headUnit", "media",
     "sg", "rpmRange", "selectedModel", "selectedHead", "modelConfirmed",
     "wizardStep", "wizardMaxStep",
+    "headCalc",
   ],
   "fluid-properties": [
     "viscosity", "viscosityUnit", "viscosityRange", "viscosityCp",
@@ -63,7 +65,6 @@ const FIELDS: Record<TableKey, readonly string[]> = {
     "suctionSize", "dischargeSize", "recommendedSize",
     "sizeRemarks",
     "solidPercentage", "solidSize", "solidSizeMax", "solidSizeMode", "solidType",
-    "endConnection", "suctionConnection", "suctionFlangeStd", "dischargeFlangeStd",
     // Temperature + pH are entered on the Fluid step, so they persist here.
     "ph", "temperature", "temperatureRaw", "temperatureUnit",
     // Single-or-range support (see fluid-inputs.ts): mode flags + max bounds.
@@ -74,6 +75,8 @@ const FIELDS: Record<TableKey, readonly string[]> = {
   "operating-conditions": [
     "pumpType", "agBk", "agBkRemarks", "bearingHousing", "suctionHousing", "jointType",
     "negativeSuction", "negativeSuctionSize", "negativeSuctionUnit",
+    // Connections + flange standards (moved from Fluid Properties, 2026-10-10).
+    "suctionConnection", "suctionFlangeStd", "endConnection", "dischargeFlangeStd",
   ],
   "moc-sealing": [
     "sealingType", "sealingSubType", "glandPackingType", "glandPackingMake",
@@ -169,7 +172,11 @@ function pickFields(tableKey: TableKey, body: Record<string, unknown>) {
   const out: Record<string, unknown> = {};
   for (const key of FIELDS[tableKey]) {
     if (key in body) {
-      out[key] = TIMESTAMP_FIELDS.has(key) ? coerceTimestamp(body[key]) : body[key];
+      out[key] = TIMESTAMP_FIELDS.has(key)
+        ? coerceTimestamp(body[key])
+        : key === "headCalc"
+          ? normalizeHeadCalc(body[key])
+          : body[key];
     }
   }
   return out;

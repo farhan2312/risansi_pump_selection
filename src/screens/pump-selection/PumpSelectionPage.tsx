@@ -47,13 +47,13 @@ const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
     "capacity", "capacityUnit", "head", "headUnit", "media",
     "sg", "rpmRange", "selectedModel", "selectedHead", "modelConfirmed",
     "wizardStep", "wizardMaxStep",
+    "headCalc",
   ],
   "fluid-properties": [
     "viscosity", "viscosityUnit", "viscosityRange", "viscosityCp",
     "suctionSize", "dischargeSize", "recommendedSize",
     "sizeRemarks",
     "solidPercentage", "solidSize", "solidSizeMax", "solidSizeMode", "solidType",
-    "endConnection", "suctionConnection", "suctionFlangeStd", "dischargeFlangeStd",
     "ph", "temperature", "temperatureRaw", "temperatureUnit",
     // Min–Max ranges (pH / viscosity / temperature) — without these a range
     // was dropped on save and every document showed only the minimum.
@@ -64,6 +64,8 @@ const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
   "operating-conditions": [
     "pumpType", "agBk", "agBkRemarks", "bearingHousing", "suctionHousing", "jointType",
     "negativeSuction", "negativeSuctionSize", "negativeSuctionUnit",
+    // Connections + flange standards (moved from Fluid Properties, 2026-10-10).
+    "suctionConnection", "suctionFlangeStd", "endConnection", "dischargeFlangeStd",
   ],
   "moc-sealing": [
     "sealingType", "sealingSubType", "glandPackingType", "glandPackingMake",

@@ -45,6 +45,7 @@ const NAME_ONLY_FIELDS: Record<string, string> = {
   mocAiSuggestedSealRationale: "AI seal rationale regenerated",
   mocAiGeneratedAt: "AI suggestion regenerated",
   clientRequirementsUploadedAt: "Client requirements re-uploaded",
+  headCalc: "Head calculator updated",
 };
 
 /** Labels where the generated one would read badly. Everything else is
@@ -160,8 +161,20 @@ function normalize(v: unknown): string {
   if (v === null || v === undefined) return "";
   if (typeof v === "boolean") return v ? "yes" : "no";
   if (v instanceof Date) return Number.isNaN(v.getTime()) ? "" : v.toISOString();
-  if (typeof v === "object") return JSON.stringify(v);
+  // Sorted keys: a jsonb column hands keys back in its own order, which must
+  // not read as an edit.
+  if (typeof v === "object") return stableJson(v);
   return String(v).trim();
+}
+
+function stableJson(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(stableJson).join(",")}]`;
+  if (v && typeof v === "object")
+    return `{${Object.keys(v as object)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${stableJson((v as Record<string, unknown>)[k])}`)
+      .join(",")}}`;
+  return JSON.stringify(v) ?? "";
 }
 
 const NUMERIC = /^-?\d+(\.\d+)?$/;

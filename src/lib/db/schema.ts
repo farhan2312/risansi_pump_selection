@@ -191,6 +191,9 @@ export const generalInfoInput = pgTable("general_info_input", {
   // (so every step before it stays ticked/green even after jumping back).
   wizardStep: integer("wizard_step").default(1),
   wizardMaxStep: integer("wizard_max_step").default(1),
+  // Head Calculator inputs saved with the tag ({suction, discharge}, as typed —
+  // lib/head-calc-store.ts). Results are recalculated, never stored.
+  headCalc: jsonb("head_calc"),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
@@ -224,13 +227,9 @@ export const fluidPropertiesInput = pgTable("fluid_properties_input", {
   solidSizeMax: varchar("solid_size_max", { length: 50 }),
   solidSizeMode: varchar("solid_size_mode", { length: 10 }),
   solidType: varchar("solid_type", { length: 20 }),
-  /** Discharge end connection type: End Cover / End Plate / BSP Type / BSP with Flange. */
-  endConnection: varchar("end_connection", { length: 120 }),
-  /** Suction connection type: Flange / BSP Type / BSP with Flange. */
-  suctionConnection: varchar("suction_connection", { length: 120 }),
-  /** Flange standards (flange_standard_master), one per side. */
-  suctionFlangeStd: varchar("suction_flange_std", { length: 120 }),
-  dischargeFlangeStd: varchar("discharge_flange_std", { length: 120 }),
+  // end_connection / suction_connection / suction_flange_std /
+  // discharge_flange_std moved to operating_conditions_input (2026-10-10);
+  // the old columns stay in the DB until deploy, then get dropped.
   ph: varchar("ph", { length: 50 }),
   temperature: varchar("temperature", { length: 50 }), // canonical °C
   temperatureRaw: varchar("temperature_raw", { length: 50 }), // as-entered value
@@ -298,6 +297,16 @@ export const operatingConditionsInput = pgTable("operating_conditions_input", {
   negativeSuction: varchar("negative_suction", { length: 10 }),
   negativeSuctionSize: varchar("negative_suction_size", { length: 50 }),
   negativeSuctionUnit: varchar("negative_suction_unit", { length: 10 }),
+  // Connections + flange standards (Specifications step; moved from
+  // fluid_properties_input 2026-10-10). With AG & BK the suction connection
+  // is "Bucket" and there is no suction flange std.
+  /** Suction connection type: Flange / BSP Type / BSP with Flange (Bucket with AG / BK). */
+  suctionConnection: varchar("suction_connection", { length: 120 }),
+  /** Flange standards (flange_standard_master), one per side. */
+  suctionFlangeStd: varchar("suction_flange_std", { length: 120 }),
+  /** Discharge end connection type: End Cover / End Plate / BSP Type / BSP with Flange. */
+  endConnection: varchar("end_connection", { length: 120 }),
+  dischargeFlangeStd: varchar("discharge_flange_std", { length: 120 }),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });

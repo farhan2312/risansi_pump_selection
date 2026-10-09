@@ -17,6 +17,9 @@ import {
   label,
 } from "./formStyles";
 import { Err, ErrorBanner, Req, hasErrors } from "./fieldBits";
+import HeadCalcModal from "./HeadCalcModal";
+import { normalizeHeadCalc, seedHeadCalc } from "../../lib/head-calc-store";
+import { calculateDischarge } from "../../lib/discharge-calculator";
 
 type Props = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -51,6 +54,10 @@ const GeneralInformationStep = ({
   // their units, an RPM band and a media there is nothing to select against.
   // Specific Gravity stays optional - it defaults to 1.0 in the conversions.
   const [showErrors, setShowErrors] = useState(false);
+  // Head Calculator pop-up; its inputs are saved with the tag (headCalc).
+  const [showHeadCalc, setShowHeadCalc] = useState(false);
+  const savedCalc = normalizeHeadCalc(formData.headCalc);
+  const savedDischargeHead = savedCalc ? calculateDischarge(savedCalc.discharge).totalHead : null;
   const errors: Record<string, string> = {
     capacity: formData.capacity ? "" : "Capacity is required.",
     capacityUnit: formData.capacityUnit ? "" : "Select a capacity unit.",
@@ -151,6 +158,20 @@ const GeneralInformationStep = ({
                 )}
               </span>
             )}
+            <span className="mt-1 flex flex-wrap items-center gap-x-2 text-[12px]">
+              <button
+                type="button"
+                className="font-semibold text-accent hover:underline"
+                onClick={() => setShowHeadCalc(true)}
+              >
+                {savedCalc ? "Open head calculator" : "Head calculator (suction / discharge)"}
+              </button>
+              {savedCalc && savedDischargeHead !== null && Number.isFinite(savedDischargeHead) && (
+                <span className="text-fg-3">
+                  · saved — discharge head <b className="mono text-fg-2">{savedDischargeHead.toFixed(2)} MWC</b>
+                </span>
+              )}
+            </span>
             <Err show={showErrors} msg={errors.head} />
           </div>
 
@@ -212,6 +233,21 @@ const GeneralInformationStep = ({
             <Err show={showErrors} msg={errors.media} />
           </div>
         </div>
+
+        {showHeadCalc && (
+          <HeadCalcModal
+            initial={savedCalc ?? seedHeadCalc(formData)}
+            onClose={() => setShowHeadCalc(false)}
+            onSave={(calc, headMwc) => {
+              setFormData({
+                ...formData,
+                headCalc: calc,
+                ...(headMwc !== null ? { head: String(Math.round(headMwc * 100) / 100), headUnit: "MWC" } : {}),
+              });
+              setShowHeadCalc(false);
+            }}
+          />
+        )}
 
         <ErrorBanner show={showErrors} count={errorCount} />
 
