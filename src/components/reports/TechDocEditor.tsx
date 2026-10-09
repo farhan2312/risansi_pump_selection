@@ -24,6 +24,44 @@ const linkBtn = "text-[11.5px] font-semibold whitespace-nowrap hover:underline d
 
 const newId = () => Math.random().toString(36).slice(2, 10);
 
+/** The sheet header's editable lines (quotation number / ERP): blank shows
+ *  the automatic value, which is the placeholder. For this document only. */
+export function DocHeaderEditor({
+  fields,
+}: {
+  fields: { label: string; value: string; auto: string; onChange: (v: string) => void }[];
+}) {
+  return (
+    <section className="rounded-lg border border-line">
+      <h4 className="bg-[#dcebfb] px-3 py-1.5 text-center text-[12.5px] font-semibold text-[#0b3d7e]">Header</h4>
+      <div className="flex flex-col divide-y divide-line">
+        {fields.map((f) => (
+          <div key={f.label} className="grid grid-cols-1 items-center gap-2 px-3 py-2 sm:grid-cols-[200px_1fr_auto]">
+            <span className="text-[12.5px] font-semibold text-fg">{f.label}</span>
+            <input
+              className={`${cellCls} ${f.value ? "border-accent" : "border-line"}`}
+              value={f.value}
+              maxLength={300}
+              placeholder={f.auto || "—"}
+              onChange={(e) => f.onChange(e.target.value)}
+              aria-label={f.label}
+            />
+            <button
+              type="button"
+              className={`${linkBtn} text-fg-3 hover:text-accent`}
+              onClick={() => f.onChange("")}
+              disabled={!f.value}
+              title={f.auto ? `Automatic: ${f.auto}` : "Back to the automatic value"}
+            >
+              Reset
+            </button>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default function TechDocEditor<C extends EditableDocConfig>({
   tags,
   blocks,

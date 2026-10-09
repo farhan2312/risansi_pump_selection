@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import TechDocEditor from "../../components/reports/TechDocEditor";
+import TechDocEditor, { DocHeaderEditor } from "../../components/reports/TechDocEditor";
 import { DRIVE_GROUP_LABEL, type DriveGroup } from "../../lib/commercial";
 import {
   EMPTY_OFFER_CONFIG,
@@ -110,7 +110,9 @@ export default function CommercialOfferModal({
       0 ||
     config.scope !== null ||
     config.outOfScope !== null ||
-    config.scopeExtra.length > 0;
+    config.scopeExtra.length > 0 ||
+    !!config.quotationText ||
+    !!config.erpText;
 
   const geared = isGearedGroup(group);
   const sheet: OfferSheet | null = useMemo(() => {
@@ -121,8 +123,9 @@ export default function CommercialOfferModal({
       header: {
         clientName: data.clientName,
         enquiry: data.enquiry,
-        quotation: q && version ? `${q} (${version.label})` : q,
-        erp: data.erpNumbers?.[group] || undefined,
+        // Typed on the sheet's header wins over the automatic line.
+        quotation: config.quotationText || (q && version ? `${q} (${version.label})` : q),
+        erp: config.erpText || data.erpNumbers?.[group] || undefined,
       },
       tags,
       config,
@@ -248,6 +251,22 @@ export default function CommercialOfferModal({
 
               {editable && mode === "edit" ? (
                 <div className="flex min-h-0 flex-col gap-4 overflow-y-auto pr-1">
+                  <DocHeaderEditor
+                    fields={[
+                      {
+                        label: "Quotation No. & Date",
+                        value: config.quotationText ?? "",
+                        auto: data.quotations[group] ?? "",
+                        onChange: (v) => update({ ...config, quotationText: v }),
+                      },
+                      {
+                        label: "Quotation No. (ERP)",
+                        value: config.erpText ?? "",
+                        auto: data.erpNumbers?.[group] ?? "",
+                        onChange: (v) => update({ ...config, erpText: v }),
+                      },
+                    ]}
+                  />
                   <TechDocEditor
                     tags={tags}
                     blocks={buildOffer(tags, config, geared, { includeHidden: true })}

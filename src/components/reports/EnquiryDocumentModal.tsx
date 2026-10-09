@@ -17,7 +17,7 @@ import {
   type TechDocGroup,
   type TechDocVersion,
 } from "../../lib/tech-doc";
-import TechDocEditor from "./TechDocEditor";
+import TechDocEditor, { DocHeaderEditor } from "./TechDocEditor";
 import { downloadTechDocExcel } from "../../lib/tech-doc-excel";
 import { printHtml } from "../../lib/enquiry-print";
 import {
@@ -125,7 +125,9 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
     });
   };
   const customised =
-    config.hidden.length + Object.keys(config.labels).length + Object.keys(config.values).length + config.custom.length > 0;
+    config.hidden.length + Object.keys(config.labels).length + Object.keys(config.values).length + config.custom.length > 0 ||
+    !!config.quotationText ||
+    !!config.erpText;
   const resetAll = () => updateConfig({ ...EMPTY_TECH_DOC_CONFIG, extras: config.extras });
 
   const doc = useMemo(
@@ -373,7 +375,23 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
               )}
 
               {mode === "edit" && doc && !viewing ? (
-                <div className="max-h-[68vh] overflow-y-auto pr-1">
+                <div className="flex max-h-[68vh] flex-col gap-4 overflow-y-auto pr-1">
+                  <DocHeaderEditor
+                    fields={[
+                      {
+                        label: "Quotation No. & Date",
+                        value: config.quotationText ?? "",
+                        auto: (group && data?.quotations[group]) || "",
+                        onChange: (v) => updateConfig({ ...config, quotationText: v }),
+                      },
+                      {
+                        label: "Quotation No. (ERP)",
+                        value: config.erpText ?? "",
+                        auto: (group && data?.erpNumbers?.[group]) || "",
+                        onChange: (v) => updateConfig({ ...config, erpText: v }),
+                      },
+                    ]}
+                  />
                   <TechDocEditor
                     tags={doc.tags}
                     blocks={buildTechDoc(doc.tags, config, { includeHidden: true })}

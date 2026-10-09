@@ -22,7 +22,7 @@ import {
   pumpModelQtyInput,
   quotation,
 } from "@/lib/db/schema";
-import { DRIVE_GROUPS, quotationNumber } from "@/lib/commercial";
+import { DRIVE_GROUPS, erpQuotationNumber, quotationNumber } from "@/lib/commercial";
 import { projectDriveGroups } from "@/lib/commercial-server";
 import { dotDate, normalizeTechDocConfigs, type TechDocData, type TechDocForm, type TechDocPump } from "@/lib/tech-doc";
 
@@ -134,6 +134,12 @@ export async function loadTechDocData(projectId: string): Promise<TechDocData | 
       return { tagId: t.id, tagName: t.name, form, pump: pumpFor(form) };
     }),
     mixed,
+    erpNumbers: Object.fromEntries(
+      quotes.flatMap((q) => {
+        const erp = erpQuotationNumber(q, mixed);
+        return erp ? [[q.driveGroup, erp]] : [];
+      }),
+    ),
     quotations: Object.fromEntries(
       quotes.map((q) => [q.driveGroup, `${quotationNumber(q, mixed)}, Dt. ${dotDate(q.quoteDate)}`]),
     ),

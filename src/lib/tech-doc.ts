@@ -89,6 +89,8 @@ export interface TechDocData {
   mixed: boolean;
   /** Drive group → "RIL/QT/…/PCP/····/GM, Dt. …" (only groups with a quotation). */
   quotations: Record<string, string>;
+  /** Drive group → the quotation's ERP number (only when an ERP serial is entered). */
+  erpNumbers?: Record<string, string>;
   /** Drive group → that sheet's edits. */
   configs: Record<string, TechDocConfig>;
 }
@@ -107,9 +109,16 @@ export const techDocGroupLabel = (g: TechDocGroup): string => (g === "NONE" ? "N
 
 /** One drive group's printable sheet. */
 export function techDocSheet(data: TechDocData, group: TechDocGroup): TechDocSheet {
+  const cfg = data.configs[group];
   return {
     projectCode: data.projectCode,
-    header: { clientName: data.clientName, enquiry: data.enquiry, quotation: data.quotations[group] ?? "" },
+    header: {
+      clientName: data.clientName,
+      enquiry: data.enquiry,
+      // Typed on the sheet's header wins over the automatic line.
+      quotation: cfg?.quotationText || (data.quotations[group] ?? ""),
+      erp: cfg?.erpText || data.erpNumbers?.[group] || undefined,
+    },
     tags: data.tags.filter((t) => techDocGroupOf(t) === group),
     config: data.configs[group] ?? EMPTY_TECH_DOC_CONFIG,
     group: data.mixed && group !== "NONE" ? group : undefined,
@@ -403,6 +412,9 @@ export interface TechDocConfig {
   values: Record<string, Record<string, string>>;
   /** Rows added by hand, in order. */
   custom: TechDocCustomRow[];
+  /** Header lines typed in for this sheet ("" / absent = automatic). */
+  quotationText?: string;
+  erpText?: string;
 }
 
 export const EMPTY_TECH_DOC_CONFIG: TechDocConfig = { extras: [], hidden: [], labels: {}, values: {}, custom: [] };
@@ -449,6 +461,8 @@ export function normalizeTechDocConfig(raw: unknown): TechDocConfig {
     labels,
     values,
     custom,
+    quotationText: text(r.quotationText),
+    erpText: text(r.erpText),
   };
 }
 

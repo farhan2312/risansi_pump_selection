@@ -215,6 +215,9 @@ export interface OfferConfig {
   outOfScope: string[] | null;
   /** Items added by hand to this sheet's pool. */
   scopeExtra: string[];
+  /** Header lines typed in for this sheet ("" / absent = automatic). */
+  quotationText?: string;
+  erpText?: string;
 }
 
 export const EMPTY_OFFER_CONFIG: OfferConfig = {
@@ -275,6 +278,8 @@ export function normalizeOfferConfig(raw: unknown): OfferConfig {
     scope: scopeList(r.scope),
     outOfScope: scopeList(r.outOfScope),
     scopeExtra: scopeList(r.scopeExtra) ?? [],
+    quotationText: text(r.quotationText),
+    erpText: text(r.erpText),
   };
 }
 
