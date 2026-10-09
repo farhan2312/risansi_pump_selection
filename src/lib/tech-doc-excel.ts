@@ -4,7 +4,7 @@
  * quotation rows, then the section bands and rows, one column per tag.
  */
 import { downloadXlsx, type XlsxCell } from "./xlsx";
-import { LETTERHEAD, buildTechDoc, techDocFileStem, type TechDocHeader, type TechDocSheet } from "./tech-doc";
+import { LETTERHEAD, buildTechDoc, headerCells, techDocFileStem, type TechDocHeader, type TechDocSheet } from "./tech-doc";
 
 /** Sheet colours (as the printed sheet): navy title bar, light-blue section
  *  bands with navy text, faint-blue row labels. */
@@ -24,17 +24,23 @@ export function sheetHeaderRows(title: string, header: TechDocHeader, tagCount: 
     [{ value: `GST: ${L.gst}  |  CIN: ${L.cin}`, colSpan: width }],
     [{ value: `${L.email}  |  ${L.website}  |  ${L.phone}  |  ${L.address}`, colSpan: width }],
     [{ value: `${L.company} - ${title}`, colSpan: width, ...TITLE_BAND }],
-    [{ value: `Client Name: ${header.clientName}`, colSpan: width, wrap: true }],
-    [
-      { value: `Enquiry No. & Date: ${header.enquiry}`, colSpan: leftSpan, wrap: true },
-      {
-        value: `Quotation No. & Date: ${header.quotation || "-"}${header.erp ? `
-Quotation No. (ERP): ${header.erp}` : ""}`,
-        colSpan: width - leftSpan,
-        wrap: true,
-      },
-    ],
+    ...headerRows(header, width, leftSpan),
   ];
+}
+
+/** Client row + enquiry / quotation row, minus removed lines (as the printed sheet). */
+function headerRows(header: TechDocHeader, width: number, leftSpan: number): XlsxCell[][] {
+  const c = headerCells(header);
+  const quote = c.quote.join("\n");
+  const rows: XlsxCell[][] = [];
+  if (c.client !== null) rows.push([{ value: c.client, colSpan: width, wrap: true }]);
+  if (c.enquiry !== null && quote)
+    rows.push([
+      { value: c.enquiry, colSpan: leftSpan, wrap: true },
+      { value: quote, colSpan: width - leftSpan, wrap: true },
+    ]);
+  else if (c.enquiry !== null || quote) rows.push([{ value: c.enquiry ?? quote, colSpan: width, wrap: true }]);
+  return rows;
 }
 
 export function downloadTechDocExcel(data: TechDocSheet): string {

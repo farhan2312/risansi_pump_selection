@@ -61,6 +61,30 @@ export interface TechDocHeader {
   /** "RIL/QT/SV/26-27/PCP/1234" — the quotation's ERP number, when entered
    *  (Commercial Offer only); shown under the quotation number. */
   erp?: string;
+  /** Header lines removed from the sheet (HEADER_KEYS). */
+  hidden?: string[];
+}
+
+/** The sheet header's lines that can be removed. */
+export const HEADER_KEYS = ["client", "enquiry", "quotation", "erp"] as const;
+export type HeaderKey = (typeof HEADER_KEYS)[number];
+export const headerHiddenList = (v: unknown): HeaderKey[] =>
+  [...new Set((Array.isArray(v) ? v : []).map(String))].filter((k): k is HeaderKey =>
+    (HEADER_KEYS as readonly string[]).includes(k),
+  );
+
+/** The two header rows' cell texts after removals: client line, enquiry
+ *  cell, quotation cell (quotation / ERP lines). null = not shown. */
+export function headerCells(h: TechDocHeader): { client: string | null; enquiry: string | null; quote: string[] } {
+  const hid = new Set(h.hidden ?? []);
+  return {
+    client: hid.has("client") ? null : `Client Name: ${h.clientName}`,
+    enquiry: hid.has("enquiry") ? null : `Enquiry No. & Date: ${h.enquiry}`,
+    quote: [
+      hid.has("quotation") ? null : `Quotation No. & Date: ${h.quotation || "-"}`,
+      hid.has("erp") || !h.erp ? null : `Quotation No. (ERP): ${h.erp}`,
+    ].filter((x): x is string => x !== null),
+  };
 }
 
 /** ONE printable sheet: one drive group's tags, its quotation, its edits. */
@@ -118,6 +142,7 @@ export function techDocSheet(data: TechDocData, group: TechDocGroup): TechDocShe
       // Typed on the sheet's header wins over the automatic line.
       quotation: cfg?.quotationText || (data.quotations[group] ?? ""),
       erp: cfg?.erpText || data.erpNumbers?.[group] || undefined,
+      hidden: cfg?.headerHidden ?? [],
     },
     tags: data.tags.filter((t) => techDocGroupOf(t) === group),
     config: data.configs[group] ?? EMPTY_TECH_DOC_CONFIG,
@@ -415,6 +440,8 @@ export interface TechDocConfig {
   /** Header lines typed in for this sheet ("" / absent = automatic). */
   quotationText?: string;
   erpText?: string;
+  /** Header lines removed from this sheet. */
+  headerHidden?: HeaderKey[];
 }
 
 export const EMPTY_TECH_DOC_CONFIG: TechDocConfig = { extras: [], hidden: [], labels: {}, values: {}, custom: [] };
@@ -463,6 +490,7 @@ export function normalizeTechDocConfig(raw: unknown): TechDocConfig {
     custom,
     quotationText: text(r.quotationText),
     erpText: text(r.erpText),
+    headerHidden: headerHiddenList(r.headerHidden),
   };
 }
 
@@ -683,16 +711,24 @@ export function sheetHtml(opts: {
   </div>
   <table>${colgroup}<tbody>
     <tr class="title"><td colspan="${cols}">${esc(L.company)} - ${esc(opts.title)}</td></tr>
-    <tr class="meta"><td colspan="${cols}">Client Name: ${esc(data.header.clientName)}</td></tr>
-    <tr class="meta">
-      <td colspan="${leftSpan}">Enquiry No. &amp; Date: ${esc(data.header.enquiry)}</td>
-      <td colspan="${rightSpan}">Quotation No. &amp; Date: ${esc(data.header.quotation || "-")}${
-        data.header.erp ? `<br>Quotation No. (ERP): ${esc(data.header.erp)}` : ""
-      }</td>
-    </tr>
+    ${headerRowsHtml(data.header, cols, leftSpan, rightSpan)}
     ${body}
   </tbody></table>
 </div></body></html>`;
+}
+
+/** Client row + enquiry / quotation row, minus removed lines; a lone
+ *  enquiry or quotation cell spans the full width. */
+function headerRowsHtml(h: TechDocHeader, cols: number, leftSpan: number, rightSpan: number): string {
+  const c = headerCells(h);
+  const quote = c.quote.map(esc).join("<br>");
+  const rows: string[] = [];
+  if (c.client !== null) rows.push(`<tr class="meta"><td colspan="${cols}">${esc(c.client)}</td></tr>`);
+  if (c.enquiry !== null && quote)
+    rows.push(`<tr class="meta"><td colspan="${leftSpan}">${esc(c.enquiry)}</td><td colspan="${rightSpan}">${quote}</td></tr>`);
+  else if (c.enquiry !== null || quote)
+    rows.push(`<tr class="meta"><td colspan="${cols}">${c.enquiry !== null ? esc(c.enquiry) : quote}</td></tr>`);
+  return rows.join("\n    ");
 }
 
 /** Suggested file name stem: Technical-Data-Sheet_<client>_<enquiry>_<date>. */

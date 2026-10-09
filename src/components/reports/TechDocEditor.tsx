@@ -24,39 +24,79 @@ const linkBtn = "text-[11.5px] font-semibold whitespace-nowrap hover:underline d
 
 const newId = () => Math.random().toString(36).slice(2, 10);
 
-/** The sheet header's editable lines (quotation number / ERP): blank shows
- *  the automatic value, which is the placeholder. For this document only. */
+/** One header line in the editor. `onChange` absent = shown, not editable. */
+export type DocHeaderField = {
+  key: string;
+  label: string;
+  /** The typed text ("" = automatic). */
+  value: string;
+  /** The automatic value (prefilled into the box). */
+  auto: string;
+  onChange?: (v: string) => void;
+};
+
+/** The sheet header's lines: each can be removed / restored; the editable
+ *  ones (quotation / ERP) are prefilled with their automatic value — typing
+ *  replaces it, Reset brings it back. For this document only. */
 export function DocHeaderEditor({
   fields,
+  hidden,
+  onHiddenChange,
 }: {
-  fields: { label: string; value: string; auto: string; onChange: (v: string) => void }[];
+  fields: DocHeaderField[];
+  hidden: string[];
+  onHiddenChange: (next: string[]) => void;
 }) {
   return (
     <section className="rounded-lg border border-line">
       <h4 className="bg-[#dcebfb] px-3 py-1.5 text-center text-[12.5px] font-semibold text-[#0b3d7e]">Header</h4>
       <div className="flex flex-col divide-y divide-line">
-        {fields.map((f) => (
-          <div key={f.label} className="grid grid-cols-1 items-center gap-2 px-3 py-2 sm:grid-cols-[200px_1fr_auto]">
-            <span className="text-[12.5px] font-semibold text-fg">{f.label}</span>
-            <input
-              className={`${cellCls} ${f.value ? "border-accent" : "border-line"}`}
-              value={f.value}
-              maxLength={300}
-              placeholder={f.auto || "—"}
-              onChange={(e) => f.onChange(e.target.value)}
-              aria-label={f.label}
-            />
-            <button
-              type="button"
-              className={`${linkBtn} text-fg-3 hover:text-accent`}
-              onClick={() => f.onChange("")}
-              disabled={!f.value}
-              title={f.auto ? `Automatic: ${f.auto}` : "Back to the automatic value"}
+        {fields.map((f) => {
+          const removed = hidden.includes(f.key);
+          const edited = !!f.value && f.value !== f.auto;
+          return (
+            <div
+              key={f.key}
+              className={`grid grid-cols-1 items-center gap-2 px-3 py-2 sm:grid-cols-[200px_1fr_auto] ${removed ? "bg-sunk" : ""}`}
             >
-              Reset
-            </button>
-          </div>
-        ))}
+              <span className={`text-[12.5px] font-semibold ${removed ? "text-fg-4 line-through" : "text-fg"}`}>{f.label}</span>
+              {f.onChange && !removed ? (
+                <input
+                  className={`${cellCls} ${edited ? "border-accent" : "border-line"}`}
+                  value={f.value || f.auto}
+                  maxLength={300}
+                  placeholder="—"
+                  onChange={(e) => f.onChange?.(e.target.value === f.auto ? "" : e.target.value)}
+                  aria-label={f.label}
+                />
+              ) : (
+                <span className={`px-2 text-[12.5px] ${removed ? "text-fg-4" : "text-fg-2"}`}>
+                  {removed ? "Removed from the sheet" : f.value || f.auto || "—"}
+                </span>
+              )}
+              <span className="flex items-center gap-3">
+                {f.onChange && !removed && (
+                  <button
+                    type="button"
+                    className={`${linkBtn} text-fg-3 hover:text-accent`}
+                    onClick={() => f.onChange?.("")}
+                    disabled={!edited}
+                    title={f.auto ? `Automatic: ${f.auto}` : "Back to the automatic value"}
+                  >
+                    Reset
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={`${linkBtn} ${removed ? "text-accent" : "text-neg"}`}
+                  onClick={() => onHiddenChange(removed ? hidden.filter((k) => k !== f.key) : [...hidden, f.key])}
+                >
+                  {removed ? "Restore" : "Remove"}
+                </button>
+              </span>
+            </div>
+          );
+        })}
       </div>
     </section>
   );

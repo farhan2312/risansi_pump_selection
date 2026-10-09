@@ -127,7 +127,8 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
   const customised =
     config.hidden.length + Object.keys(config.labels).length + Object.keys(config.values).length + config.custom.length > 0 ||
     !!config.quotationText ||
-    !!config.erpText;
+    !!config.erpText ||
+    (config.headerHidden?.length ?? 0) > 0;
   const resetAll = () => updateConfig({ ...EMPTY_TECH_DOC_CONFIG, extras: config.extras });
 
   const doc = useMemo(
@@ -377,14 +378,20 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
               {mode === "edit" && doc && !viewing ? (
                 <div className="flex max-h-[68vh] flex-col gap-4 overflow-y-auto pr-1">
                   <DocHeaderEditor
+                    hidden={config.headerHidden ?? []}
+                    onHiddenChange={(next) => updateConfig({ ...config, headerHidden: next as TechDocConfig["headerHidden"] })}
                     fields={[
+                      { key: "client", label: "Client Name", value: "", auto: data?.clientName ?? "" },
+                      { key: "enquiry", label: "Enquiry No. & Date", value: "", auto: data?.enquiry ?? "" },
                       {
+                        key: "quotation",
                         label: "Quotation No. & Date",
                         value: config.quotationText ?? "",
                         auto: (group && data?.quotations[group]) || "",
                         onChange: (v) => updateConfig({ ...config, quotationText: v }),
                       },
                       {
+                        key: "erp",
                         label: "Quotation No. (ERP)",
                         value: config.erpText ?? "",
                         auto: (group && data?.erpNumbers?.[group]) || "",

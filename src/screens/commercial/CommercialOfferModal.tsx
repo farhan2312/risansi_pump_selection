@@ -112,7 +112,8 @@ export default function CommercialOfferModal({
     config.outOfScope !== null ||
     config.scopeExtra.length > 0 ||
     !!config.quotationText ||
-    !!config.erpText;
+    !!config.erpText ||
+    (config.headerHidden?.length ?? 0) > 0;
 
   const geared = isGearedGroup(group);
   const sheet: OfferSheet | null = useMemo(() => {
@@ -126,6 +127,7 @@ export default function CommercialOfferModal({
         // Typed on the sheet's header wins over the automatic line.
         quotation: config.quotationText || (q && version ? `${q} (${version.label})` : q),
         erp: config.erpText || data.erpNumbers?.[group] || undefined,
+        hidden: config.headerHidden ?? [],
       },
       tags,
       config,
@@ -252,14 +254,20 @@ export default function CommercialOfferModal({
               {editable && mode === "edit" ? (
                 <div className="flex min-h-0 flex-col gap-4 overflow-y-auto pr-1">
                   <DocHeaderEditor
+                    hidden={config.headerHidden ?? []}
+                    onHiddenChange={(next) => update({ ...config, headerHidden: next as OfferConfig["headerHidden"] })}
                     fields={[
+                      { key: "client", label: "Client Name", value: "", auto: data.clientName },
+                      { key: "enquiry", label: "Enquiry No. & Date", value: "", auto: data.enquiry },
                       {
+                        key: "quotation",
                         label: "Quotation No. & Date",
                         value: config.quotationText ?? "",
                         auto: data.quotations[group] ?? "",
                         onChange: (v) => update({ ...config, quotationText: v }),
                       },
                       {
+                        key: "erp",
                         label: "Quotation No. (ERP)",
                         value: config.erpText ?? "",
                         auto: data.erpNumbers?.[group] ?? "",
