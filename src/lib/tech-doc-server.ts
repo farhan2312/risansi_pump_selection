@@ -137,7 +137,7 @@ export async function loadTechDocData(projectId: string): Promise<TechDocData | 
     erpNumbers: Object.fromEntries(
       quotes.flatMap((q) => {
         const erp = erpQuotationNumber(q, mixed);
-        return erp ? [[q.driveGroup, erp]] : [];
+        return erp ? [[q.driveGroup, `${erp}, Dt. ${dotDate(q.quoteDate)}`]] : [];
       }),
     ),
     quotations: Object.fromEntries(

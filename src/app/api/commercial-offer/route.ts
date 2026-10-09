@@ -41,7 +41,7 @@ export async function GET(req: Request) {
     erpNumbers: Object.fromEntries(
       quotes.flatMap((q) => {
         const erp = erpQuotationNumber(q, mixed);
-        return erp ? [[q.driveGroup, erp]] : [];
+        return erp ? [[q.driveGroup, `${erp}, Dt. ${dotDate(q.quoteDate)}`]] : [];
       }),
     ),
     configs: normalizeOfferConfigs(p.config, [...DRIVE_GROUPS]),
