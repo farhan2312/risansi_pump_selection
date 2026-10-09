@@ -268,7 +268,7 @@ export default function CommercialOfferModal({
                       },
                       {
                         key: "erp",
-                        label: "Quotation No. (ERP)",
+                        label: "Quotation No. & Date (ERP)",
                         value: config.erpText ?? "",
                         auto: data.erpNumbers?.[group] ?? "",
                         onChange: (v) => update({ ...config, erpText: v }),

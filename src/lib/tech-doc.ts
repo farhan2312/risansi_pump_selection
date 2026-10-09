@@ -82,7 +82,7 @@ export function headerCells(h: TechDocHeader): { client: string | null; enquiry:
     enquiry: hid.has("enquiry") ? null : `Enquiry No. & Date: ${h.enquiry}`,
     quote: [
       hid.has("quotation") ? null : `Quotation No. & Date: ${h.quotation || "-"}`,
-      hid.has("erp") || !h.erp ? null : `Quotation No. (ERP): ${h.erp}`,
+      hid.has("erp") || !h.erp ? null : `Quotation No. & Date (ERP): ${h.erp}`,
     ].filter((x): x is string => x !== null),
   };
 }
