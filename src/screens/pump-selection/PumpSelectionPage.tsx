@@ -55,6 +55,11 @@ const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
     "solidPercentage", "solidSize", "solidSizeMax", "solidSizeMode", "solidType",
     "endConnection", "suctionConnection", "suctionFlangeStd", "dischargeFlangeStd",
     "ph", "temperature", "temperatureRaw", "temperatureUnit",
+    // Min–Max ranges (pH / viscosity / temperature) — without these a range
+    // was dropped on save and every document showed only the minimum.
+    "phMax", "phMode",
+    "viscosityMax", "viscosityCpMax", "viscosityMode",
+    "temperatureMax", "temperatureMaxRaw", "temperatureMode",
   ],
   "operating-conditions": [
     "pumpType", "agBk", "agBkRemarks", "bearingHousing", "suctionHousing", "jointType",
@@ -260,6 +265,14 @@ const PumpSelectionPage = () => {
     solidSize: "",
     solidSizeMax: "",
     solidSizeMode: "single",
+    phMax: "",
+    phMode: "single",
+    viscosityMax: "",
+    viscosityCpMax: "",
+    viscosityMode: "single",
+    temperatureMax: "",
+    temperatureMaxRaw: "",
+    temperatureMode: "single",
     solidType: "", // "Hard Solid" / "Soft Solid" — only meaningful when solidPercentage > 0
     endConnection: "", // discharge end connection type
     suctionConnection: "", // suction connection type
